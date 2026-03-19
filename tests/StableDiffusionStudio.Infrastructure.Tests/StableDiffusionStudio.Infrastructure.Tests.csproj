@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="ModelSources\TestFixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\StableDiffusionStudio.Infrastructure\StableDiffusionStudio.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\StableDiffusionStudio.Application\StableDiffusionStudio.Application.csproj" />
     <ProjectReference Include="..\..\src\StableDiffusionStudio.Domain\StableDiffusionStudio.Domain.csproj" />

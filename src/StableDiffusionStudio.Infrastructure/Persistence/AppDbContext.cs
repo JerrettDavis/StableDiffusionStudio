@@ -6,6 +6,7 @@ namespace StableDiffusionStudio.Infrastructure.Persistence;
 public class AppDbContext : DbContext
 {
     public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ModelRecord> ModelRecords => Set<ModelRecord>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
