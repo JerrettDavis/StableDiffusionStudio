@@ -1,0 +1,83 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.ValueObjects
+@inject ModelCatalogService CatalogService
+@inject IStorageRootProvider StorageRootProvider
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">Download: @Model.Title</MudText></TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrWhiteSpace(Model.Description))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3"
+                     Style="display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;">
+                @Model.Description
+            </MudText>
+        }
+
+        @if (Model.Variants.Count > 1)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Select variant:</MudText>
+            <MudRadioGroup @bind-Value="_selectedVariant">
+                @foreach (var variant in Model.Variants)
+                {
+                    <MudRadio Value="@variant.FileName" Color="Color.Primary">
+                        @variant.FileName (@FormatSize(variant.FileSize), @variant.Format)
+                    </MudRadio>
+                }
+            </MudRadioGroup>
+        }
+
+        <MudSelect T="StorageRoot" Label="Download to" @bind-Value="_targetRoot" Class="mt-3">
+            @if (_roots is not null)
+            {
+                @foreach (var root in _roots)
+                {
+                    <MudSelectItem T="StorageRoot" Value="@root">@root.DisplayName (@root.Path)</MudSelectItem>
+                }
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Download"
+                   Disabled="@(_targetRoot is null)">Download</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public required RemoteModelInfo Model { get; set; }
+    [Parameter] public required string ProviderId { get; set; }
+
+    private IReadOnlyList<StorageRoot>? _roots;
+    private StorageRoot? _targetRoot;
+    private string? _selectedVariant;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roots = await StorageRootProvider.GetRootsAsync();
+        _targetRoot = _roots.FirstOrDefault();
+        _selectedVariant = Model.Variants.FirstOrDefault()?.FileName;
+    }
+
+    private async Task Download()
+    {
+        if (_targetRoot is null) return;
+        var request = new DownloadRequest(ProviderId, Model.ExternalId, _selectedVariant, _targetRoot, Model.Type);
+        await CatalogService.RequestDownloadAsync(request);
+        Snackbar.Add($"Download started: {Model.Title}", MudBlazor.Severity.Success);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
+        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
+        _ => $"{bytes / 1_000.0:F1} KB"
+    };
+}
