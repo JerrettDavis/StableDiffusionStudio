@@ -1,12 +1,12 @@
 using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
-using StableDiffusionStudio.Domain.Entities;
+using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Domain.Services;
 using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Infrastructure.ModelSources;
 
-public class LocalFolderAdapter : IModelSourceAdapter
+public class LocalFolderProvider : IModelProvider
 {
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".safetensors", ".ckpt", ".gguf" };
@@ -14,13 +14,22 @@ public class LocalFolderAdapter : IModelSourceAdapter
     private static readonly HashSet<string> PreviewExtensions = new(StringComparer.OrdinalIgnoreCase)
         { ".png", ".jpg", ".jpeg", ".webp" };
 
-    public string SourceName => "local-folder";
+    public string ProviderId => "local-folder";
 
-    public Task<IReadOnlyList<ModelRecord>> ScanAsync(StorageRoot root, CancellationToken ct = default)
+    public string DisplayName => "Local Folder";
+
+    public ModelProviderCapabilities Capabilities => new(
+        CanScanLocal: true,
+        CanSearch: false,
+        CanDownload: false,
+        RequiresAuth: false,
+        SupportedModelTypes: Enum.GetValues<ModelType>().ToList());
+
+    public Task<IReadOnlyList<DiscoveredModel>> ScanLocalAsync(StorageRoot root, CancellationToken ct = default)
     {
-        var results = new List<ModelRecord>();
+        var results = new List<DiscoveredModel>();
         if (!Directory.Exists(root.Path))
-            return Task.FromResult<IReadOnlyList<ModelRecord>>(results);
+            return Task.FromResult<IReadOnlyList<DiscoveredModel>>(results);
 
         var files = Directory.EnumerateFiles(root.Path, "*.*", SearchOption.AllDirectories)
             .Where(f => SupportedExtensions.Contains(Path.GetExtension(f)));
@@ -32,18 +41,38 @@ public class LocalFolderAdapter : IModelSourceAdapter
             var modelFileInfo = new ModelFileInfo(fileInfo.Name, fileInfo.Length, ReadHeaderHint(filePath));
             var format = ModelFileAnalyzer.InferFormat(modelFileInfo);
             var family = ModelFileAnalyzer.InferFamily(modelFileInfo);
+            var modelType = ModelFileAnalyzer.InferModelType(modelFileInfo);
             var previewPath = FindPreviewImage(filePath);
-            var record = ModelRecord.Create(null, filePath, family, format, fileInfo.Length, SourceName);
-            if (previewPath is not null)
-                record.UpdateMetadata(previewImagePath: previewPath);
-            results.Add(record);
+
+            results.Add(new DiscoveredModel(
+                FilePath: filePath,
+                Title: null,
+                Type: modelType,
+                Family: family,
+                Format: format,
+                FileSize: fileInfo.Length,
+                PreviewImagePath: previewPath,
+                Description: null,
+                Tags: Array.Empty<string>()));
         }
 
-        return Task.FromResult<IReadOnlyList<ModelRecord>>(results);
+        return Task.FromResult<IReadOnlyList<DiscoveredModel>>(results);
     }
 
-    public ModelSourceCapabilities GetCapabilities() =>
-        new(CanScanLocal: true, CanDownload: false, CanSearch: false, RequiresAuth: false);
+    public Task<SearchResult> SearchAsync(ModelSearchQuery query, CancellationToken ct = default)
+    {
+        return Task.FromResult(new SearchResult([], 0, false));
+    }
+
+    public Task<DownloadResult> DownloadAsync(DownloadRequest request, IProgress<DownloadProgress> progress, CancellationToken ct = default)
+    {
+        return Task.FromResult(new DownloadResult(false, null, "Local provider does not support downloads"));
+    }
+
+    public Task<bool> ValidateCredentialsAsync(CancellationToken ct = default)
+    {
+        return Task.FromResult(true);
+    }
 
     private static string? FindPreviewImage(string modelFilePath)
     {
