@@ -1,6 +1,43 @@
 @page "/"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Application.Services
+@inject ProjectService ProjectService
+@inject ModelCatalogService ModelCatalogService
+@inject IJobQueue JobQueue
+@inject NavigationManager Nav
 
 <MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+
+<MudGrid Class="mb-6">
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Large" Color="Color.Primary" Class="mr-3" />
+            <div>
+                <MudText Typo="Typo.h5">@_projectCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Projects</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.ViewInAr" Size="Size.Large" Color="Color.Secondary" Class="mr-3" />
+            <div>
+                <MudText Typo="Typo.h5">@_modelCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Models</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="4">
+        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
+            <MudIcon Icon="@Icons.Material.Filled.WorkHistory" Size="Size.Large" Color="Color.Tertiary" Class="mr-3" />
+            <div>
+                <MudText Typo="Typo.h5">@_activeJobCount</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Active Jobs</MudText>
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 <MudGrid>
     <MudItem xs="12" md="6">
@@ -11,14 +48,58 @@
                        Href="/projects" Class="mb-2" FullWidth="true">
                 New Project
             </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.ViewInAr"
+                       Href="/models" Class="mb-2" FullWidth="true">
+                Browse Models
+            </MudButton>
         </MudPaper>
     </MudItem>
     <MudItem xs="12" md="6">
         <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-2">Recent Projects</MudText>
-            <EmptyState Title="No projects yet"
-                        Subtitle="Create your first project to get started"
-                        Icon="@Icons.Material.Filled.Folder" />
+            @if (_recentProjects is null || _recentProjects.Count == 0)
+            {
+                <EmptyState Title="No projects yet"
+                            Subtitle="Create your first project to get started"
+                            Icon="@Icons.Material.Filled.Folder" />
+            }
+            else
+            {
+                <MudList T="ProjectDto" Dense="true">
+                    @foreach (var project in _recentProjects)
+                    {
+                        <MudListItem T="ProjectDto" OnClick="() => NavigateToProject(project.Id)">
+                            <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                                <MudText Typo="Typo.body1">@project.Name</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@project.UpdatedAt.ToString("g")</MudText>
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
         </MudPaper>
     </MudItem>
 </MudGrid>
+
+@code {
+    private IReadOnlyList<ProjectDto>? _recentProjects;
+    private int _projectCount;
+    private int _modelCount;
+    private int _activeJobCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var projects = await ProjectService.ListAsync(new ProjectFilter());
+        _projectCount = projects.Count;
+        _recentProjects = projects.Take(5).ToList();
+
+        var models = await ModelCatalogService.ListAsync(new ModelFilter());
+        _modelCount = models.Count;
+
+        var activeJobs = await JobQueue.ListAsync(activeOnly: true);
+        _activeJobCount = activeJobs.Count;
+    }
+
+    private void NavigateToProject(Guid id) => Nav.NavigateTo($"/projects/{id}");
+}

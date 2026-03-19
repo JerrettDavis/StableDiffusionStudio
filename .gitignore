@@ -3,8 +3,16 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
 # dotenv files
 .env
+
+# Superpowers
+.superpowers/
 
 # User-specific files
 *.rsuser
