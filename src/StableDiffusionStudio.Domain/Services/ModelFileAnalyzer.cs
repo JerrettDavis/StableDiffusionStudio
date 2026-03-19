@@ -17,6 +17,36 @@ public static class ModelFileAnalyzer
         return FormatMap.GetValueOrDefault(ext, ModelFormat.Unknown);
     }
 
+    public static ModelType InferModelType(ModelFileInfo info)
+    {
+        var name = info.FileName.ToLowerInvariant();
+
+        // Filename-based (highest priority)
+        if (name.Contains("controlnet") || name.Contains("control_"))
+            return ModelType.ControlNet;
+        if (name.Contains("upscale") || name.Contains("esrgan") || name.Contains("swinir") || name.Contains("ultrasharp"))
+            return ModelType.Upscaler;
+        if (name.Contains("vae") || name.Contains(".vae."))
+            return ModelType.VAE;
+        if (name.Contains("lora") || info.FileName.Contains("Lora/") || info.FileName.Contains("Lora\\"))
+            return ModelType.LoRA;
+        if (name.Contains("embedding") || name.Contains("ti-"))
+            return ModelType.Embedding;
+
+        // Size-based fallback
+        var sizeMb = info.FileSize / 1_000_000.0;
+        var ext = Path.GetExtension(info.FileName).ToLowerInvariant();
+
+        return sizeMb switch
+        {
+            < 50 when ext is ".safetensors" or ".pt" or ".bin" => ModelType.Embedding,
+            < 200 when ext is ".safetensors" => ModelType.LoRA,
+            >= 300 and <= 800 when ext is ".safetensors" => ModelType.VAE,
+            > 1000 => ModelType.Checkpoint,
+            _ => ModelType.Unknown
+        };
+    }
+
     public static ModelFamily InferFamily(ModelFileInfo info)
     {
         if (!string.IsNullOrEmpty(info.HeaderHint))

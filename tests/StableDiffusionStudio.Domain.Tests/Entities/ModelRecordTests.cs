@@ -61,6 +61,35 @@ public class ModelRecordTests
     }
 
     [Fact]
+    public void Create_WithModelType_SetsTypeCorrectly()
+    {
+        var record = ModelRecord.Create("LoRA Model", "/models/lora.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 100_000_000L, "local-folder", ModelType.LoRA);
+
+        record.Type.Should().Be(ModelType.LoRA);
+    }
+
+    [Fact]
+    public void Create_WithoutModelType_DefaultsToCheckpoint()
+    {
+        var record = ModelRecord.Create("Model", "/models/model.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, "local-folder");
+
+        record.Type.Should().Be(ModelType.Checkpoint);
+    }
+
+    [Fact]
+    public void UpdateMetadata_WithType_UpdatesType()
+    {
+        var record = ModelRecord.Create(null, "/path/model.safetensors", ModelFamily.Unknown,
+            ModelFormat.SafeTensors, 1000, "local");
+
+        record.UpdateMetadata(type: ModelType.VAE);
+
+        record.Type.Should().Be(ModelType.VAE);
+    }
+
+    [Fact]
     public void UpdateMetadata_UpdatesFields()
     {
         var record = ModelRecord.Create(null, "/path/model.safetensors", ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "local");
