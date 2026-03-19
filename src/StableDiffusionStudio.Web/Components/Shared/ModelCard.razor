@@ -3,7 +3,8 @@
 <MudCard Elevation="1" Class="cursor-pointer" @onclick="() => OnClick.InvokeAsync(Model)">
     <MudCardContent>
         <MudText Typo="Typo.subtitle1" Class="mb-1">@Model.Title</MudText>
-        <div class="d-flex gap-2 mb-2">
+        <div class="d-flex gap-2 flex-wrap mb-2">
+            <MudChip T="string" Size="Size.Small" Color="Color.Tertiary">@Model.Type</MudChip>
             <MudChip T="string" Size="Size.Small" Color="Color.Primary">@Model.ModelFamily</MudChip>
             <MudChip T="string" Size="Size.Small" Color="Color.Secondary">@Model.Format</MudChip>
         </div>
