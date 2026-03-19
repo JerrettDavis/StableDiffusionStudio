@@ -7,6 +7,7 @@ using StableDiffusionStudio.Infrastructure.ModelSources;
 using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
 using StableDiffusionStudio.Infrastructure.Settings;
+using StableDiffusionStudio.Infrastructure.Telemetry;
 using StableDiffusionStudio.Infrastructure.Storage;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
@@ -46,6 +47,9 @@ builder.Services.AddScoped<ChannelJobQueue>();
 builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueue>());
 builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
+
+// Telemetry
+builder.Services.AddSingleton<StudioMetrics>();
 
 // SignalR
 builder.Services.AddSignalR();
