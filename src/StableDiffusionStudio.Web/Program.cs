@@ -20,9 +20,11 @@ builder.AddServiceDefaults();
 builder.Services.AddMudServices();
 
 // EF Core + SQLite
-var dbPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "StableDiffusionStudio", "Database", "studio.db");
+// Support test isolation via environment variable override
+var dbPath = Environment.GetEnvironmentVariable("SDS_TEST_DB_PATH")
+    ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "StableDiffusionStudio", "Database", "studio.db");
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -84,3 +86,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Make Program accessible for integration testing
+public partial class Program { }
