@@ -8,6 +8,7 @@ using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
 using StableDiffusionStudio.Infrastructure.Storage;
 using StableDiffusionStudio.Web.Components;
+using StableDiffusionStudio.Web.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +43,9 @@ builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueu
 builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 
+// SignalR
+builder.Services.AddSignalR();
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -67,6 +71,7 @@ app.UseStaticFiles();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapHub<StudioHub>("/hubs/studio");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
