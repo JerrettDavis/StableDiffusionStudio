@@ -40,8 +40,18 @@ builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
 // Model services
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
-builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
 builder.Services.AddScoped<ModelCatalogService>();
+
+// Model providers
+builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
+builder.Services.AddScoped<IModelProvider, HuggingFaceProvider>();
+builder.Services.AddScoped<IModelProvider, CivitAIProvider>();
+
+// Provider infrastructure
+builder.Services.AddScoped<IProviderCredentialStore, ProviderCredentialStore>();
+builder.Services.AddScoped<HttpDownloadClient>();
+builder.Services.AddHttpClient<HuggingFaceProvider>();
+builder.Services.AddHttpClient<CivitAIProvider>();
 
 // Background job system
 builder.Services.AddSingleton<JobChannel>();
@@ -49,6 +59,7 @@ builder.Services.AddScoped<ChannelJobQueue>();
 builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueue>());
 builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
+builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
 
 // Telemetry
 builder.Services.AddSingleton<StudioMetrics>();
