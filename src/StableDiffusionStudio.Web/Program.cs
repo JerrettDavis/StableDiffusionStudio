@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Application.Services;
+using StableDiffusionStudio.Infrastructure.Jobs;
 using StableDiffusionStudio.Infrastructure.ModelSources;
 using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
@@ -33,6 +34,13 @@ builder.Services.AddSingleton<IStorageRootProvider, InMemoryStorageRootProvider>
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
 builder.Services.AddScoped<IModelSourceAdapter, LocalFolderAdapter>();
 builder.Services.AddScoped<ModelCatalogService>();
+
+// Background job system
+builder.Services.AddSingleton<JobChannel>();
+builder.Services.AddScoped<ChannelJobQueue>();
+builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueue>());
+builder.Services.AddHostedService<BackgroundJobProcessor>();
+builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 
 // Blazor
 builder.Services.AddRazorComponents()
