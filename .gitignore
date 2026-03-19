@@ -7,6 +7,7 @@
 *.db
 *.db-shm
 *.db-wal
+*.db-journal
 
 # dotenv files
 .env
@@ -488,3 +489,10 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Coverage reports
+coverage-report/
+
+# DocFX output
+docs/_site/
+docs/api/

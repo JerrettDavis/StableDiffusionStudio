@@ -1,0 +1,9 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Generated files
+*.g.cs linguist-generated=true
+*.g.cs -diff
+
+# Lock files
+packages.lock.json linguist-generated=true

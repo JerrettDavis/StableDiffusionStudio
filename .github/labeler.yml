@@ -1,0 +1,41 @@
+'area: domain':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/StableDiffusionStudio.Domain/**/*'
+
+'area: application':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/StableDiffusionStudio.Application/**/*'
+
+'area: infrastructure':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/StableDiffusionStudio.Infrastructure/**/*'
+
+'area: web':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'src/StableDiffusionStudio.Web/**/*'
+
+'area: documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**/*'
+
+'area: tests':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'tests/**/*'
+
+'area: ci/cd':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/**/*'
+
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.csproj'
+      - 'Directory.Build.props'
