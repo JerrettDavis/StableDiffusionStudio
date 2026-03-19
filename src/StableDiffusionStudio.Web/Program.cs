@@ -40,7 +40,7 @@ builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
 // Model services
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
-builder.Services.AddScoped<IModelSourceAdapter, LocalFolderAdapter>();
+builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
 builder.Services.AddScoped<ModelCatalogService>();
 
 // Background job system
