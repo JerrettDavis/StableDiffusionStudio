@@ -1,0 +1,48 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Domain.Enums
+
+<MudCard Elevation="1" Class="mb-3">
+    <MudCardContent>
+        <div class="d-flex align-center justify-space-between mb-2">
+            <MudText Typo="Typo.subtitle1">@Job.Type</MudText>
+            <MudChip T="string" Size="Size.Small" Color="StatusColor">@Job.Status</MudChip>
+        </div>
+        @if (Job.Status == JobStatus.Running)
+        {
+            <MudProgressLinear Value="Job.Progress" Max="100" Color="Color.Primary" Class="mb-2" />
+            @if (!string.IsNullOrWhiteSpace(Job.Phase))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@Job.Phase</MudText>
+            }
+        }
+        @if (Job.Status == JobStatus.Failed && !string.IsNullOrWhiteSpace(Job.ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@Job.ErrorMessage</MudAlert>
+        }
+        @if (Job.Status == JobStatus.Completed && !string.IsNullOrWhiteSpace(Job.ResultData))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Success" Class="mt-1">@Job.ResultData</MudText>
+        }
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+            Created @Job.CreatedAt.ToString("g")
+            @if (Job.CompletedAt.HasValue)
+            {
+                <span> &bull; Finished @Job.CompletedAt.Value.ToString("g")</span>
+            }
+        </MudText>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public required JobRecordDto Job { get; set; }
+
+    private Color StatusColor => Job.Status switch
+    {
+        JobStatus.Pending => Color.Default,
+        JobStatus.Running => Color.Primary,
+        JobStatus.Completed => Color.Success,
+        JobStatus.Failed => Color.Error,
+        JobStatus.Cancelled => Color.Warning,
+        _ => Color.Default
+    };
+}

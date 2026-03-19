@@ -1,0 +1,66 @@
+@page "/jobs"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@inject IJobQueue JobQueue
+@implements IDisposable
+
+<MudText Typo="Typo.h4" Class="mb-4">Jobs</MudText>
+
+<MudToolBar Dense="true" Class="mb-4 px-0">
+    <MudToggleGroup T="bool" Value="_activeOnly" ValueChanged="OnFilterChanged" Color="Color.Primary">
+        <MudToggleItem T="bool" Value="true" Text="Active" />
+        <MudToggleItem T="bool" Value="false" Text="All" />
+    </MudToggleGroup>
+    <MudSpacer />
+    <MudText Typo="Typo.caption" Color="Color.Secondary">Auto-refreshes every 5 seconds</MudText>
+</MudToolBar>
+
+@if (_jobs is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_jobs.Count == 0)
+{
+    <EmptyState Title="No jobs found"
+                Subtitle="@(_activeOnly ? "No active jobs running" : "No jobs have been created yet")"
+                Icon="@Icons.Material.Filled.WorkHistory" />
+}
+else
+{
+    @foreach (var job in _jobs)
+    {
+        <JobProgressCard Job="job" />
+    }
+}
+
+@code {
+    private IReadOnlyList<JobRecordDto>? _jobs;
+    private bool _activeOnly = true;
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+        _timer = new Timer(async _ =>
+        {
+            await LoadJobs();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private async Task LoadJobs()
+    {
+        _jobs = await JobQueue.ListAsync(activeOnly: _activeOnly);
+    }
+
+    private async Task OnFilterChanged(bool activeOnly)
+    {
+        _activeOnly = activeOnly;
+        await LoadJobs();
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}
