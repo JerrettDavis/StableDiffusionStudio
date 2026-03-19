@@ -6,6 +6,7 @@ public class ModelRecord
 {
     public Guid Id { get; private set; }
     public string Title { get; private set; } = string.Empty;
+    public ModelType Type { get; private set; }
     public ModelFamily ModelFamily { get; private set; }
     public ModelFormat Format { get; private set; }
     public string FilePath { get; private set; } = string.Empty;
@@ -23,7 +24,7 @@ public class ModelRecord
     private ModelRecord() { } // EF Core
 
     public static ModelRecord Create(string? title, string filePath, ModelFamily modelFamily,
-        ModelFormat format, long fileSize, string source)
+        ModelFormat format, long fileSize, string source, ModelType type = ModelType.Checkpoint)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             throw new ArgumentException("File path is required.", nameof(filePath));
@@ -32,6 +33,7 @@ public class ModelRecord
         {
             Id = Guid.NewGuid(),
             Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileName(filePath) : title,
+            Type = type,
             ModelFamily = modelFamily,
             Format = format,
             FilePath = filePath,
@@ -55,7 +57,8 @@ public class ModelRecord
     }
 
     public void UpdateMetadata(string? title = null, ModelFamily? modelFamily = null, string? description = null,
-        IReadOnlyList<string>? tags = null, string? previewImagePath = null, string? compatibilityHints = null)
+        IReadOnlyList<string>? tags = null, string? previewImagePath = null, string? compatibilityHints = null,
+        ModelType? type = null)
     {
         if (title is not null) Title = title;
         if (modelFamily.HasValue) ModelFamily = modelFamily.Value;
@@ -63,6 +66,7 @@ public class ModelRecord
         if (tags is not null) Tags = tags;
         if (previewImagePath is not null) PreviewImagePath = previewImagePath;
         if (compatibilityHints is not null) CompatibilityHints = compatibilityHints;
+        if (type.HasValue) Type = type.Value;
         LastVerifiedAt = DateTimeOffset.UtcNow;
     }
 }

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StableDiffusionStudio.Domain.Entities;
+using StableDiffusionStudio.Domain.Enums;
 
 namespace StableDiffusionStudio.Infrastructure.Persistence.Configurations;
 
@@ -19,6 +20,7 @@ public class ModelRecordConfiguration : IEntityTypeConfiguration<ModelRecord>
         builder.Property(m => m.CompatibilityHints).HasMaxLength(2000);
         builder.Property(m => m.Checksum).HasMaxLength(128);
 
+        builder.Property(m => m.Type).HasConversion<string>().HasDefaultValue(ModelType.Checkpoint);
         builder.Property(m => m.ModelFamily).HasConversion<string>();
         builder.Property(m => m.Format).HasConversion<string>();
         builder.Property(m => m.Status).HasConversion<string>();
@@ -34,6 +36,7 @@ public class ModelRecordConfiguration : IEntityTypeConfiguration<ModelRecord>
         builder.Property(m => m.DetectedAt).HasConversion(dateTimeOffsetConverter);
         builder.Property(m => m.LastVerifiedAt).HasConversion(dateTimeOffsetConverter);
 
+        builder.HasIndex(m => m.Type);
         builder.HasIndex(m => m.FilePath).IsUnique();
         builder.HasIndex(m => m.ModelFamily);
         builder.HasIndex(m => m.Format);
