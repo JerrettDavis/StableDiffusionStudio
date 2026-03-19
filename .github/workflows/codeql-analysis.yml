@@ -25,6 +25,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install Aspire workload
+        run: dotnet workload install aspire
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
