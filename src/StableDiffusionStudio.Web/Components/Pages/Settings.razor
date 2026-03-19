@@ -1,0 +1,108 @@
+@page "/settings"
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.ValueObjects
+@inject IStorageRootProvider StorageRootProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Settings</MudText>
+
+<MudTabs Elevation="1" Rounded="true">
+    <MudTabPanel Text="Storage Roots" Icon="@Icons.Material.Filled.Folder">
+        <MudText Typo="Typo.body1" Class="mb-3">
+            Configure directories where your model files are stored.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="AddRoot" Class="mb-4">
+            Add Directory
+        </MudButton>
+
+        @if (_roots is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_roots.Count == 0)
+        {
+            <EmptyState Title="No directories configured"
+                        Subtitle="Add a model directory to get started scanning for models"
+                        Icon="@Icons.Material.Filled.FolderOff" />
+        }
+        else
+        {
+            <MudList T="StorageRoot">
+                @foreach (var root in _roots)
+                {
+                    <MudListItem T="StorageRoot" Icon="@Icons.Material.Filled.Folder">
+                        <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                            <div>
+                                <MudText Typo="Typo.subtitle1">@root.DisplayName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@root.Path</MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           Size="Size.Small" OnClick="() => RemoveRoot(root)" />
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
+            Appearance settings will be available in a future update.
+        </MudText>
+        <MudAlert Severity="Severity.Info" Dense="true">
+            The application currently uses a dark theme by default.
+        </MudAlert>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Diagnostics" Icon="@Icons.Material.Filled.BugReport">
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
+            Diagnostics and telemetry information will be available in a future update.
+        </MudText>
+        <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+            <tbody>
+                <tr><td><strong>Runtime</strong></td><td>@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</td></tr>
+                <tr><td><strong>OS</strong></td><td>@System.Runtime.InteropServices.RuntimeInformation.OSDescription</td></tr>
+                <tr><td><strong>Storage Roots</strong></td><td>@(_roots?.Count ?? 0)</td></tr>
+            </tbody>
+        </MudSimpleTable>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private IReadOnlyList<StorageRoot>? _roots;
+
+    protected override async Task OnInitializedAsync() => await LoadRoots();
+
+    private async Task LoadRoots()
+    {
+        _roots = await StorageRootProvider.GetRootsAsync();
+    }
+
+    private async Task AddRoot()
+    {
+        var dialog = await DialogService.ShowAsync<Dialogs.AddStorageRootDialog>("Add Model Directory");
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await LoadRoots();
+            Snackbar.Add("Directory added", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task RemoveRoot(StorageRoot root)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Remove Directory",
+            $"Remove '{root.DisplayName}' from storage roots? This will not delete any files.",
+            yesText: "Remove", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await StorageRootProvider.RemoveRootAsync(root.Path);
+            await LoadRoots();
+            Snackbar.Add("Directory removed", MudBlazor.Severity.Info);
+        }
+    }
+}
