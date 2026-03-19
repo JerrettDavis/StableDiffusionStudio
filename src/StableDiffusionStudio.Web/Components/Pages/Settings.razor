@@ -1,7 +1,11 @@
 @page "/settings"
+@using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IStorageRootProvider StorageRootProvider
+@inject IProviderCredentialStore CredentialStore
+@inject ModelCatalogService CatalogService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -47,6 +51,47 @@
         }
     </MudTabPanel>
 
+    <MudTabPanel Text="Model Sources" Icon="@Icons.Material.Filled.Cloud">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Configure credentials for remote model providers.
+        </MudText>
+
+        @if (_providerInfos is not null)
+        {
+            @foreach (var provider in _providerInfos.Where(p => p.Capabilities.CanSearch))
+            {
+                <MudCard Elevation="1" Class="mb-3">
+                    <MudCardContent>
+                        <div class="d-flex align-center justify-space-between mb-2">
+                            <MudText Typo="Typo.subtitle1">@provider.DisplayName</MudText>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(HasToken(provider.ProviderId) ? Color.Success : Color.Default)">
+                                @(HasToken(provider.ProviderId) ? "Connected" : "Not configured")
+                            </MudChip>
+                        </div>
+                        <MudTextField Value="@GetTokenValue(provider.ProviderId)"
+                                      ValueChanged="@((string val) => SetTokenValue(provider.ProviderId, val))"
+                                      Label="@(provider.ProviderId == "huggingface" ? "HF Token" : "API Key")"
+                                      InputType="InputType.Password"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        <div class="d-flex gap-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="() => SaveToken(provider.ProviderId)">Save</MudButton>
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                       OnClick="() => ValidateToken(provider.ProviderId)"
+                                       Disabled="_validating">Validate</MudButton>
+                            @if (HasToken(provider.ProviderId))
+                            {
+                                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                                           OnClick="() => RemoveToken(provider.ProviderId)">Remove</MudButton>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudTabPanel>
+
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
             Appearance settings will be available in a future update.
@@ -72,12 +117,105 @@
 
 @code {
     private IReadOnlyList<StorageRoot>? _roots;
+    private IReadOnlyList<ModelProviderInfo>? _providerInfos;
+    private readonly Dictionary<string, string> _tokenValues = new();
+    private readonly HashSet<string> _configuredProviders = new();
+    private bool _validating;
 
-    protected override async Task OnInitializedAsync() => await LoadRoots();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRoots();
+        await LoadProviders();
+    }
 
     private async Task LoadRoots()
     {
         _roots = await StorageRootProvider.GetRootsAsync();
+    }
+
+    private async Task LoadProviders()
+    {
+        _providerInfos = CatalogService.GetProviders();
+        foreach (var provider in _providerInfos.Where(p => p.Capabilities.CanSearch))
+        {
+            var existingToken = await CredentialStore.GetTokenAsync(provider.ProviderId);
+            if (existingToken is not null)
+            {
+                _tokenValues[provider.ProviderId] = existingToken;
+                _configuredProviders.Add(provider.ProviderId);
+            }
+            else
+            {
+                _tokenValues[provider.ProviderId] = string.Empty;
+            }
+        }
+    }
+
+    private string GetTokenValue(string providerId) =>
+        _tokenValues.TryGetValue(providerId, out var val) ? val : string.Empty;
+
+    private void SetTokenValue(string providerId, string value) =>
+        _tokenValues[providerId] = value;
+
+    private bool HasToken(string providerId) =>
+        _configuredProviders.Contains(providerId);
+
+    private async Task SaveToken(string providerId)
+    {
+        var token = GetTokenValue(providerId);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Snackbar.Add("Token cannot be empty", MudBlazor.Severity.Warning);
+            return;
+        }
+
+        await CredentialStore.SetTokenAsync(providerId, token);
+        _configuredProviders.Add(providerId);
+        Snackbar.Add("Token saved", MudBlazor.Severity.Success);
+    }
+
+    private async Task ValidateToken(string providerId)
+    {
+        _validating = true;
+        StateHasChanged();
+        try
+        {
+            // Ensure token is saved before validating
+            var token = GetTokenValue(providerId);
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                await CredentialStore.SetTokenAsync(providerId, token);
+                _configuredProviders.Add(providerId);
+            }
+
+            var providers = CatalogService.GetProviders();
+            var provider = providers.FirstOrDefault(p => p.ProviderId == providerId);
+            if (provider is null)
+            {
+                Snackbar.Add("Provider not found", MudBlazor.Severity.Error);
+                return;
+            }
+
+            // Use search with empty query as a credential validation test
+            var result = await CatalogService.SearchAsync(new ModelSearchQuery(providerId, "test", PageSize: 1));
+            Snackbar.Add("Credentials are valid", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Validation failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        finally
+        {
+            _validating = false;
+        }
+    }
+
+    private async Task RemoveToken(string providerId)
+    {
+        await CredentialStore.RemoveTokenAsync(providerId);
+        _tokenValues[providerId] = string.Empty;
+        _configuredProviders.Remove(providerId);
+        Snackbar.Add("Token removed", MudBlazor.Severity.Info);
     }
 
     private async Task AddRoot()
