@@ -1,0 +1,66 @@
+@page "/projects"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@inject ProjectService ProjectService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<MudText Typo="Typo.h4" Class="mb-4">Projects</MudText>
+
+<MudToolBar Dense="true" Class="mb-4 px-0">
+    <MudTextField @bind-Value="_searchTerm" Placeholder="Search projects..."
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="LoadProjects"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" />
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="CreateProject">New Project</MudButton>
+</MudToolBar>
+
+@if (_projects is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_projects.Count == 0)
+{
+    <EmptyState Title="No projects yet"
+                Subtitle="Create your first project to start generating images"
+                Icon="@Icons.Material.Filled.Folder"
+                ActionText="New Project"
+                OnAction="CreateProject" />
+}
+else
+{
+    <MudGrid>
+        @foreach (var project in _projects)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <ProjectCard Project="project" OnClick="@(p => Nav.NavigateTo($"/projects/{p.Id}"))" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<ProjectDto>? _projects;
+    private string? _searchTerm;
+
+    protected override async Task OnInitializedAsync() => await LoadProjects();
+
+    private async Task LoadProjects()
+    {
+        _projects = await ProjectService.ListAsync(new ProjectFilter(SearchTerm: _searchTerm));
+    }
+
+    private async Task CreateProject()
+    {
+        var dialog = await DialogService.ShowAsync<Dialogs.CreateProjectDialog>("New Project");
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await LoadProjects();
+            Snackbar.Add("Project created", MudBlazor.Severity.Success);
+        }
+    }
+}

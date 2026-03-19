@@ -1,0 +1,36 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Domain.Enums
+
+<MudCard Elevation="1" Class="cursor-pointer" @onclick="() => OnClick.InvokeAsync(Project)">
+    <MudCardContent>
+        <div class="d-flex align-center justify-space-between">
+            <MudText Typo="Typo.h6">@Project.Name</MudText>
+            <div>
+                @if (Project.IsPinned)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.PushPin" Size="Size.Small" Color="Color.Primary" />
+                }
+                <MudChip T="string" Size="Size.Small" Color="StatusColor">@Project.Status</MudChip>
+            </div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Project.Description))
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@Project.Description</MudText>
+        }
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+            Updated @Project.UpdatedAt.ToString("g")
+        </MudText>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public required ProjectDto Project { get; set; }
+    [Parameter] public EventCallback<ProjectDto> OnClick { get; set; }
+
+    private Color StatusColor => Project.Status switch
+    {
+        ProjectStatus.Active => Color.Success,
+        ProjectStatus.Archived => Color.Warning,
+        _ => Color.Default
+    };
+}
