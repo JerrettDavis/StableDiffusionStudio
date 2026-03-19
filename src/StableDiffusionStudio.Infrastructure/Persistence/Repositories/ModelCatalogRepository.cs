@@ -31,6 +31,8 @@ public class ModelCatalogRepository : IModelCatalogRepository
             query = query.Where(m => m.Status == filter.Status.Value);
         if (!string.IsNullOrWhiteSpace(filter.Source))
             query = query.Where(m => m.Source == filter.Source);
+        if (filter.Type.HasValue)
+            query = query.Where(m => m.Type == filter.Type.Value);
 
         return await query.OrderBy(m => m.Title).Skip(filter.Skip).Take(filter.Take).ToListAsync(ct);
     }
