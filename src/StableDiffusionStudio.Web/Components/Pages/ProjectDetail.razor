@@ -1,0 +1,99 @@
+@page "/projects/{Id:guid}"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@inject ProjectService ProjectService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+@if (_project is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudBreadcrumbs Items="_breadcrumbs" Class="mb-2 px-0" />
+
+    <div class="d-flex align-center justify-space-between mb-4">
+        <MudText Typo="Typo.h4">@_project.Name</MudText>
+        <MudMenu Icon="@Icons.Material.Filled.MoreVert">
+            <MudMenuItem OnClick="RenameProject" Icon="@Icons.Material.Filled.Edit">Rename</MudMenuItem>
+            <MudMenuItem OnClick="TogglePin" Icon="@Icons.Material.Filled.PushPin">
+                @(_project.IsPinned ? "Unpin" : "Pin")
+            </MudMenuItem>
+            <MudMenuItem OnClick="ArchiveProject" Icon="@Icons.Material.Filled.Archive">Archive</MudMenuItem>
+            <MudMenuItem OnClick="DeleteProject" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">Delete</MudMenuItem>
+        </MudMenu>
+    </div>
+
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">
+        @(_project.Description ?? "No description")
+    </MudText>
+
+    <MudPaper Class="pa-6" Elevation="1">
+        <EmptyState Title="Generation workspace coming soon"
+                    Subtitle="Model selection and image generation will appear here in Milestone 3"
+                    Icon="@Icons.Material.Filled.Image" />
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private ProjectDto? _project;
+    private List<BreadcrumbItem> _breadcrumbs = new();
+
+    protected override async Task OnInitializedAsync() => await LoadProject();
+
+    private async Task LoadProject()
+    {
+        _project = await ProjectService.GetByIdAsync(Id);
+        _breadcrumbs = new()
+        {
+            new("Projects", "/projects"),
+            new(_project?.Name ?? "Unknown", null, disabled: true)
+        };
+    }
+
+    private async Task RenameProject()
+    {
+        var parameters = new DialogParameters<Dialogs.RenameProjectDialog>
+        {
+            { x => x.ProjectId, Id },
+            { x => x.CurrentName, _project!.Name }
+        };
+        var dialog = await DialogService.ShowAsync<Dialogs.RenameProjectDialog>("Rename", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await LoadProject();
+            Snackbar.Add("Project renamed", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task TogglePin()
+    {
+        if (_project!.IsPinned) await ProjectService.UnpinAsync(Id);
+        else await ProjectService.PinAsync(Id);
+        await LoadProject();
+    }
+
+    private async Task ArchiveProject()
+    {
+        await ProjectService.ArchiveAsync(Id);
+        Nav.NavigateTo("/projects");
+        Snackbar.Add("Project archived", MudBlazor.Severity.Info);
+    }
+
+    private async Task DeleteProject()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Project", "Are you sure? This action cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await ProjectService.DeleteAsync(Id);
+            Nav.NavigateTo("/projects");
+            Snackbar.Add("Project deleted", MudBlazor.Severity.Warning);
+        }
+    }
+}

@@ -1,0 +1,32 @@
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Application.Commands
+@inject ProjectService ProjectService
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">Rename Project</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="New Name" Required="true"
+                      RequiredError="Name is required" AutoFocus="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="Submit" Disabled="string.IsNullOrWhiteSpace(_name)">Rename</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public string CurrentName { get; set; } = string.Empty;
+    private string _name = string.Empty;
+
+    protected override void OnInitialized() => _name = CurrentName;
+
+    private async Task Submit()
+    {
+        await ProjectService.RenameAsync(new RenameProjectCommand(ProjectId, _name));
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+    private void Cancel() => MudDialog.Cancel();
+}
