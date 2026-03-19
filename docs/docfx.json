@@ -1,0 +1,21 @@
+{
+  "metadata": [{
+    "src": [{
+      "src": "../src",
+      "files": ["**/*.csproj"]
+    }],
+    "dest": "api"
+  }],
+  "build": {
+    "content": [
+      { "files": ["**/*.yml", "**/*.md"], "src": "." },
+      { "files": ["**/*.yml"], "src": "api" }
+    ],
+    "dest": "_site",
+    "globalMetadata": {
+      "_appTitle": "Stable Diffusion Studio",
+      "_enableSearch": true
+    },
+    "template": ["default", "modern"]
+  }
+}

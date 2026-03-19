@@ -1,0 +1,17 @@
+<Project>
+    <PropertyGroup>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>preview</LangVersion>
+        <Deterministic>true</Deterministic>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Authors>Jerrett Davis and contributors</Authors>
+        <Company>JDH Productions LLC.</Company>
+        <Product>Stable Diffusion Studio</Product>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryUrl>https://github.com/JerrettDavis/StableDiffusionStudio</RepositoryUrl>
+    </PropertyGroup>
+</Project>

@@ -1,0 +1,4 @@
+ignore:
+  - "**/*.Tests/**"
+  - "**/*Tests*/**"
+  - "**/E2E.Tests/**"

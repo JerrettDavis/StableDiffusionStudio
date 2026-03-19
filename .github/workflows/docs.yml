@@ -1,0 +1,51 @@
+name: Publish docs
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  publish-docs:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install DocFX
+        run: dotnet tool update -g docfx
+
+      - name: Build solution
+        run: dotnet build StableDiffusionStudio.slnx -c Release
+
+      - name: Generate API metadata
+        run: docfx metadata docs/docfx.json
+
+      - name: Build documentation
+        run: docfx build docs/docfx.json
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: 'docs/_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

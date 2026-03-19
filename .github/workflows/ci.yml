@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  pr-checks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore StableDiffusionStudio.slnx
+
+      - name: Build (Release)
+        run: dotnet build StableDiffusionStudio.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
+
+      - name: Test with coverage
+        timeout-minutes: 10
+        run: |
+          dotnet test StableDiffusionStudio.slnx \
+            --configuration Release \
+            --no-build \
+            --filter "FullyQualifiedName!~E2E" \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio*]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*"
+
+      - name: Install ReportGenerator
+        run: dotnet tool update -g dotnet-reportgenerator-globaltool
+
+      - name: Combine coverage and create reports
+        shell: bash
+        run: |
+          REPORTS=$(find . -type f -path "*/TestResults/*/coverage.cobertura.xml" | tr '\n' ';')
+          reportgenerator \
+            -reports:"$REPORTS" \
+            -targetdir:"coverage-report" \
+            -reporttypes:"HtmlInline;Cobertura;TextSummary;lcov;Badges" \
+            -assemblyfilters:"+StableDiffusionStudio*;-*Tests*" \
+            -filefilters:"-**/*.Tests/*;-**/*Tests*/**"
+          echo "COVERAGE_SUMMARY<<EOF" >> $GITHUB_ENV
+          cat coverage-report/Summary.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage-report
+
+      - name: Add coverage summary to PR
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          recreate: true
+          message: |
+            ## Code Coverage
+            ```
+            ${{ env.COVERAGE_SUMMARY }}
+            ```
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: |
+            **/TestResults/*/coverage.cobertura.xml
+          flags: unittests
+          fail_ci_if_error: true
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Fetch tags
+        run: git fetch --prune --tags
+
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v4
+        with:
+          versionSpec: '6.x'
+
+      - name: Run GitVersion
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4
+
+      - name: Set version env vars
+        run: |
+          echo "PACKAGE_VERSION=${{ steps.gitversion.outputs.majorMinorPatch }}" >> $GITHUB_ENV
+          echo "ASSEMBLY_VERSION=${{ steps.gitversion.outputs.assemblySemVer }}" >> $GITHUB_ENV
+          echo "FILE_VERSION=${{ steps.gitversion.outputs.assemblySemFileVer }}" >> $GITHUB_ENV
+
+      - name: Restore
+        run: dotnet restore StableDiffusionStudio.slnx
+
+      - name: Build (Release)
+        run: >
+          dotnet build StableDiffusionStudio.slnx
+          --configuration Release
+          --no-restore
+          /p:ContinuousIntegrationBuild=true
+          /p:Version=${{ env.PACKAGE_VERSION }}
+          /p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }}
+          /p:FileVersion=${{ env.FILE_VERSION }}
+
+      - name: Test with coverage (Release)
+        timeout-minutes: 10
+        run: |
+          dotnet test StableDiffusionStudio.slnx \
+            --configuration Release \
+            --no-build \
+            --filter "FullyQualifiedName!~E2E" \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio*]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*" \
+            -- RunConfiguration.TestSessionTimeout=300000
+
+      - name: Upload coverage to Codecov (Release)
+        uses: codecov/codecov-action@v5
+        with:
+          files: |
+            **/TestResults/*/coverage.cobertura.xml
+          flags: unittests
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Create and push git tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          if git rev-parse "v${PACKAGE_VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${PACKAGE_VERSION} already exists. Skipping tag push."
+          else
+            git tag "v${PACKAGE_VERSION}"
+            git push origin "v${PACKAGE_VERSION}"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.PACKAGE_VERSION }}
+          name: Release v${{ env.PACKAGE_VERSION }}
+          generate_release_notes: true

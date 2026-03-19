@@ -1,0 +1,8 @@
+- name: Architecture
+  href: architecture/
+- name: Specification
+  href: SPEC.md
+- name: ADRs
+  href: adrs/
+- name: API Reference
+  href: api/
