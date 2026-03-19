@@ -8,6 +8,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ModelRecord> ModelRecords => Set<ModelRecord>();
     public DbSet<JobRecord> JobRecords => Set<JobRecord>();
+    public DbSet<Setting> Settings => Set<Setting>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

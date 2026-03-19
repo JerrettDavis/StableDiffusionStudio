@@ -6,6 +6,7 @@ using StableDiffusionStudio.Infrastructure.Jobs;
 using StableDiffusionStudio.Infrastructure.ModelSources;
 using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
+using StableDiffusionStudio.Infrastructure.Settings;
 using StableDiffusionStudio.Infrastructure.Storage;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
@@ -30,8 +31,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<ProjectService>();
 
+// Settings
+builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
+
 // Model services
-builder.Services.AddSingleton<IStorageRootProvider, InMemoryStorageRootProvider>();
+builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
 builder.Services.AddScoped<IModelSourceAdapter, LocalFolderAdapter>();
 builder.Services.AddScoped<ModelCatalogService>();
