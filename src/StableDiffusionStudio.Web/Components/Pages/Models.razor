@@ -1,0 +1,126 @@
+@page "/models"
+@using StableDiffusionStudio.Application.Commands
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject ModelCatalogService ModelCatalogService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Models</MudText>
+
+<MudToolBar Dense="true" Class="mb-4 px-0">
+    <MudTextField @bind-Value="_searchTerm" Placeholder="Search models..."
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="LoadModels"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" />
+    <MudSelect T="ModelFamily?" Label="Family" Value="_familyFilter" ValueChanged="OnFamilyChanged"
+               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="max-width: 180px;"
+               Clearable="true">
+        @foreach (var family in Enum.GetValues<ModelFamily>())
+        {
+            <MudSelectItem T="ModelFamily?" Value="@family">@family</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSpacer />
+    <MudButton Variant="Variant.Outlined" Color="Color.Default"
+               StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="AddDirectory" Class="mr-2">
+        Add Directory
+    </MudButton>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Refresh" OnClick="ScanNow" Disabled="_scanning">
+        @if (_scanning)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            <span>Scanning...</span>
+        }
+        else
+        {
+            <span>Scan Now</span>
+        }
+    </MudButton>
+</MudToolBar>
+
+@if (_scanning && _models is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_models is null || _models.Count == 0)
+{
+    <EmptyState Title="No models discovered"
+                Subtitle="Add a model directory and scan to discover your models"
+                Icon="@Icons.Material.Filled.ViewInAr"
+                ActionText="Add Directory"
+                OnAction="AddDirectory" />
+}
+else
+{
+    <MudGrid>
+        @foreach (var model in _models)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <ModelCard Model="model" OnClick="ShowModelDetail" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<ModelRecordDto>? _models;
+    private string? _searchTerm;
+    private ModelFamily? _familyFilter;
+    private bool _scanning;
+
+    protected override async Task OnInitializedAsync() => await LoadModels();
+
+    private async Task LoadModels()
+    {
+        _models = await ModelCatalogService.ListAsync(
+            new ModelFilter(SearchTerm: _searchTerm, Family: _familyFilter));
+    }
+
+    private async Task OnFamilyChanged(ModelFamily? family)
+    {
+        _familyFilter = family;
+        await LoadModels();
+    }
+
+    private async Task AddDirectory()
+    {
+        var dialog = await DialogService.ShowAsync<Dialogs.AddStorageRootDialog>("Add Model Directory");
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            Snackbar.Add("Directory added. Click Scan Now to discover models.", MudBlazor.Severity.Info);
+        }
+    }
+
+    private async Task ScanNow()
+    {
+        _scanning = true;
+        StateHasChanged();
+        try
+        {
+            var result = await ModelCatalogService.ScanAsync(new ScanModelsCommand(null));
+            await LoadModels();
+            Snackbar.Add($"Scan complete: {result.NewCount} new, {result.UpdatedCount} updated", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Scan failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task ShowModelDetail(ModelRecordDto model)
+    {
+        var parameters = new DialogParameters<Dialogs.ModelDetailDialog>
+        {
+            { x => x.Model, model }
+        };
+        await DialogService.ShowAsync<Dialogs.ModelDetailDialog>(model.Title, parameters);
+    }
+}

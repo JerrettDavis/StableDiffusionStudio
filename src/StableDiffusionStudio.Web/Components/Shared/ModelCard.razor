@@ -1,0 +1,26 @@
+@using StableDiffusionStudio.Application.DTOs
+
+<MudCard Elevation="1" Class="cursor-pointer" @onclick="() => OnClick.InvokeAsync(Model)">
+    <MudCardContent>
+        <MudText Typo="Typo.subtitle1" Class="mb-1">@Model.Title</MudText>
+        <div class="d-flex gap-2 mb-2">
+            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@Model.ModelFamily</MudChip>
+            <MudChip T="string" Size="Size.Small" Color="Color.Secondary">@Model.Format</MudChip>
+        </div>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            @FormatFileSize(Model.FileSize) &bull; @Model.Source
+        </MudText>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public required ModelRecordDto Model { get; set; }
+    [Parameter] public EventCallback<ModelRecordDto> OnClick { get; set; }
+
+    private static string FormatFileSize(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
+        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
+        _ => $"{bytes / 1_000.0:F1} KB"
+    };
+}

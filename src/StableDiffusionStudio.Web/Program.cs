@@ -2,8 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Application.Services;
+using StableDiffusionStudio.Infrastructure.ModelSources;
 using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
+using StableDiffusionStudio.Infrastructure.Storage;
 using StableDiffusionStudio.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +27,12 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Application services
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<ProjectService>();
+
+// Model services
+builder.Services.AddSingleton<IStorageRootProvider, InMemoryStorageRootProvider>();
+builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
+builder.Services.AddScoped<IModelSourceAdapter, LocalFolderAdapter>();
+builder.Services.AddScoped<ModelCatalogService>();
 
 // Blazor
 builder.Services.AddRazorComponents()
