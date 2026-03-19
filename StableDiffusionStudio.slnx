@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/StableDiffusionStudio.AppHost/StableDiffusionStudio.AppHost.csproj" />
+    <Project Path="src/StableDiffusionStudio.Application/StableDiffusionStudio.Application.csproj" />
+    <Project Path="src/StableDiffusionStudio.Domain/StableDiffusionStudio.Domain.csproj" />
+    <Project Path="src/StableDiffusionStudio.Infrastructure/StableDiffusionStudio.Infrastructure.csproj" />
+    <Project Path="src/StableDiffusionStudio.ServiceDefaults/StableDiffusionStudio.ServiceDefaults.csproj" />
+    <Project Path="src/StableDiffusionStudio.Web/StableDiffusionStudio.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/StableDiffusionStudio.Application.Tests/StableDiffusionStudio.Application.Tests.csproj" />
+    <Project Path="tests/StableDiffusionStudio.Domain.Tests/StableDiffusionStudio.Domain.Tests.csproj" />
+    <Project Path="tests/StableDiffusionStudio.Infrastructure.Tests/StableDiffusionStudio.Infrastructure.Tests.csproj" />
+    <Project Path="tests/StableDiffusionStudio.Web.Tests/StableDiffusionStudio.Web.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\StableDiffusionStudio.Application\StableDiffusionStudio.Application.csproj" />
+    <ProjectReference Include="..\StableDiffusionStudio.ServiceDefaults\StableDiffusionStudio.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\StableDiffusionStudio.Infrastructure\StableDiffusionStudio.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="9.2.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>
