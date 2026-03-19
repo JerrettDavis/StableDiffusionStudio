@@ -13,14 +13,19 @@ namespace StableDiffusionStudio.Application.Tests.Services;
 public class ModelCatalogServiceTests
 {
     private readonly IModelCatalogRepository _catalogRepo = Substitute.For<IModelCatalogRepository>();
-    private readonly IModelSourceAdapter _adapter = Substitute.For<IModelSourceAdapter>();
+    private readonly IModelProvider _provider = Substitute.For<IModelProvider>();
     private readonly IStorageRootProvider _rootProvider = Substitute.For<IStorageRootProvider>();
+    private readonly IJobQueue _jobQueue = Substitute.For<IJobQueue>();
     private readonly ModelCatalogService _service;
 
     public ModelCatalogServiceTests()
     {
-        _adapter.SourceName.Returns("test-adapter");
-        _service = new ModelCatalogService(_catalogRepo, new[] { _adapter }, _rootProvider);
+        _provider.ProviderId.Returns("test-provider");
+        _provider.DisplayName.Returns("Test Provider");
+        _provider.Capabilities.Returns(new ModelProviderCapabilities(
+            CanScanLocal: true, CanSearch: true, CanDownload: false,
+            RequiresAuth: false, SupportedModelTypes: Enum.GetValues<ModelType>().ToList()));
+        _service = new ModelCatalogService(_catalogRepo, new[] { _provider }, _rootProvider, _jobQueue);
     }
 
     [Fact]
@@ -28,9 +33,9 @@ public class ModelCatalogServiceTests
     {
         var root = new StorageRoot("/models", "Models");
         _rootProvider.GetRootsAsync().Returns(new[] { root });
-        var scannedModel = ModelRecord.Create("Found Model", "/models/m.safetensors",
-            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, "test-adapter");
-        _adapter.ScanAsync(root).Returns(new[] { scannedModel });
+        var discovered = new DiscoveredModel("/models/m.safetensors", "Found Model", ModelType.Checkpoint,
+            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, null, null, Array.Empty<string>());
+        _provider.ScanLocalAsync(root).Returns(new[] { discovered });
         _catalogRepo.GetByFilePathAsync("/models/m.safetensors").Returns((ModelRecord?)null);
 
         var result = await _service.ScanAsync(new ScanModelsCommand(null));
@@ -44,12 +49,12 @@ public class ModelCatalogServiceTests
     {
         var root = new StorageRoot("/specific", "Specific");
         _rootProvider.GetRootsAsync().Returns(new[] { root, new StorageRoot("/other", "Other") });
-        _adapter.ScanAsync(Arg.Is<StorageRoot>(r => r.Path == "/specific")).Returns(Array.Empty<ModelRecord>());
+        _provider.ScanLocalAsync(Arg.Is<StorageRoot>(r => r.Path == "/specific")).Returns(Array.Empty<DiscoveredModel>());
 
         await _service.ScanAsync(new ScanModelsCommand("/specific"));
 
-        await _adapter.Received(1).ScanAsync(Arg.Is<StorageRoot>(r => r.Path == "/specific"), Arg.Any<CancellationToken>());
-        await _adapter.DidNotReceive().ScanAsync(Arg.Is<StorageRoot>(r => r.Path == "/other"), Arg.Any<CancellationToken>());
+        await _provider.Received(1).ScanLocalAsync(Arg.Is<StorageRoot>(r => r.Path == "/specific"), Arg.Any<CancellationToken>());
+        await _provider.DidNotReceive().ScanLocalAsync(Arg.Is<StorageRoot>(r => r.Path == "/other"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -58,11 +63,11 @@ public class ModelCatalogServiceTests
         var root = new StorageRoot("/models", "Models");
         _rootProvider.GetRootsAsync().Returns(new[] { root });
         var existing = ModelRecord.Create("Existing", "/models/m.safetensors",
-            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "test-adapter");
+            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "test-provider");
         _catalogRepo.GetByFilePathAsync("/models/m.safetensors").Returns(existing);
-        var scanned = ModelRecord.Create("Scanned", "/models/m.safetensors",
-            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, "test-adapter");
-        _adapter.ScanAsync(root).Returns(new[] { scanned });
+        var discovered = new DiscoveredModel("/models/m.safetensors", "Scanned", ModelType.Checkpoint,
+            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, null, null, Array.Empty<string>());
+        _provider.ScanLocalAsync(root).Returns(new[] { discovered });
 
         var result = await _service.ScanAsync(new ScanModelsCommand(null));
 
@@ -84,5 +89,80 @@ public class ModelCatalogServiceTests
 
         result.Should().HaveCount(1);
         result[0].Title.Should().Be("A");
+    }
+
+    [Fact]
+    public async Task ScanAsync_SkipsProviderWithoutLocalScanCapability()
+    {
+        var nonScanProvider = Substitute.For<IModelProvider>();
+        nonScanProvider.ProviderId.Returns("remote-only");
+        nonScanProvider.Capabilities.Returns(new ModelProviderCapabilities(
+            CanScanLocal: false, CanSearch: true, CanDownload: true,
+            RequiresAuth: false, SupportedModelTypes: Enum.GetValues<ModelType>().ToList()));
+
+        var service = new ModelCatalogService(_catalogRepo, new[] { nonScanProvider }, _rootProvider, _jobQueue);
+        var root = new StorageRoot("/models", "Models");
+        _rootProvider.GetRootsAsync().Returns(new[] { root });
+
+        await service.ScanAsync(new ScanModelsCommand(null));
+
+        await nonScanProvider.DidNotReceive().ScanLocalAsync(Arg.Any<StorageRoot>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SearchAsync_DispatchesToCorrectProvider()
+    {
+        var expectedResult = new SearchResult(new List<RemoteModelInfo>
+        {
+            new("ext-1", "Model A", null, ModelType.Checkpoint, ModelFamily.SD15, ModelFormat.SafeTensors,
+                2_000_000_000L, null, Array.Empty<string>(), "https://example.com", Array.Empty<ModelFileVariant>())
+        }, 1, false);
+
+        _provider.SearchAsync(Arg.Any<ModelSearchQuery>(), Arg.Any<CancellationToken>())
+            .Returns(expectedResult);
+
+        var query = new ModelSearchQuery("test-provider", SearchTerm: "Model A");
+        var result = await _service.SearchAsync(query);
+
+        result.Models.Should().HaveCount(1);
+        result.Models[0].Title.Should().Be("Model A");
+        await _provider.Received(1).SearchAsync(Arg.Is<ModelSearchQuery>(q => q.ProviderId == "test-provider"), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithUnknownProvider_ReturnsEmptyResult()
+    {
+        var query = new ModelSearchQuery("unknown-provider", SearchTerm: "anything");
+        var result = await _service.SearchAsync(query);
+
+        result.Models.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+        result.HasMore.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RequestDownloadAsync_EnqueuesJobWithSerializedRequest()
+    {
+        var expectedJobId = Guid.NewGuid();
+        _jobQueue.EnqueueAsync("model-download", Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(expectedJobId);
+
+        var request = new DownloadRequest("test-provider", "ext-123", null,
+            new StorageRoot("/models", "Models"), ModelType.Checkpoint);
+        var jobId = await _service.RequestDownloadAsync(request);
+
+        jobId.Should().Be(expectedJobId);
+        await _jobQueue.Received(1).EnqueueAsync("model-download", Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void GetProviders_ReturnsProviderInfoList()
+    {
+        var providers = _service.GetProviders();
+
+        providers.Should().HaveCount(1);
+        providers[0].ProviderId.Should().Be("test-provider");
+        providers[0].DisplayName.Should().Be("Test Provider");
+        providers[0].Capabilities.CanScanLocal.Should().BeTrue();
     }
 }
