@@ -17,4 +17,8 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="StableDiffusionStudio.E2E.Tests" />
+  </ItemGroup>
+
 </Project>

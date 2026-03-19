@@ -10,6 +10,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/StableDiffusionStudio.Application.Tests/StableDiffusionStudio.Application.Tests.csproj" />
     <Project Path="tests/StableDiffusionStudio.Domain.Tests/StableDiffusionStudio.Domain.Tests.csproj" />
+    <Project Path="tests/StableDiffusionStudio.E2E.Tests/StableDiffusionStudio.E2E.Tests.csproj" />
     <Project Path="tests/StableDiffusionStudio.Infrastructure.Tests/StableDiffusionStudio.Infrastructure.Tests.csproj" />
     <Project Path="tests/StableDiffusionStudio.Web.Tests/StableDiffusionStudio.Web.Tests.csproj" />
   </Folder>
