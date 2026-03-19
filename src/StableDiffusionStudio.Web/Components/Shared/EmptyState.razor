@@ -1,0 +1,17 @@
+<MudPaper Class="pa-8 d-flex flex-column align-center justify-center" Style="min-height: 300px;" Elevation="0">
+    <MudIcon Icon="@Icon" Size="Size.Large" Color="Color.Default" Class="mb-4" />
+    <MudText Typo="Typo.h6" Color="Color.Default">@Title</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@Subtitle</MudText>
+    @if (ActionText is not null)
+    {
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnAction">@ActionText</MudButton>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Info;
+    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? ActionText { get; set; }
+    [Parameter] public EventCallback OnAction { get; set; }
+}

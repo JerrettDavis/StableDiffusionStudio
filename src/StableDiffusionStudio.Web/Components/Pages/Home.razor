@@ -1,7 +1,24 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Quick Start</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Href="/projects" Class="mb-2" FullWidth="true">
+                New Project
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h6" Class="mb-2">Recent Projects</MudText>
+            <EmptyState Title="No projects yet"
+                        Subtitle="Create your first project to get started"
+                        Icon="@Icons.Material.Filled.Folder" />
+        </MudPaper>
+    </MudItem>
+</MudGrid>
