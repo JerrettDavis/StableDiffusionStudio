@@ -1,0 +1,55 @@
+@using StableDiffusionStudio.Application.DTOs
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">@Model.Title</MudText></TitleContent>
+    <DialogContent>
+        <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+            <tbody>
+                <tr><td><strong>Family</strong></td><td>@Model.ModelFamily</td></tr>
+                <tr><td><strong>Format</strong></td><td>@Model.Format</td></tr>
+                <tr><td><strong>Status</strong></td><td>@Model.Status</td></tr>
+                <tr><td><strong>File Size</strong></td><td>@FormatFileSize(Model.FileSize)</td></tr>
+                <tr><td><strong>Source</strong></td><td>@Model.Source</td></tr>
+                <tr><td><strong>File Path</strong></td><td style="word-break: break-all;">@Model.FilePath</td></tr>
+                <tr><td><strong>Detected</strong></td><td>@Model.DetectedAt.ToString("g")</td></tr>
+                @if (!string.IsNullOrWhiteSpace(Model.Description))
+                {
+                    <tr><td><strong>Description</strong></td><td>@Model.Description</td></tr>
+                }
+                @if (Model.Tags.Count > 0)
+                {
+                    <tr>
+                        <td><strong>Tags</strong></td>
+                        <td>
+                            @foreach (var tag in Model.Tags)
+                            {
+                                <MudChip T="string" Size="Size.Small" Class="mr-1">@tag</MudChip>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.CompatibilityHints))
+                {
+                    <tr><td><strong>Compatibility</strong></td><td>@Model.CompatibilityHints</td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public ModelRecordDto Model { get; set; } = default!;
+
+    private void Close() => MudDialog.Close();
+
+    private static string FormatFileSize(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
+        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
+        _ => $"{bytes / 1_000.0:F1} KB"
+    };
+}
