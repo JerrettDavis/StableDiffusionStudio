@@ -123,7 +123,7 @@ public class GenerationJobHandler : IJobHandler
 
             // Save images to disk
             var assetsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "StableDiffusionStudio", "Assets",
                 generationJob.ProjectId.ToString(),
                 generationJob.Id.ToString());

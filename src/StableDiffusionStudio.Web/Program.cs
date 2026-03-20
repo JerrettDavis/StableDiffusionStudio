@@ -68,11 +68,23 @@ builder.Services.AddScoped<GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
 builder.Services.AddSingleton<MockInferenceBackend>();
 builder.Services.AddSingleton<StableDiffusionCppBackend>();
+// Backend selection: try real SD.NET first, fall back to mock
+// Deferred check — don't evaluate at DI build time, check on first use
 builder.Services.AddSingleton<IInferenceBackend>(sp =>
 {
     var sdCpp = sp.GetRequiredService<StableDiffusionCppBackend>();
-    if (sdCpp.IsAvailableAsync().GetAwaiter().GetResult())
-        return sdCpp;
+    var logger = sp.GetRequiredService<ILogger<StableDiffusionCppBackend>>();
+    try
+    {
+        var available = sdCpp.IsAvailableAsync().GetAwaiter().GetResult();
+        logger.LogInformation("StableDiffusion.NET backend available: {Available}", available);
+        if (available) return sdCpp;
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Failed to check StableDiffusion.NET availability");
+    }
+    logger.LogInformation("Using MockInferenceBackend");
     return sp.GetRequiredService<MockInferenceBackend>();
 });
 builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
