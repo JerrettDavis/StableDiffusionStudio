@@ -1,0 +1,90 @@
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Entities
+@inject PromptHistoryService PromptHistoryService
+@inject ISnackbar Snackbar
+
+<MudExpansionPanels Class="mt-2">
+    <MudExpansionPanel Text="Prompt History" @bind-Expanded="_isExpanded">
+        <MudTextField T="string" @bind-Value="_searchQuery" Placeholder="Search prompts..."
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2"
+                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                      OnKeyUp="OnSearchKeyUp" Immediate="true" />
+
+        @if (_entries is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_entries.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">No prompt history yet.</MudText>
+        }
+        else
+        {
+            <MudList T="PromptHistory" Dense="true" Style="max-height: 300px; overflow-y: auto;">
+                @foreach (var entry in _entries)
+                {
+                    <MudListItem T="PromptHistory">
+                        <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                            <div class="cursor-pointer flex-grow-1" @onclick="() => SelectEntry(entry)" style="min-width: 0;">
+                                <MudText Typo="Typo.body2" Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    @entry.PositivePrompt
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Used @entry.UseCount time(s) | @entry.UsedAt.LocalDateTime.ToString("g")
+                                </MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                           Color="Color.Error" OnClick="() => DeleteEntry(entry.Id)" />
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    [Parameter] public EventCallback<(string Positive, string Negative)> OnPromptSelected { get; set; }
+
+    private IReadOnlyList<PromptHistory>? _entries;
+    private string _searchQuery = string.Empty;
+    private bool _isExpanded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
+            _entries = await PromptHistoryService.SearchAsync(_searchQuery);
+        else
+            _entries = await PromptHistoryService.ListRecentAsync();
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        await LoadEntries();
+        StateHasChanged();
+    }
+
+    private async Task SelectEntry(PromptHistory entry)
+    {
+        await OnPromptSelected.InvokeAsync((entry.PositivePrompt, entry.NegativePrompt));
+        Snackbar.Add("Prompt loaded from history", MudBlazor.Severity.Info);
+    }
+
+    private async Task DeleteEntry(Guid id)
+    {
+        await PromptHistoryService.DeleteAsync(id);
+        await LoadEntries();
+        Snackbar.Add("Prompt removed from history", MudBlazor.Severity.Info);
+    }
+
+    public async Task RefreshAsync()
+    {
+        await LoadEntries();
+        StateHasChanged();
+    }
+}

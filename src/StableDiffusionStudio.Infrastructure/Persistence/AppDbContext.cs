@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<GenerationJob> GenerationJobs => Set<GenerationJob>();
     public DbSet<GeneratedImage> GeneratedImages => Set<GeneratedImage>();
     public DbSet<GenerationPresetEntity> GenerationPresets => Set<GenerationPresetEntity>();
+    public DbSet<PromptHistory> PromptHistories => Set<PromptHistory>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
