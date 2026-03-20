@@ -1,0 +1,50 @@
+<MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">Quick add:</MudText>
+<MudChipSet T="string" Class="mt-1">
+    <MudChip T="string" Size="Size.Small" OnClick="() => AppendNegative(QualityTags)">Quality</MudChip>
+    <MudChip T="string" Size="Size.Small" OnClick="() => AppendNegative(WatermarkTags)">Watermark</MudChip>
+    <MudChip T="string" Size="Size.Small" OnClick="() => AppendNegative(SfwTags)">SFW</MudChip>
+    <MudChip T="string" Size="Size.Small" OnClick="() => AppendNegative(AnatomyTags)">Anatomy</MudChip>
+    <MudChip T="string" Size="Size.Small" OnClick="() => AppendNegative(PhotoTags)">Photo</MudChip>
+    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined" OnClick="ClearNegative">Clear</MudChip>
+</MudChipSet>
+
+@code {
+    [Parameter] public string NegativePrompt { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> NegativePromptChanged { get; set; }
+
+    private const string QualityTags = "ugly, blurry, low quality, deformed";
+    private const string WatermarkTags = "watermark, text, signature, logo";
+    private const string SfwTags = "nsfw, nude, naked";
+    private const string AnatomyTags = "extra fingers, mutated hands, extra limbs";
+    private const string PhotoTags = "cartoon, anime, illustration, painting";
+
+    private async Task AppendNegative(string tags)
+    {
+        if (string.IsNullOrWhiteSpace(NegativePrompt))
+        {
+            NegativePrompt = tags;
+        }
+        else
+        {
+            // Avoid duplicating tags that are already present
+            var existingTags = NegativePrompt.Split(',').Select(t => t.Trim().ToLowerInvariant()).ToHashSet();
+            var newTags = tags.Split(',')
+                .Select(t => t.Trim())
+                .Where(t => !existingTags.Contains(t.ToLowerInvariant()));
+
+            var toAdd = string.Join(", ", newTags);
+            if (!string.IsNullOrEmpty(toAdd))
+            {
+                NegativePrompt = NegativePrompt.TrimEnd(',', ' ') + ", " + toAdd;
+            }
+        }
+
+        await NegativePromptChanged.InvokeAsync(NegativePrompt);
+    }
+
+    private async Task ClearNegative()
+    {
+        NegativePrompt = string.Empty;
+        await NegativePromptChanged.InvokeAsync(NegativePrompt);
+    }
+}
