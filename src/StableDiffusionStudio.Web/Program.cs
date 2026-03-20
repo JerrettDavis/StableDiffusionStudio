@@ -91,11 +91,23 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
-// Auto-create schema on startup
+// Auto-create/update schema on startup
+// EnsureCreated doesn't update existing DBs, so we delete and recreate if schema is stale
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    try
+    {
+        // Test if the schema is current by querying a column from the latest migration
+        await db.Database.ExecuteSqlRawAsync("SELECT Type FROM ModelRecords LIMIT 0");
+        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationJobs LIMIT 0");
+    }
+    catch
+    {
+        // Schema is stale — recreate
+        await db.Database.EnsureDeletedAsync();
+        await db.Database.EnsureCreatedAsync();
+    }
 }
 
 if (!app.Environment.IsDevelopment())
