@@ -115,7 +115,8 @@ public class GenerationJobHandlerTests
         genJob.Images.Should().HaveCount(1);
         await _backend.Received(1).LoadModelAsync(Arg.Any<ModelLoadRequest>(), Arg.Any<CancellationToken>());
         await _backend.Received(1).GenerateAsync(Arg.Any<InferenceRequest>(), Arg.Any<IProgress<InferenceProgress>>(), Arg.Any<CancellationToken>());
-        await _backend.Received(1).UnloadModelAsync(Arg.Any<CancellationToken>());
+        // Model is intentionally kept loaded for reuse
+        await _backend.DidNotReceive().UnloadModelAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

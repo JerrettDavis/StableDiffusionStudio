@@ -197,8 +197,7 @@ public class GenerationJobHandler : IJobHandler
                 generationJob.AddImage(generatedImage);
             }
 
-            // Unload model
-            await _inferenceBackend.UnloadModelAsync(ct);
+            // Model kept loaded for reuse by subsequent generations
 
             generationJob.Complete();
             await _generationJobRepository.UpdateAsync(generationJob, ct);
