@@ -1,0 +1,57 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Application.Interfaces
+@inject ModelCatalogService CatalogService
+@inject ISettingsProvider SettingsProvider
+
+@if (_recentModels is not null && _recentModels.Count > 0)
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Recent:</MudText>
+    <MudChipSet T="string" Class="mb-2">
+        @foreach (var model in _recentModels)
+        {
+            <MudChip T="string" Size="Size.Small"
+                     Color="@(model.Id == SelectedModelId ? Color.Primary : Color.Default)"
+                     OnClick="() => SelectModel(model)">
+                @model.Title
+            </MudChip>
+        }
+    </MudChipSet>
+}
+
+@code {
+    [Parameter] public Guid? SelectedModelId { get; set; }
+    [Parameter] public EventCallback<Guid?> OnModelSelected { get; set; }
+
+    private List<ModelRecordDto>? _recentModels;
+
+    protected override async Task OnInitializedAsync() => await LoadRecent();
+
+    public async Task TrackModel(Guid modelId)
+    {
+        var ids = await SettingsProvider.GetAsync<List<Guid>>("recent-models") ?? new();
+        ids.Remove(modelId);
+        ids.Insert(0, modelId);
+        if (ids.Count > 5) ids = ids.Take(5).ToList();
+        await SettingsProvider.SetAsync("recent-models", ids);
+        await LoadRecent();
+        StateHasChanged();
+    }
+
+    private async Task LoadRecent()
+    {
+        var ids = await SettingsProvider.GetAsync<List<Guid>>("recent-models") ?? new();
+        _recentModels = new();
+        foreach (var id in ids.Take(5))
+        {
+            var model = await CatalogService.GetByIdAsync(id);
+            if (model is not null)
+                _recentModels.Add(model);
+        }
+    }
+
+    private async Task SelectModel(ModelRecordDto model)
+    {
+        await OnModelSelected.InvokeAsync(model.Id);
+    }
+}

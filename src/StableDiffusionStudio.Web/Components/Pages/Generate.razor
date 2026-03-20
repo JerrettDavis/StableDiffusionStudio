@@ -29,6 +29,9 @@ else
         <!-- Left panel: Generation controls -->
         <MudItem xs="12" md="4">
             <MudPaper Class="pa-4" Elevation="1">
+                <RecentModelsBar @ref="_recentModelsBar" SelectedModelId="_checkpointId"
+                                 OnModelSelected="OnCheckpointChanged" />
+
                 <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
                                SelectedModelId="_checkpointId" SelectedModelIdChanged="OnCheckpointChanged"
                                Required="true" />
@@ -160,6 +163,7 @@ else
     private GenerationPreset? _activePreset;
     private ModelFamily? _currentModelFamily;
     private DotNetObjectReference<Generate>? _dotNetRef;
+    private RecentModelsBar? _recentModelsBar;
 
     private const string QuickGenerateProjectName = "Quick Generate";
 
@@ -197,6 +201,9 @@ else
 
         if (modelId.HasValue)
         {
+            if (_recentModelsBar is not null)
+                await _recentModelsBar.TrackModel(modelId.Value);
+
             var model = await ModelCatalogService.GetByIdAsync(modelId.Value);
             if (model is not null)
             {
