@@ -3,6 +3,7 @@
 @using StableDiffusionStudio.Application.Services
 @inject GenerationService GenerationService
 @inject IDataManagementService DataManagement
+@inject IAppPaths AppPaths
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -91,21 +92,7 @@ else
     }
 
     private string GetImageUrl(GeneratedImageDto image)
-    {
-        var assetsBase = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "StableDiffusionStudio", "Assets");
-
-        if (image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))
-        {
-            var relativePath = image.FilePath[assetsBase.Length..]
-                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Replace('\\', '/');
-            return $"/assets/{relativePath}";
-        }
-
-        return $"/assets/{image.Id}.png";
-    }
+        => AppPaths.GetImageUrl(image.FilePath);
 
     private async Task ShowDetail(GeneratedImageDto image, GenerationJobDto job)
     {

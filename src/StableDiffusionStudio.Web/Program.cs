@@ -22,12 +22,14 @@ builder.AddServiceDefaults();
 // MudBlazor
 builder.Services.AddMudServices();
 
+// App paths
+builder.Services.AddSingleton<IAppPaths, AppPaths>();
+var appPaths = new AppPaths();
+
 // EF Core + SQLite
 // Support test isolation via environment variable override
 var dbPath = Environment.GetEnvironmentVariable("SDS_TEST_DB_PATH")
-    ?? Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "StableDiffusionStudio", "Database", "studio.db");
+    ?? Path.Combine(appPaths.DatabaseDirectory, "studio.db");
 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -151,13 +153,10 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 
 // Serve generated image assets from the local app data directory
-var assetsPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-    "StableDiffusionStudio", "Assets");
-Directory.CreateDirectory(assetsPath);
+Directory.CreateDirectory(appPaths.AssetsDirectory);
 app.UseStaticFiles(new StaticFileOptions
 {
-    FileProvider = new PhysicalFileProvider(assetsPath),
+    FileProvider = new PhysicalFileProvider(appPaths.AssetsDirectory),
     RequestPath = "/assets"
 });
 

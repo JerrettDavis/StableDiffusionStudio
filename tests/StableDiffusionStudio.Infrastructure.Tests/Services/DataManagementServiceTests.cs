@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
+using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Entities;
 using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Domain.ValueObjects;
@@ -18,7 +20,9 @@ public class DataManagementServiceTests : IDisposable
     public DataManagementServiceTests()
     {
         (_context, _connection) = TestDbContextFactory.Create();
-        _service = new DataManagementService(_context);
+        var appPaths = Substitute.For<IAppPaths>();
+        appPaths.AssetsDirectory.Returns(Path.Combine(Path.GetTempPath(), "SDS_Test_Assets"));
+        _service = new DataManagementService(_context, appPaths);
     }
 
     public void Dispose()

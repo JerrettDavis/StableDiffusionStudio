@@ -13,17 +13,20 @@ public class GenerationJobHandler : IJobHandler
     private readonly IGenerationJobRepository _generationJobRepository;
     private readonly IModelCatalogRepository _modelCatalogRepository;
     private readonly IInferenceBackend _inferenceBackend;
+    private readonly IAppPaths _appPaths;
     private readonly ILogger<GenerationJobHandler> _logger;
 
     public GenerationJobHandler(
         IGenerationJobRepository generationJobRepository,
         IModelCatalogRepository modelCatalogRepository,
         IInferenceBackend inferenceBackend,
+        IAppPaths appPaths,
         ILogger<GenerationJobHandler> logger)
     {
         _generationJobRepository = generationJobRepository;
         _modelCatalogRepository = modelCatalogRepository;
         _inferenceBackend = inferenceBackend;
+        _appPaths = appPaths;
         _logger = logger;
     }
 
@@ -139,11 +142,7 @@ public class GenerationJobHandler : IJobHandler
             job.UpdateProgress(85, "Saving images");
 
             // Save images to disk
-            var assetsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "StableDiffusionStudio", "Assets",
-                generationJob.ProjectId.ToString(),
-                generationJob.Id.ToString());
+            var assetsDir = _appPaths.GetJobAssetsDirectory(generationJob.ProjectId, generationJob.Id);
             Directory.CreateDirectory(assetsDir);
 
             var parametersJson = JsonSerializer.Serialize(parameters);

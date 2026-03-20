@@ -2,6 +2,7 @@
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @inject IDataManagementService DataManagement
+@inject IAppPaths AppPaths
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
@@ -72,21 +73,7 @@
     }
 
     private string GetImageUrl()
-    {
-        var assetsBase = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "StableDiffusionStudio", "Assets");
-
-        if (Image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))
-        {
-            var relativePath = Image.FilePath[assetsBase.Length..]
-                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Replace('\\', '/');
-            return $"/assets/{relativePath}";
-        }
-
-        return $"/assets/{Image.Id}.png";
-    }
+        => AppPaths.GetImageUrl(Image.FilePath);
 
     private void Close() => MudDialog.Close();
     private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
