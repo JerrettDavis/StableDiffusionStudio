@@ -48,6 +48,9 @@ else
             <MudPaper Class="pa-4" Elevation="1">
                 <MudText Typo="Typo.h6" Class="mb-3">Generation Workspace</MudText>
 
+                <RecentModelsBar @ref="_recentModelsBar" SelectedModelId="_checkpointId"
+                                 OnModelSelected="OnCheckpointChanged" />
+
                 <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
                                SelectedModelId="_checkpointId" SelectedModelIdChanged="OnCheckpointChanged"
                                Required="true" />
@@ -181,6 +184,7 @@ else
     private GenerationPreset? _activePreset;
     private ModelFamily? _currentModelFamily;
     private DotNetObjectReference<ProjectDetail>? _dotNetRef;
+    private RecentModelsBar? _recentModelsBar;
 
     protected override async Task OnInitializedAsync() => await LoadProject();
 
@@ -213,6 +217,9 @@ else
 
         if (modelId.HasValue)
         {
+            if (_recentModelsBar is not null)
+                await _recentModelsBar.TrackModel(modelId.Value);
+
             var model = await ModelCatalogService.GetByIdAsync(modelId.Value);
             if (model is not null)
             {
