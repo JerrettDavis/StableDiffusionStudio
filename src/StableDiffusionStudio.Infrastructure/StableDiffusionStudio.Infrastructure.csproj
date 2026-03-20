@@ -6,12 +6,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="HPPH.System.Drawing" Version="1.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
+    <PackageReference Include="StableDiffusion.NET.Backend.Cuda12.Windows" Version="6.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -19,5 +22,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="StableDiffusionStudio.Infrastructure.Tests" />
+  </ItemGroup>
 
 </Project>
