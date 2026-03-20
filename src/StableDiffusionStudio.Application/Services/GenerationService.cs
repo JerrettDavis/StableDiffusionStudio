@@ -56,6 +56,24 @@ public class GenerationService
         return jobs.Select(ToDto).ToList();
     }
 
+    public async Task<GenerationStatusDto?> GetJobStatusAsync(Guid generationJobId, CancellationToken ct = default)
+    {
+        var job = await _repository.GetByIdAsync(generationJobId, ct);
+        if (job is null) return null;
+
+        double? elapsed = job.StartedAt.HasValue
+            ? (job.CompletedAt ?? DateTimeOffset.UtcNow).Subtract(job.StartedAt.Value).TotalSeconds
+            : null;
+
+        return new GenerationStatusDto(
+            job.Status,
+            0,
+            null,
+            job.ErrorMessage,
+            job.Images.Count,
+            elapsed);
+    }
+
     public async Task<GenerationParameters> CloneParametersAsync(Guid jobId, CancellationToken ct = default)
     {
         var job = await _repository.GetByIdAsync(jobId, ct);
