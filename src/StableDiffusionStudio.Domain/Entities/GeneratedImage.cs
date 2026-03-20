@@ -11,6 +11,7 @@ public class GeneratedImage
     public double GenerationTimeSeconds { get; private set; }
     public string ParametersJson { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
+    public bool IsFavorite { get; private set; }
 
     private GeneratedImage() { } // EF Core
 
@@ -29,5 +30,10 @@ public class GeneratedImage
             ParametersJson = parametersJson,
             CreatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    public void ToggleFavorite()
+    {
+        IsFavorite = !IsFavorite;
     }
 }

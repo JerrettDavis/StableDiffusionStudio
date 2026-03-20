@@ -1,12 +1,21 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Application.Services
 @inject IDataManagementService DataManagement
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
+@inject GenerationService GenerationService
 
 <MudDialog>
-    <TitleContent><MudText Typo="Typo.h6">Generated Image</MudText></TitleContent>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudText Typo="Typo.h6">Generated Image</MudText>
+            <MudIconButton Icon="@(_isFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Outlined.FavoriteBorder)"
+                           Color="@(_isFavorite ? Color.Error : Color.Default)"
+                           OnClick="ToggleFavorite" Class="ml-2" />
+        </div>
+    </TitleContent>
     <DialogContent>
         <MudImage Src="@GetImageUrl()" Style="max-width:100%;max-height:500px" Class="mb-3" />
         <MudSimpleTable Dense="true" Striped="true">
@@ -55,6 +64,13 @@
     [Parameter] public required GeneratedImageDto Image { get; set; }
     [Parameter] public required GenerationJobDto Job { get; set; }
 
+    private bool _isFavorite;
+
+    protected override void OnInitialized()
+    {
+        _isFavorite = Image.IsFavorite;
+    }
+
     private string GetImageUrl()
     {
         var assetsBase = Path.Combine(
@@ -74,6 +90,13 @@
 
     private void Close() => MudDialog.Close();
     private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
+
+    private async Task ToggleFavorite()
+    {
+        await GenerationService.ToggleFavoriteAsync(Image.Id);
+        _isFavorite = !_isFavorite;
+        StateHasChanged();
+    }
 
     private async Task CopySeed()
     {

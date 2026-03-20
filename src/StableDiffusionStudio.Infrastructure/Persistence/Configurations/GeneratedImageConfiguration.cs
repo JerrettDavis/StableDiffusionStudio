@@ -17,6 +17,8 @@ public class GeneratedImageConfiguration : IEntityTypeConfiguration<GeneratedIma
         var dateTimeOffsetConverter = new DateTimeOffsetToBinaryConverter();
         builder.Property(i => i.CreatedAt).HasConversion(dateTimeOffsetConverter);
 
+        builder.Property(i => i.IsFavorite).HasDefaultValue(false);
+
         builder.HasIndex(i => i.GenerationJobId);
     }
 }

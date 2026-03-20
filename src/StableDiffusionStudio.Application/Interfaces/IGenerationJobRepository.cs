@@ -8,4 +8,6 @@ public interface IGenerationJobRepository
     Task<IReadOnlyList<GenerationJob>> ListByProjectAsync(Guid projectId, int skip = 0, int take = 20, CancellationToken ct = default);
     Task AddAsync(GenerationJob job, CancellationToken ct = default);
     Task UpdateAsync(GenerationJob job, CancellationToken ct = default);
+    Task<GeneratedImage?> GetImageByIdAsync(Guid imageId, CancellationToken ct = default);
+    Task UpdateImageAsync(GeneratedImage image, CancellationToken ct = default);
 }

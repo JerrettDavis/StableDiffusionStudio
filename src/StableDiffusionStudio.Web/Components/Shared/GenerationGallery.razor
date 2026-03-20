@@ -6,6 +6,20 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
+@if (_jobs is not null && _jobs.Any(j => j.Images.Count > 0))
+{
+    <div class="d-flex align-center mb-2">
+        <MudToggleIconButton @bind-Toggled="_showFavoritesOnly"
+                             Icon="@Icons.Material.Outlined.FavoriteBorder"
+                             ToggledIcon="@Icons.Material.Filled.Favorite"
+                             Color="Color.Default" ToggledColor="Color.Error"
+                             Size="Size.Small" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+            @(_showFavoritesOnly ? "Favorites only" : "All images")
+        </MudText>
+    </div>
+}
+
 @if (_jobs is null)
 {
     <MudProgressLinear Indeterminate="true" />
@@ -20,7 +34,7 @@ else
     <MudGrid>
         @foreach (var job in _jobs.Where(j => j.Images.Count > 0))
         {
-            @foreach (var image in job.Images)
+            @foreach (var image in GetFilteredImages(job))
             {
                 <MudItem xs="6" sm="4" md="3">
                     <MudCard Elevation="1" Class="position-relative">
@@ -33,8 +47,14 @@ else
                                     <MudText Typo="Typo.caption">Seed: @image.Seed</MudText>
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
                                 </div>
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                               Color="Color.Error" OnClick="() => DeleteImage(image)" />
+                                <div class="d-flex">
+                                    <MudIconButton Icon="@(image.IsFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Outlined.FavoriteBorder)"
+                                                   Size="Size.Small"
+                                                   Color="@(image.IsFavorite ? Color.Error : Color.Default)"
+                                                   OnClick="() => ToggleFavorite(image)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="() => DeleteImage(image)" />
+                                </div>
                             </div>
                         </MudCardContent>
                     </MudCard>
@@ -60,6 +80,7 @@ else
     [Parameter] public EventCallback<GenerationJobDto> OnReuseSettings { get; set; }
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
+    private bool _showFavoritesOnly;
 
     protected override async Task OnInitializedAsync() => await Refresh();
 
@@ -104,6 +125,17 @@ else
             else if (action == "deleted")
                 await Refresh();
         }
+    }
+
+    private IEnumerable<GeneratedImageDto> GetFilteredImages(GenerationJobDto job)
+    {
+        return _showFavoritesOnly ? job.Images.Where(i => i.IsFavorite) : job.Images;
+    }
+
+    private async Task ToggleFavorite(GeneratedImageDto image)
+    {
+        await GenerationService.ToggleFavoriteAsync(image.Id);
+        await Refresh();
     }
 
     private async Task DeleteImage(GeneratedImageDto image)

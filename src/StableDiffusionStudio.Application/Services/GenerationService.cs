@@ -69,7 +69,18 @@ public class GenerationService
         new(j.Id, j.ProjectId, j.Parameters, j.Status, j.CreatedAt, j.StartedAt, j.CompletedAt,
             j.ErrorMessage, j.Images.Select(ToImageDto).ToList());
 
+    public async Task ToggleFavoriteAsync(Guid imageId, CancellationToken ct = default)
+    {
+        var image = await _repository.GetImageByIdAsync(imageId, ct);
+        if (image is null)
+            throw new KeyNotFoundException($"Image {imageId} not found.");
+
+        image.ToggleFavorite();
+        await _repository.UpdateImageAsync(image, ct);
+        _logger?.LogInformation("Toggled favorite for image {ImageId}, now {IsFavorite}", imageId, image.IsFavorite);
+    }
+
     private static GeneratedImageDto ToImageDto(GeneratedImage i) =>
         new(i.Id, i.GenerationJobId, i.FilePath, i.Seed, i.Width, i.Height,
-            i.GenerationTimeSeconds, i.ParametersJson, i.CreatedAt);
+            i.GenerationTimeSeconds, i.ParametersJson, i.CreatedAt, i.IsFavorite);
 }
