@@ -41,6 +41,10 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<IPresetRepository, PresetRepository>();
 builder.Services.AddScoped<PresetService>();
 
+// Prompt history
+builder.Services.AddScoped<IPromptHistoryRepository, PromptHistoryRepository>();
+builder.Services.AddScoped<PromptHistoryService>();
+
 // Data management
 builder.Services.AddScoped<IDataManagementService, DataManagementService>();
 
@@ -127,6 +131,7 @@ using (var scope = app.Services.CreateScope())
         await db.Database.ExecuteSqlRawAsync("SELECT Type FROM ModelRecords LIMIT 0");
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationJobs LIMIT 0");
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationPresets LIMIT 0");
+        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM PromptHistories LIMIT 0");
     }
     catch
     {
