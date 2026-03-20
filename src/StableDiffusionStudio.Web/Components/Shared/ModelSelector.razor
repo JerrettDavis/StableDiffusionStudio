@@ -3,19 +3,37 @@
 @using StableDiffusionStudio.Domain.Enums
 @inject ModelCatalogService CatalogService
 
-<MudSelect T="Guid?" Label="@Label" Value="SelectedModelId" ValueChanged="OnSelectionChanged"
-           Variant="Variant.Outlined" Clearable="@(!Required)">
-    @if (_models is not null)
-    {
-        @foreach (var model in _models)
+<div class="d-flex align-center gap-1">
+    <MudSelect T="Guid?" Label="@Label" Value="SelectedModelId" ValueChanged="OnSelectionChanged"
+               Variant="Variant.Outlined" Clearable="@(!Required)" Style="flex: 1;">
+        @if (_models is not null)
         {
-            <MudSelectItem T="Guid?" Value="@model.Id">
-                @model.Title
-                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-2">@model.ModelFamily.ToString()</MudChip>
-            </MudSelectItem>
+            @foreach (var model in _models)
+            {
+                <MudSelectItem T="Guid?" Value="@model.Id">
+                    @model.Title
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-2">@model.ModelFamily.ToString()</MudChip>
+                </MudSelectItem>
+            }
         }
+    </MudSelect>
+
+    @if (SelectedModelId.HasValue && _selectedModel is not null)
+    {
+        <MudTooltip>
+            <ChildContent>
+                <MudIconButton Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Default" />
+            </ChildContent>
+            <TooltipContent>
+                <MudText Typo="Typo.subtitle2">@_selectedModel.Title</MudText>
+                <MudText Typo="Typo.caption">Family: @_selectedModel.ModelFamily</MudText>
+                <MudText Typo="Typo.caption">Format: @_selectedModel.Format</MudText>
+                <MudText Typo="Typo.caption">Size: @FormatSize(_selectedModel.FileSize)</MudText>
+                <MudText Typo="Typo.caption">Type: @_selectedModel.Type</MudText>
+            </TooltipContent>
+        </MudTooltip>
     }
-</MudSelect>
+</div>
 
 @code {
     [Parameter] public string Label { get; set; } = "Model";
@@ -25,15 +43,37 @@
     [Parameter] public bool Required { get; set; }
 
     private IReadOnlyList<ModelRecordDto>? _models;
+    private ModelRecordDto? _selectedModel;
 
     protected override async Task OnInitializedAsync()
     {
         _models = await CatalogService.ListAsync(new ModelFilter(Type: ModelTypeFilter));
+        UpdateSelectedModel();
     }
 
     private async Task OnSelectionChanged(Guid? value)
     {
         SelectedModelId = value;
+        UpdateSelectedModel();
         await SelectedModelIdChanged.InvokeAsync(value);
+    }
+
+    private void UpdateSelectedModel()
+    {
+        _selectedModel = SelectedModelId.HasValue
+            ? _models?.FirstOrDefault(m => m.Id == SelectedModelId.Value)
+            : null;
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        const long kb = 1024;
+        const long mb = 1024 * 1024;
+        const long gb = 1024L * 1024 * 1024;
+
+        if (bytes >= gb) return $"{bytes / (double)gb:F2} GB";
+        if (bytes >= mb) return $"{bytes / (double)mb:F1} MB";
+        if (bytes >= kb) return $"{bytes / (double)kb:F1} KB";
+        return $"{bytes} B";
     }
 }
