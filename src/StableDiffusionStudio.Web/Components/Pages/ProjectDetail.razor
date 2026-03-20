@@ -6,6 +6,7 @@
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @using StableDiffusionStudio.Domain.Services
+@using Microsoft.JSInterop
 @inject ProjectService ProjectService
 @inject ModelCatalogService ModelCatalogService
 @inject GenerationService GenerationService
@@ -14,6 +15,8 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
 @inject PromptHistoryService PromptHistoryService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @if (_project is null)
 {
@@ -110,6 +113,7 @@ else
                         @:Generate
                     }
                 </MudButton>
+                <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary" Class="mt-1">Ctrl+Enter</MudText>
 
                 @if (_isGenerating && _generationStatus is not null)
                 {
@@ -176,8 +180,32 @@ else
     private PromptHistoryPanel? _promptHistoryPanel;
     private GenerationPreset? _activePreset;
     private ModelFamily? _currentModelFamily;
+    private DotNetObjectReference<ProjectDetail>? _dotNetRef;
 
     protected override async Task OnInitializedAsync() => await LoadProject();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("shortcutHelper.registerGenerateShortcut", _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnGenerateShortcut()
+    {
+        if (!_isGenerating && _checkpointId is not null && !string.IsNullOrWhiteSpace(_positivePrompt))
+        {
+            await Generate();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _dotNetRef?.Dispose();
+    }
 
     private async Task OnCheckpointChanged(Guid? modelId)
     {
