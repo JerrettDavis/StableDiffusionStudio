@@ -1,0 +1,82 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@inject GenerationService GenerationService
+@inject IDialogService DialogService
+
+@if (_jobs is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_jobs.All(j => j.Images.Count == 0))
+{
+    <EmptyState Title="No images yet" Subtitle="Generate your first image to see it here"
+                Icon="@Icons.Material.Filled.Image" />
+}
+else
+{
+    <MudGrid>
+        @foreach (var job in _jobs.Where(j => j.Images.Count > 0))
+        {
+            @foreach (var image in job.Images)
+            {
+                <MudItem xs="6" sm="4" md="3">
+                    <MudCard Elevation="1" Class="cursor-pointer" @onclick="() => ShowDetail(image, job)">
+                        <MudCardMedia Image="@GetImageUrl(image)" Height="200" />
+                        <MudCardContent Class="pa-2">
+                            <MudText Typo="Typo.caption">Seed: @image.Seed</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        }
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public EventCallback<GenerationJobDto> OnReuseSettings { get; set; }
+
+    private IReadOnlyList<GenerationJobDto>? _jobs;
+
+    protected override async Task OnInitializedAsync() => await Refresh();
+
+    public async Task Refresh()
+    {
+        _jobs = await GenerationService.ListJobsForProjectAsync(ProjectId);
+        StateHasChanged();
+    }
+
+    private string GetImageUrl(GeneratedImageDto image)
+    {
+        // Extract relative path from the full file path for static file serving
+        var assetsBase = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "StableDiffusionStudio", "Assets");
+
+        if (image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))
+        {
+            var relativePath = image.FilePath[assetsBase.Length..]
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Replace('\\', '/');
+            return $"/assets/{relativePath}";
+        }
+
+        return $"/assets/{image.Id}.png";
+    }
+
+    private async Task ShowDetail(GeneratedImageDto image, GenerationJobDto job)
+    {
+        var parameters = new DialogParameters<Dialogs.ImageDetailDialog>
+        {
+            { x => x.Image, image },
+            { x => x.Job, job }
+        };
+        var dialog = await DialogService.ShowAsync<Dialogs.ImageDetailDialog>("Image Details", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await OnReuseSettings.InvokeAsync(job);
+        }
+    }
+}

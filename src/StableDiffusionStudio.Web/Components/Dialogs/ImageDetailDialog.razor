@@ -1,0 +1,55 @@
+@using StableDiffusionStudio.Application.DTOs
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">Generated Image</MudText></TitleContent>
+    <DialogContent>
+        <MudImage Src="@GetImageUrl()" Style="max-width:100%;max-height:500px" Class="mb-3" />
+        <MudSimpleTable Dense="true" Striped="true">
+            <tbody>
+                <tr><td><strong>Seed</strong></td><td>@Image.Seed</td></tr>
+                <tr><td><strong>Size</strong></td><td>@Image.Width x @Image.Height</td></tr>
+                <tr><td><strong>Time</strong></td><td>@Image.GenerationTimeSeconds.ToString("F1")s</td></tr>
+                <tr><td><strong>Sampler</strong></td><td>@Job.Parameters.Sampler</td></tr>
+                <tr><td><strong>Steps</strong></td><td>@Job.Parameters.Steps</td></tr>
+                <tr><td><strong>CFG</strong></td><td>@Job.Parameters.CfgScale</td></tr>
+                <tr><td><strong>Prompt</strong></td><td style="word-break:break-all">@Job.Parameters.PositivePrompt</td></tr>
+                @if (!string.IsNullOrWhiteSpace(Job.Parameters.NegativePrompt))
+                {
+                    <tr><td><strong>Negative</strong></td><td style="word-break:break-all">@Job.Parameters.NegativePrompt</td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ReuseSettings">
+            Reuse Settings
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public required GeneratedImageDto Image { get; set; }
+    [Parameter] public required GenerationJobDto Job { get; set; }
+
+    private string GetImageUrl()
+    {
+        var assetsBase = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "StableDiffusionStudio", "Assets");
+
+        if (Image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))
+        {
+            var relativePath = Image.FilePath[assetsBase.Length..]
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                .Replace('\\', '/');
+            return $"/assets/{relativePath}";
+        }
+
+        return $"/assets/{Image.Id}.png";
+    }
+
+    private void Close() => MudDialog.Close();
+    private void ReuseSettings() => MudDialog.Close(DialogResult.Ok(true));
+}
