@@ -3,6 +3,7 @@
 @inject IDataManagementService DataManagement
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <MudDialog>
     <TitleContent><MudText Typo="Typo.h6">Generated Image</MudText></TitleContent>
@@ -23,8 +24,18 @@
                 {
                     <tr><td><strong>Negative</strong></td><td style="word-break:break-all">@Job.Parameters.NegativePrompt</td></tr>
                 }
+                <tr><td><strong>File Path</strong></td><td style="word-break:break-all">@Image.FilePath</td></tr>
             </tbody>
         </MudSimpleTable>
+
+        <div class="d-flex gap-2 mt-3">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy"
+                       OnClick="CopySeed">Copy Seed</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy"
+                       OnClick="CopyPrompt">Copy Prompt</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen"
+                       OnClick="CopyFilePath">Copy File Path</MudButton>
+        </div>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="DeleteImage" Color="Color.Error" Variant="Variant.Text"
@@ -63,6 +74,24 @@
 
     private void Close() => MudDialog.Close();
     private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
+
+    private async Task CopySeed()
+    {
+        await JSRuntime.InvokeVoidAsync("clipboardHelper.copy", Image.Seed.ToString());
+        Snackbar.Add("Seed copied to clipboard", MudBlazor.Severity.Info);
+    }
+
+    private async Task CopyPrompt()
+    {
+        await JSRuntime.InvokeVoidAsync("clipboardHelper.copy", Job.Parameters.PositivePrompt);
+        Snackbar.Add("Prompt copied to clipboard", MudBlazor.Severity.Info);
+    }
+
+    private async Task CopyFilePath()
+    {
+        await JSRuntime.InvokeVoidAsync("clipboardHelper.copy", Image.FilePath);
+        Snackbar.Add("File path copied to clipboard", MudBlazor.Severity.Info);
+    }
 
     private async Task DeleteImage()
     {

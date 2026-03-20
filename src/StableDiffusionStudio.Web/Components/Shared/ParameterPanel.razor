@@ -45,7 +45,11 @@
                     }
                 </MudSelect>
             </MudItem>
-            <MudItem xs="3">
+            <MudItem xs="1" Class="d-flex align-center justify-center">
+                <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
+                               OnClick="SwapDimensions" aria-label="Swap width and height" />
+            </MudItem>
+            <MudItem xs="2">
                 <MudSelect T="int" Label="Height" Value="Params_Height" ValueChanged="OnHeightChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
                     @foreach (var h in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
                     {
@@ -120,6 +124,16 @@
     private async Task OnBatchSizeChanged(int v) { Params_BatchSize = v; await Params_BatchSizeChanged.InvokeAsync(v); }
     private async Task OnClipSkipChanged(int v) { Params_ClipSkip = v; await Params_ClipSkipChanged.InvokeAsync(v); }
     private async Task OnBatchCountChanged(int v) { Params_BatchCount = v; await Params_BatchCountChanged.InvokeAsync(v); }
+
+    private async Task SwapDimensions()
+    {
+        var oldWidth = Params_Width;
+        var oldHeight = Params_Height;
+        Params_Width = oldHeight;
+        Params_Height = oldWidth;
+        await Params_WidthChanged.InvokeAsync(Params_Width);
+        await Params_HeightChanged.InvokeAsync(Params_Height);
+    }
 
     private async Task RandomizeSeed()
     {
