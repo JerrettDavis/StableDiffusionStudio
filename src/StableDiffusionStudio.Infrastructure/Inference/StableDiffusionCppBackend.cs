@@ -99,34 +99,49 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
     public Task LoadModelAsync(ModelLoadRequest request, CancellationToken ct = default)
     {
-        _model?.Dispose();
-        _model = null;
+        // Fully unload previous model to free GPU VRAM before loading new one
+        if (_model is not null)
+        {
+            _logger.LogInformation("Unloading previous model to free VRAM");
+            _model.Dispose();
+            _model = null;
+            GC.Collect(); // Encourage native memory release
+            GC.WaitForPendingFinalizers();
+        }
 
         var fileName = Path.GetFileName(request.CheckpointPath);
         var fileNameLower = fileName.ToLowerInvariant();
         _logger.LogInformation("Loading model: {FileName} from {Path}", fileName, request.CheckpointPath);
 
         var modelParams = DiffusionModelParameter.Create();
+        modelParams.ThreadCount = Environment.ProcessorCount; // Library default -1 rejected by validator
         modelParams.FlashAttention = true;
-        modelParams.ThreadCount = Environment.ProcessorCount; // Library default is -1 which its own validator rejects
+        modelParams.DiffusionFlashAttention = true; // Reduces VRAM by converting K/V to fp16
+        modelParams.VaeTiling = true; // Process VAE in tiles to reduce peak VRAM
+        modelParams.VaeDecodeOnly = true; // Only need decode for txt2img
+        modelParams.KeepClipOnCPU = true; // Offload text encoder to CPU RAM
+        modelParams.KeepVaeOnCPU = true; // Offload VAE to CPU RAM — frees GPU for the diffusion model
 
-        // Detect model type from filename and configure accordingly
+        // Detect model type from filename
         var isFlux = fileNameLower.Contains("flux");
         var isDiffusionModel = fileNameLower.Contains("-dev") || fileNameLower.Contains("_dev")
                             || fileNameLower.Contains("-schnell") || fileNameLower.Contains("_schnell");
         _isFluxModel = isFlux;
 
-        // All models: try ModelPath first (works for single-file checkpoints including GGUF)
         modelParams.ModelPath = request.CheckpointPath;
 
         if (isFlux)
         {
-            modelParams.VaeTiling = true; // Flux needs tiling for memory at 1024x1024
-            _logger.LogInformation("Configured Flux-specific settings (VaeTiling)");
+            modelParams.OffloadParamsToCPU = true; // Flux models are huge — keep params in CPU RAM
+            _logger.LogInformation("Configured Flux-specific settings (OffloadParamsToCPU)");
         }
 
         if (!string.IsNullOrWhiteSpace(request.VaePath))
             modelParams.VaePath = request.VaePath;
+
+        _logger.LogInformation("Model params: FlashAttn={FA}, DiffFlashAttn={DFA}, VaeTiling={VT}, ClipOnCPU={CC}, VaeOnCPU={VC}",
+            modelParams.FlashAttention, modelParams.DiffusionFlashAttention,
+            modelParams.VaeTiling, modelParams.KeepClipOnCPU, modelParams.KeepVaeOnCPU);
 
         try
         {
