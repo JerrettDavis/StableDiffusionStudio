@@ -84,4 +84,72 @@ public class ProjectServiceTests
         project.IsPinned.Should().BeTrue();
         await _repo.Received(1).UpdateAsync(project, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task RestoreAsync_RestoresArchivedProject()
+    {
+        var project = Project.Create("Test", null);
+        project.Archive();
+        _repo.GetByIdAsync(project.Id).Returns(project);
+
+        await _service.RestoreAsync(project.Id);
+
+        project.Status.Should().Be(ProjectStatus.Active);
+        await _repo.Received(1).UpdateAsync(project, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UnpinAsync_UnpinsProject()
+    {
+        var project = Project.Create("Test", null);
+        project.Pin();
+        _repo.GetByIdAsync(project.Id).Returns(project);
+
+        await _service.UnpinAsync(project.Id);
+
+        project.IsPinned.Should().BeFalse();
+        await _repo.Received(1).UpdateAsync(project, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenExists_ReturnsDto()
+    {
+        var project = Project.Create("Test Project", "Description");
+        _repo.GetByIdAsync(project.Id).Returns(project);
+
+        var result = await _service.GetByIdAsync(project.Id);
+
+        result.Should().NotBeNull();
+        result!.Id.Should().Be(project.Id);
+        result.Name.Should().Be("Test Project");
+        result.Description.Should().Be("Description");
+        result.Status.Should().Be(ProjectStatus.Active);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenNotFound_ReturnsNull()
+    {
+        _repo.GetByIdAsync(Arg.Any<Guid>()).Returns((Project?)null);
+
+        var result = await _service.GetByIdAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ArchiveAsync_WhenProjectNotFound_ThrowsKeyNotFoundException()
+    {
+        _repo.GetByIdAsync(Arg.Any<Guid>()).Returns((Project?)null);
+
+        var act = () => _service.ArchiveAsync(Guid.NewGuid());
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    [Fact]
+    public async Task RestoreAsync_WhenProjectNotFound_ThrowsKeyNotFoundException()
+    {
+        _repo.GetByIdAsync(Arg.Any<Guid>()).Returns((Project?)null);
+
+        var act = () => _service.RestoreAsync(Guid.NewGuid());
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
 }

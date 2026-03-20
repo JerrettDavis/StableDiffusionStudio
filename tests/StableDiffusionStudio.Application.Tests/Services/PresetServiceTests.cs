@@ -120,4 +120,36 @@ public class PresetServiceTests
         result!.Sampler.Should().Be(Sampler.Euler);
         result.CfgScale.Should().Be(3.5);
     }
+
+    [Fact]
+    public async Task ListPresetsAsync_WithModelId_DelegatesToRepository()
+    {
+        var modelId = Guid.NewGuid();
+        _repo.ListAsync(modelId, null, Arg.Any<CancellationToken>())
+            .Returns(new List<GenerationPresetEntity>());
+
+        await _service.ListPresetsAsync(modelId: modelId);
+
+        await _repo.Received(1).ListAsync(modelId, null, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task SavePresetAsync_ExistingPresetNotFound_CreatesNew()
+    {
+        var nonExistentId = Guid.NewGuid();
+        _repo.GetByIdAsync(nonExistentId).Returns((GenerationPresetEntity?)null);
+
+        var command = new SavePresetCommand(
+            Id: nonExistentId, Name: "New", Description: null,
+            AssociatedModelId: null, ModelFamilyFilter: null,
+            IsDefault: false, PositivePromptTemplate: null,
+            NegativePrompt: "", Sampler: Sampler.EulerA,
+            Scheduler: Scheduler.Normal, Steps: 20, CfgScale: 7.0,
+            Width: 512, Height: 512, BatchSize: 1, ClipSkip: 1);
+
+        var result = await _service.SavePresetAsync(command);
+
+        result.Should().NotBeNull();
+        await _repo.Received(1).AddAsync(Arg.Any<GenerationPresetEntity>(), Arg.Any<CancellationToken>());
+    }
 }
