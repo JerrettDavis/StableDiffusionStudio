@@ -19,6 +19,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     private DiffusionModel? _model;
     private bool _nativeAvailable;
     private bool _checkedAvailability;
+    private bool _isFluxModel;
 
     public string BackendId => "stable-diffusion-cpp";
     public string DisplayName => "Stable Diffusion (C++)";
@@ -111,20 +112,17 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         // Detect model type from filename and configure accordingly
         var isFlux = fileNameLower.Contains("flux");
-        var isDiffusionModel = fileNameLower.Contains("_dev") || fileNameLower.Contains("_schnell");
+        var isDiffusionModel = fileNameLower.Contains("-dev") || fileNameLower.Contains("_dev")
+                            || fileNameLower.Contains("-schnell") || fileNameLower.Contains("_schnell");
+        _isFluxModel = isFlux;
 
-        if (isFlux && isDiffusionModel)
+        // All models: try ModelPath first (works for single-file checkpoints including GGUF)
+        modelParams.ModelPath = request.CheckpointPath;
+
+        if (isFlux)
         {
-            // Flux models: use DiffusionModelPath for standalone diffusion models
-            modelParams.DiffusionModelPath = request.CheckpointPath;
-            modelParams.VaeTiling = true; // Flux needs tiling for memory
-            modelParams.OffloadParamsToCPU = true; // Help with large models
-            _logger.LogInformation("Configured as Flux diffusion model");
-        }
-        else
-        {
-            // SD 1.5, SDXL, and other standard models: use ModelPath
-            modelParams.ModelPath = request.CheckpointPath;
+            modelParams.VaeTiling = true; // Flux needs tiling for memory at 1024x1024
+            _logger.LogInformation("Configured Flux-specific settings (VaeTiling)");
         }
 
         if (!string.IsNullOrWhiteSpace(request.VaePath))
@@ -139,28 +137,32 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         {
             _logger.LogError(ex, "Failed to load model: {FileName}", fileName);
 
-            // If Flux failed with DiffusionModelPath, try with ModelPath as fallback
-            if (isFlux && isDiffusionModel)
+            // For Flux, try DiffusionModelPath as fallback (for split-component models)
+            if (isFlux)
             {
-                _logger.LogInformation("Retrying Flux model with ModelPath instead of DiffusionModelPath");
-                modelParams.DiffusionModelPath = string.Empty;
-                modelParams.ModelPath = request.CheckpointPath;
+                _logger.LogInformation("Retrying Flux model with DiffusionModelPath");
                 try
                 {
-                    _model = new DiffusionModel(modelParams);
-                    _logger.LogInformation("Model loaded successfully on retry: {FileName}", fileName);
+                    var retryParams = DiffusionModelParameter.Create();
+                    retryParams.DiffusionModelPath = request.CheckpointPath;
+                    retryParams.FlashAttention = true;
+                    retryParams.ThreadCount = Environment.ProcessorCount;
+                    retryParams.VaeTiling = true;
+                    if (!string.IsNullOrWhiteSpace(request.VaePath))
+                        retryParams.VaePath = request.VaePath;
+
+                    _model = new DiffusionModel(retryParams);
+                    _logger.LogInformation("Model loaded successfully via DiffusionModelPath: {FileName}", fileName);
                     return Task.CompletedTask;
                 }
                 catch (Exception retryEx)
                 {
-                    _logger.LogError(retryEx, "Retry also failed for {FileName}", fileName);
+                    _logger.LogError(retryEx, "DiffusionModelPath retry also failed for {FileName}", fileName);
                 }
             }
 
             throw new InvalidOperationException(
                 $"Failed to load model: {fileName}. " +
-                $"Ensure the model file is a valid .safetensors or .gguf checkpoint. " +
-                $"Flux GGUF models may need additional components (CLIP, T5XXL, VAE). " +
                 $"Error: {ex.Message}", ex);
         }
 
@@ -196,10 +198,22 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 genParams.Width = request.Width;
                 genParams.Height = request.Height;
                 genParams.Seed = seed;
-                genParams.SampleParameter.Guidance.TxtCfg = (float)request.CfgScale;
                 genParams.SampleParameter.SampleSteps = request.Steps;
                 genParams.SampleParameter.SampleMethod = MapSampler(request.Sampler);
                 genParams.SampleParameter.Scheduler = MapScheduler(request.Scheduler);
+
+                if (_isFluxModel)
+                {
+                    // Flux: CFG scale goes to DistilledGuidance, TxtCfg should be 1.0
+                    genParams.SampleParameter.Guidance.TxtCfg = 1.0f;
+                    genParams.SampleParameter.Guidance.DistilledGuidance = (float)request.CfgScale;
+                }
+                else
+                {
+                    // SD 1.5 / SDXL: CFG scale goes to TxtCfg, DistilledGuidance should be 1.0
+                    genParams.SampleParameter.Guidance.TxtCfg = (float)request.CfgScale;
+                    genParams.SampleParameter.Guidance.DistilledGuidance = 1.0f;
+                }
 
                 var image = _model.GenerateImage(genParams);
                 sw.Stop();
