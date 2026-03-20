@@ -1,4 +1,4 @@
-@page "/projects/{Id:guid}"
+@page "/generate"
 @using StableDiffusionStudio.Application.Commands
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
@@ -8,40 +8,20 @@
 @inject ProjectService ProjectService
 @inject GenerationService GenerationService
 @inject IInferenceBackend InferenceBackend
-@inject IDialogService DialogService
 @inject ISnackbar Snackbar
-@inject NavigationManager Nav
 
-@if (_project is null)
+<MudText Typo="Typo.h4" Class="mb-4">Quick Generate</MudText>
+
+@if (_projectId is null)
 {
     <MudProgressLinear Indeterminate="true" />
 }
 else
 {
-    <MudBreadcrumbs Items="_breadcrumbs" Class="mb-2 px-0" />
-
-    <div class="d-flex align-center justify-space-between mb-4">
-        <MudText Typo="Typo.h4">@_project.Name</MudText>
-        <MudMenu Icon="@Icons.Material.Filled.MoreVert">
-            <MudMenuItem OnClick="RenameProject" Icon="@Icons.Material.Filled.Edit">Rename</MudMenuItem>
-            <MudMenuItem OnClick="TogglePin" Icon="@Icons.Material.Filled.PushPin">
-                @(_project.IsPinned ? "Unpin" : "Pin")
-            </MudMenuItem>
-            <MudMenuItem OnClick="ArchiveProject" Icon="@Icons.Material.Filled.Archive">Archive</MudMenuItem>
-            <MudMenuItem OnClick="DeleteProject" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">Delete</MudMenuItem>
-        </MudMenu>
-    </div>
-
-    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-4">
-        @(_project.Description ?? "No description")
-    </MudText>
-
     <MudGrid>
         <!-- Left panel: Generation controls -->
         <MudItem xs="12" md="4">
             <MudPaper Class="pa-4" Elevation="1">
-                <MudText Typo="Typo.h6" Class="mb-3">Generation Workspace</MudText>
-
                 <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
                                SelectedModelId="_checkpointId" SelectedModelIdChanged="v => _checkpointId = v"
                                Required="true" />
@@ -77,7 +57,7 @@ else
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4"
                            StartIcon="@Icons.Material.Filled.AutoAwesome"
                            Disabled="@(_isGenerating || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt))"
-                           OnClick="Generate">
+                           OnClick="StartGeneration">
                     @if (_isGenerating)
                     {
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
@@ -103,16 +83,14 @@ else
         <MudItem xs="12" md="8">
             <MudPaper Class="pa-4" Elevation="1">
                 <MudText Typo="Typo.h6" Class="mb-3">Generated Images</MudText>
-                <GenerationGallery @ref="_gallery" ProjectId="Id" OnReuseSettings="ReuseSettings" />
+                <GenerationGallery @ref="_gallery" ProjectId="_projectId.Value" OnReuseSettings="ReuseSettings" />
             </MudPaper>
         </MudItem>
     </MudGrid>
 }
 
 @code {
-    [Parameter] public Guid Id { get; set; }
-    private ProjectDto? _project;
-    private List<BreadcrumbItem> _breadcrumbs = new();
+    private Guid? _projectId;
 
     // Generation workspace state
     private Guid? _checkpointId;
@@ -132,21 +110,31 @@ else
     private string? _generationError;
     private GenerationGallery? _gallery;
 
-    protected override async Task OnInitializedAsync() => await LoadProject();
+    private const string QuickGenerateProjectName = "Quick Generate";
 
-    private async Task LoadProject()
+    protected override async Task OnInitializedAsync()
     {
-        _project = await ProjectService.GetByIdAsync(Id);
-        _breadcrumbs = new()
-        {
-            new("Projects", "/projects"),
-            new(_project?.Name ?? "Unknown", null, disabled: true)
-        };
+        await EnsureQuickGenerateProject();
     }
 
-    private async Task Generate()
+    private async Task EnsureQuickGenerateProject()
     {
-        if (_checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt)) return;
+        // Find or create the Quick Generate project
+        var projects = await ProjectService.ListAsync(new ProjectFilter());
+        var quickProject = projects.FirstOrDefault(p => p.Name == QuickGenerateProjectName);
+
+        if (quickProject is null)
+        {
+            quickProject = await ProjectService.CreateAsync(
+                new CreateProjectCommand(QuickGenerateProjectName, "Auto-created project for quick generation"));
+        }
+
+        _projectId = quickProject.Id;
+    }
+
+    private async Task StartGeneration()
+    {
+        if (_projectId is null || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt)) return;
 
         _isGenerating = true;
         _generationError = null;
@@ -171,12 +159,12 @@ else
                 BatchSize = _batchSize
             };
 
-            var command = new CreateGenerationCommand(Id, parameters);
+            var command = new CreateGenerationCommand(_projectId.Value, parameters);
             var job = await GenerationService.CreateAsync(command);
 
             Snackbar.Add($"Generation job started (ID: {job.Id.ToString()[..8]}...)", Severity.Info);
 
-            // Wait briefly then refresh gallery to show progress
+            // Wait briefly then refresh gallery
             await Task.Delay(2000);
             if (_gallery is not null)
                 await _gallery.Refresh();
@@ -209,48 +197,5 @@ else
         _batchSize = job.Parameters.BatchSize;
         Snackbar.Add("Settings loaded from previous generation", Severity.Success);
         StateHasChanged();
-    }
-
-    private async Task RenameProject()
-    {
-        var parameters = new DialogParameters<Dialogs.RenameProjectDialog>
-        {
-            { x => x.ProjectId, Id },
-            { x => x.CurrentName, _project!.Name }
-        };
-        var dialog = await DialogService.ShowAsync<Dialogs.RenameProjectDialog>("Rename", parameters);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-        {
-            await LoadProject();
-            Snackbar.Add("Project renamed", Severity.Success);
-        }
-    }
-
-    private async Task TogglePin()
-    {
-        if (_project!.IsPinned) await ProjectService.UnpinAsync(Id);
-        else await ProjectService.PinAsync(Id);
-        await LoadProject();
-    }
-
-    private async Task ArchiveProject()
-    {
-        await ProjectService.ArchiveAsync(Id);
-        Nav.NavigateTo("/projects");
-        Snackbar.Add("Project archived", Severity.Info);
-    }
-
-    private async Task DeleteProject()
-    {
-        var confirmed = await DialogService.ShowMessageBoxAsync(
-            "Delete Project", "Are you sure? This action cannot be undone.",
-            yesText: "Delete", cancelText: "Cancel");
-        if (confirmed == true)
-        {
-            await ProjectService.DeleteAsync(Id);
-            Nav.NavigateTo("/projects");
-            Snackbar.Add("Project deleted", Severity.Warning);
-        }
     }
 }
