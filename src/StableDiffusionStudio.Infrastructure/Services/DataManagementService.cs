@@ -143,6 +143,33 @@ public class DataManagementService : IDataManagementService
         return 0;
     }
 
+    public async Task DeleteGenerationJobAsync(Guid jobId, CancellationToken ct = default)
+    {
+        var images = await _context.GeneratedImages
+            .Where(i => i.GenerationJobId == jobId)
+            .ToListAsync(ct);
+        foreach (var img in images)
+            TryDeleteFile(img.FilePath);
+        _context.GeneratedImages.RemoveRange(images);
+
+        var job = await _context.GenerationJobs.FindAsync([jobId], ct);
+        if (job is not null)
+            _context.GenerationJobs.Remove(job);
+
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteGeneratedImageAsync(Guid imageId, CancellationToken ct = default)
+    {
+        var image = await _context.GeneratedImages.FindAsync([imageId], ct);
+        if (image is not null)
+        {
+            TryDeleteFile(image.FilePath);
+            _context.GeneratedImages.Remove(image);
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+
     public async Task ResetAllDataAsync(CancellationToken ct = default)
     {
         await DeleteAllProjectsAsync(ct);

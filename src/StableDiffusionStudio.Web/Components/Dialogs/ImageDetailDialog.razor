@@ -1,4 +1,8 @@
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@inject IDataManagementService DataManagement
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent><MudText Typo="Typo.h6">Generated Image</MudText></TitleContent>
@@ -10,8 +14,10 @@
                 <tr><td><strong>Size</strong></td><td>@Image.Width x @Image.Height</td></tr>
                 <tr><td><strong>Time</strong></td><td>@Image.GenerationTimeSeconds.ToString("F1")s</td></tr>
                 <tr><td><strong>Sampler</strong></td><td>@Job.Parameters.Sampler</td></tr>
+                <tr><td><strong>Scheduler</strong></td><td>@Job.Parameters.Scheduler</td></tr>
                 <tr><td><strong>Steps</strong></td><td>@Job.Parameters.Steps</td></tr>
                 <tr><td><strong>CFG</strong></td><td>@Job.Parameters.CfgScale</td></tr>
+                <tr><td><strong>CLIP Skip</strong></td><td>@Job.Parameters.ClipSkip</td></tr>
                 <tr><td><strong>Prompt</strong></td><td style="word-break:break-all">@Job.Parameters.PositivePrompt</td></tr>
                 @if (!string.IsNullOrWhiteSpace(Job.Parameters.NegativePrompt))
                 {
@@ -21,6 +27,11 @@
         </MudSimpleTable>
     </DialogContent>
     <DialogActions>
+        <MudButton OnClick="DeleteImage" Color="Color.Error" Variant="Variant.Text"
+                   StartIcon="@Icons.Material.Filled.Delete">Delete Image</MudButton>
+        <MudButton OnClick="DeleteGeneration" Color="Color.Error" Variant="Variant.Text"
+                   StartIcon="@Icons.Material.Filled.DeleteSweep">Delete Generation</MudButton>
+        <MudSpacer />
         <MudButton OnClick="Close">Close</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ReuseSettings">
             Reuse Settings
@@ -51,5 +62,33 @@
     }
 
     private void Close() => MudDialog.Close();
-    private void ReuseSettings() => MudDialog.Close(DialogResult.Ok(true));
+    private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
+
+    private async Task DeleteImage()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Image", "Delete this image? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await DataManagement.DeleteGeneratedImageAsync(Image.Id);
+            Snackbar.Add("Image deleted", MudBlazor.Severity.Info);
+            MudDialog.Close(DialogResult.Ok("deleted"));
+        }
+    }
+
+    private async Task DeleteGeneration()
+    {
+        var imageCount = Job.Images.Count;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Generation",
+            $"Delete this entire generation ({imageCount} image(s)) and all its parameters? This cannot be undone.",
+            yesText: "Delete All", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await DataManagement.DeleteGenerationJobAsync(Job.Id);
+            Snackbar.Add($"Generation deleted ({imageCount} image(s))", MudBlazor.Severity.Info);
+            MudDialog.Close(DialogResult.Ok("deleted"));
+        }
+    }
 }
