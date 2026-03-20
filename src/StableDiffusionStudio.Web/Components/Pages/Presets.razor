@@ -1,0 +1,156 @@
+@page "/presets"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject PresetService PresetService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Generation Presets</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <div class="d-flex align-center gap-3 flex-wrap">
+        <MudSelect T="ModelFamily?" Label="Filter by Family" Value="_familyFilter" ValueChanged="OnFamilyFilterChanged"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="min-width:200px">
+            @foreach (var family in Enum.GetValues<ModelFamily>())
+            {
+                <MudSelectItem T="ModelFamily?" Value="@family">@family.ToString()</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSpacer />
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @(_presets?.Count ?? 0) preset(s)
+        </MudText>
+    </div>
+</MudPaper>
+
+@if (_presets is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_presets.Count == 0)
+{
+    <EmptyState Icon="@Icons.Material.Filled.Tune"
+                Title="No presets yet"
+                Description="Save generation settings as presets from the Generate or Project pages." />
+}
+else
+{
+    <MudGrid>
+        @foreach (var preset in _presets)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="1">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <div class="d-flex align-center gap-2">
+                                <MudText Typo="Typo.h6">@preset.Name</MudText>
+                                @if (preset.IsDefault)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary">Default</MudChip>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(preset.Description))
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">@preset.Description</MudText>
+                            }
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert">
+                                <MudMenuItem OnClick="() => EditPreset(preset)" Icon="@Icons.Material.Filled.Edit">Edit</MudMenuItem>
+                                <MudMenuItem OnClick="() => DeletePreset(preset)" Icon="@Icons.Material.Filled.Delete" IconColor="Color.Error">Delete</MudMenuItem>
+                            </MudMenu>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudSimpleTable Dense="true" Elevation="0">
+                            <tbody>
+                                <tr><td>Sampler</td><td>@preset.Sampler</td></tr>
+                                <tr><td>Scheduler</td><td>@preset.Scheduler</td></tr>
+                                <tr><td>Steps</td><td>@preset.Steps</td></tr>
+                                <tr><td>CFG Scale</td><td>@preset.CfgScale</td></tr>
+                                <tr><td>Size</td><td>@(preset.Width)x@(preset.Height)</td></tr>
+                                <tr><td>Batch Size</td><td>@preset.BatchSize</td></tr>
+                                <tr><td>Clip Skip</td><td>@preset.ClipSkip</td></tr>
+                            </tbody>
+                        </MudSimpleTable>
+                        <div class="mt-2 d-flex gap-1 flex-wrap">
+                            @if (preset.ModelFamilyFilter.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">@preset.ModelFamilyFilter</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Default">Universal</MudChip>
+                            }
+                            @if (preset.AssociatedModelId.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary">Model-specific</MudChip>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Tertiary">Has prompt template</MudChip>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<GenerationPresetDto>? _presets;
+    private ModelFamily? _familyFilter;
+
+    protected override async Task OnInitializedAsync() => await LoadPresets();
+
+    private async Task OnFamilyFilterChanged(ModelFamily? family)
+    {
+        _familyFilter = family;
+        await LoadPresets();
+    }
+
+    private async Task LoadPresets()
+    {
+        _presets = await PresetService.ListPresetsAsync(family: _familyFilter);
+    }
+
+    private async Task EditPreset(GenerationPresetDto preset)
+    {
+        var parameters = new DialogParameters<Dialogs.SavePresetDialog>
+        {
+            { x => x.PresetId, preset.Id },
+            { x => x.ModelId, preset.AssociatedModelId },
+            { x => x.ModelFamily, preset.ModelFamilyFilter },
+            { x => x.PositivePrompt, preset.PositivePromptTemplate ?? string.Empty },
+            { x => x.NegativePrompt, preset.NegativePrompt },
+            { x => x.Sampler, preset.Sampler },
+            { x => x.Scheduler, preset.Scheduler },
+            { x => x.Steps, preset.Steps },
+            { x => x.CfgScale, preset.CfgScale },
+            { x => x.Width, preset.Width },
+            { x => x.Height, preset.Height },
+            { x => x.BatchSize, preset.BatchSize },
+            { x => x.ClipSkip, preset.ClipSkip }
+        };
+        var dialog = await DialogService.ShowAsync<Dialogs.SavePresetDialog>("Edit Preset", parameters);
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+            await LoadPresets();
+    }
+
+    private async Task DeletePreset(GenerationPresetDto preset)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Preset",
+            $"Are you sure you want to delete the preset '{preset.Name}'?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await PresetService.DeletePresetAsync(preset.Id);
+            Snackbar.Add($"Preset '{preset.Name}' deleted", Severity.Warning);
+            await LoadPresets();
+        }
+    }
+}

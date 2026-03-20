@@ -11,6 +11,7 @@
 @inject ModelCatalogService ModelCatalogService
 @inject IInferenceBackend InferenceBackend
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <MudText Typo="Typo.h4" Class="mb-4">Quick Generate</MudText>
 
@@ -34,6 +35,11 @@ else
                         @_activePreset.Name
                     </MudChip>
                 }
+
+                <div class="mt-2">
+                    <PresetSelector ModelId="_checkpointId" ModelFamily="_currentModelFamily"
+                                    OnPresetApplied="ApplyUserPreset" OnSaveRequested="SavePreset" />
+                </div>
 
                 <div class="mt-3">
                     <ModelSelector Label="VAE (optional)" ModelTypeFilter="ModelType.VAE"
@@ -134,6 +140,7 @@ else
     private int _generationProgress;
     private GenerationGallery? _gallery;
     private GenerationPreset? _activePreset;
+    private ModelFamily? _currentModelFamily;
 
     private const string QuickGenerateProjectName = "Quick Generate";
 
@@ -151,6 +158,7 @@ else
             var model = await ModelCatalogService.GetByIdAsync(modelId.Value);
             if (model is not null)
             {
+                _currentModelFamily = model.ModelFamily;
                 var preset = ModelFamilyPresets.GetPreset(model.ModelFamily);
                 ApplyPreset(preset);
                 Snackbar.Add($"Applied {preset.Name} preset", Severity.Info);
@@ -159,6 +167,7 @@ else
         else
         {
             _activePreset = null;
+            _currentModelFamily = null;
         }
     }
 
@@ -173,6 +182,44 @@ else
         _height = preset.Height;
         if (string.IsNullOrWhiteSpace(_negativePrompt))
             _negativePrompt = preset.NegativePrompt;
+    }
+
+    private void ApplyUserPreset(Application.DTOs.GenerationPresetDto preset)
+    {
+        _sampler = preset.Sampler;
+        _scheduler = preset.Scheduler;
+        _steps = preset.Steps;
+        _cfgScale = preset.CfgScale;
+        _width = preset.Width;
+        _height = preset.Height;
+        _batchSize = preset.BatchSize;
+        _clipSkip = preset.ClipSkip;
+        if (!string.IsNullOrWhiteSpace(preset.NegativePrompt))
+            _negativePrompt = preset.NegativePrompt;
+        if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
+            _positivePrompt = preset.PositivePromptTemplate;
+        Snackbar.Add($"Applied preset: {preset.Name}", Severity.Success);
+        StateHasChanged();
+    }
+
+    private async Task SavePreset()
+    {
+        var parameters = new DialogParameters<Dialogs.SavePresetDialog>
+        {
+            { x => x.ModelId, _checkpointId },
+            { x => x.ModelFamily, _currentModelFamily },
+            { x => x.PositivePrompt, _positivePrompt },
+            { x => x.NegativePrompt, _negativePrompt },
+            { x => x.Sampler, _sampler },
+            { x => x.Scheduler, _scheduler },
+            { x => x.Steps, _steps },
+            { x => x.CfgScale, _cfgScale },
+            { x => x.Width, _width },
+            { x => x.Height, _height },
+            { x => x.BatchSize, _batchSize },
+            { x => x.ClipSkip, _clipSkip }
+        };
+        await DialogService.ShowAsync<Dialogs.SavePresetDialog>("Save Preset", parameters);
     }
 
     private async Task EnsureQuickGenerateProject()

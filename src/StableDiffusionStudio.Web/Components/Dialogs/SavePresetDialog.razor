@@ -1,0 +1,91 @@
+@using StableDiffusionStudio.Application.Commands
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject PresetService PresetService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">Save Preset</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Preset Name" Required="true" AutoFocus="true" Class="mb-3" />
+        <MudTextField @bind-Value="_description" Label="Description (optional)" Lines="2" Class="mb-3" />
+        <MudSwitch T="bool" @bind-Value="_associateWithModel" Label="Associate with current model" Color="Color.Primary" Class="mb-2" />
+        <MudSwitch T="bool" @bind-Value="_filterByFamily" Label="Filter by model family" Color="Color.Primary" Class="mb-2" />
+        <MudSwitch T="bool" @bind-Value="_includePromptTemplate" Label="Include positive prompt as template" Color="Color.Primary" Class="mb-2" />
+        <MudSwitch T="bool" @bind-Value="_isDefault" Label="Set as default for this model/family" Color="Color.Primary" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save"
+                   Disabled="string.IsNullOrWhiteSpace(_name)">Save Preset</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid? PresetId { get; set; }
+    [Parameter] public Guid? ModelId { get; set; }
+    [Parameter] public ModelFamily? ModelFamily { get; set; }
+    [Parameter] public string PositivePrompt { get; set; } = string.Empty;
+    [Parameter] public string NegativePrompt { get; set; } = string.Empty;
+    [Parameter] public Sampler Sampler { get; set; } = Sampler.EulerA;
+    [Parameter] public Scheduler Scheduler { get; set; } = Scheduler.Normal;
+    [Parameter] public int Steps { get; set; } = 20;
+    [Parameter] public double CfgScale { get; set; } = 7.0;
+    [Parameter] public int Width { get; set; } = 512;
+    [Parameter] public int Height { get; set; } = 512;
+    [Parameter] public int BatchSize { get; set; } = 1;
+    [Parameter] public int ClipSkip { get; set; } = 1;
+
+    private string _name = string.Empty;
+    private string? _description;
+    private bool _associateWithModel;
+    private bool _filterByFamily;
+    private bool _includePromptTemplate;
+    private bool _isDefault;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PresetId.HasValue)
+        {
+            var preset = await PresetService.GetPresetAsync(PresetId.Value);
+            if (preset is not null)
+            {
+                _name = preset.Name;
+                _description = preset.Description;
+                _associateWithModel = preset.AssociatedModelId.HasValue;
+                _filterByFamily = preset.ModelFamilyFilter.HasValue;
+                _includePromptTemplate = !string.IsNullOrWhiteSpace(preset.PositivePromptTemplate);
+                _isDefault = preset.IsDefault;
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        var command = new SavePresetCommand(
+            Id: PresetId,
+            Name: _name,
+            Description: _description,
+            AssociatedModelId: _associateWithModel ? ModelId : null,
+            ModelFamilyFilter: _filterByFamily ? ModelFamily : null,
+            IsDefault: _isDefault,
+            PositivePromptTemplate: _includePromptTemplate ? PositivePrompt : null,
+            NegativePrompt: NegativePrompt,
+            Sampler: Sampler,
+            Scheduler: Scheduler,
+            Steps: Steps,
+            CfgScale: CfgScale,
+            Width: Width,
+            Height: Height,
+            BatchSize: BatchSize,
+            ClipSkip: ClipSkip);
+
+        var result = await PresetService.SavePresetAsync(command);
+        Snackbar.Add($"Preset '{result.Name}' saved", Severity.Success);
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
