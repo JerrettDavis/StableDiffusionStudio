@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<GenerationJob> GenerationJobs => Set<GenerationJob>();
     public DbSet<GeneratedImage> GeneratedImages => Set<GeneratedImage>();
+    public DbSet<GenerationPresetEntity> GenerationPresets => Set<GenerationPresetEntity>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

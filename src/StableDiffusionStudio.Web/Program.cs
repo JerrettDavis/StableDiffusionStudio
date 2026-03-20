@@ -37,6 +37,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<ProjectService>();
 
+// Preset services
+builder.Services.AddScoped<IPresetRepository, PresetRepository>();
+builder.Services.AddScoped<PresetService>();
+
 // Data management
 builder.Services.AddScoped<IDataManagementService, DataManagementService>();
 
@@ -122,6 +126,7 @@ using (var scope = app.Services.CreateScope())
         // Test if the schema is current by querying a column from the latest migration
         await db.Database.ExecuteSqlRawAsync("SELECT Type FROM ModelRecords LIMIT 0");
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationJobs LIMIT 0");
+        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationPresets LIMIT 0");
     }
     catch
     {

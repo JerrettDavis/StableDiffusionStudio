@@ -1,0 +1,60 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject PresetService PresetService
+
+<div class="d-flex align-center gap-2">
+    <MudSelect T="Guid?" Label="Preset" Value="_selectedPresetId" ValueChanged="OnPresetSelected"
+               Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="flex:1"
+               HelperText="@(_presets?.Count > 0 ? $"{_presets.Count} preset(s) available" : "No presets saved")">
+        @if (_presets is not null)
+        {
+            @foreach (var preset in _presets)
+            {
+                <MudSelectItem T="Guid?" Value="@preset.Id">
+                    @preset.Name
+                    @if (preset.IsDefault)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-1">Default</MudChip>
+                    }
+                </MudSelectItem>
+            }
+        }
+    </MudSelect>
+    <MudTooltip Text="Save current settings as preset">
+        <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary"
+                       OnClick="SaveCurrentAsPreset" />
+    </MudTooltip>
+</div>
+
+@code {
+    [Parameter] public Guid? ModelId { get; set; }
+    [Parameter] public ModelFamily? ModelFamily { get; set; }
+    [Parameter] public EventCallback<GenerationPresetDto> OnPresetApplied { get; set; }
+    [Parameter] public EventCallback OnSaveRequested { get; set; }
+
+    private IReadOnlyList<GenerationPresetDto>? _presets;
+    private Guid? _selectedPresetId;
+
+    protected override async Task OnInitializedAsync() => await LoadPresets();
+
+    protected override async Task OnParametersSetAsync() => await LoadPresets();
+
+    private async Task LoadPresets()
+    {
+        _presets = await PresetService.ListPresetsAsync(ModelId, ModelFamily);
+    }
+
+    private async Task OnPresetSelected(Guid? presetId)
+    {
+        _selectedPresetId = presetId;
+        if (presetId.HasValue)
+        {
+            var preset = _presets?.FirstOrDefault(p => p.Id == presetId.Value);
+            if (preset is not null)
+                await OnPresetApplied.InvokeAsync(preset);
+        }
+    }
+
+    private async Task SaveCurrentAsPreset() => await OnSaveRequested.InvokeAsync();
+}
