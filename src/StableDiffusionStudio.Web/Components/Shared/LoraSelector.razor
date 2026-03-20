@@ -1,8 +1,9 @@
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
-@inject ModelCatalogService CatalogService
+@inject IModelCatalogService CatalogService
 
 <MudText Typo="Typo.subtitle2" Class="mb-2">LoRAs</MudText>
 

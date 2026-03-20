@@ -37,15 +37,15 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Application services
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
-builder.Services.AddScoped<ProjectService>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
 
 // Preset services
 builder.Services.AddScoped<IPresetRepository, PresetRepository>();
-builder.Services.AddScoped<PresetService>();
+builder.Services.AddScoped<IPresetService, PresetService>();
 
 // Prompt history
 builder.Services.AddScoped<IPromptHistoryRepository, PromptHistoryRepository>();
-builder.Services.AddScoped<PromptHistoryService>();
+builder.Services.AddScoped<IPromptHistoryService, PromptHistoryService>();
 
 // Data management
 builder.Services.AddScoped<IDataManagementService, DataManagementService>();
@@ -57,7 +57,7 @@ builder.Services.AddScoped<IInferenceSettingsProvider, DbInferenceSettingsProvid
 // Model services
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
-builder.Services.AddScoped<ModelCatalogService>();
+builder.Services.AddScoped<IModelCatalogService, ModelCatalogService>();
 
 // Model providers
 builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
@@ -79,7 +79,7 @@ builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
 
 // Generation services
-builder.Services.AddScoped<GenerationService>();
+builder.Services.AddScoped<IGenerationService, GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
 builder.Services.AddSingleton<MockInferenceBackend>();
 builder.Services.AddSingleton<StableDiffusionCppBackend>();

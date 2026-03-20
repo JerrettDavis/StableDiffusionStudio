@@ -6,10 +6,10 @@
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IStorageRootProvider StorageRootProvider
 @inject IDataManagementService DataManagement
-@inject ProjectService ProjectService
+@inject IProjectService ProjectService
 @inject IProviderCredentialStore CredentialStore
 @inject IInferenceSettingsProvider InferenceSettingsProvider
-@inject ModelCatalogService CatalogService
+@inject IModelCatalogService CatalogService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 

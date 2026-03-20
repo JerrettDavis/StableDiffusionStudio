@@ -1,7 +1,8 @@
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
-@inject ModelCatalogService CatalogService
+@inject IModelCatalogService CatalogService
 
 <div class="d-flex align-center gap-1">
     <MudSelect T="Guid?" Label="@Label" Value="SelectedModelId" ValueChanged="OnSelectionChanged"

@@ -1,7 +1,8 @@
 @page "/projects"
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
-@inject ProjectService ProjectService
+@inject IProjectService ProjectService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav

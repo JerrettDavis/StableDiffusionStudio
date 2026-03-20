@@ -6,7 +6,7 @@ using StableDiffusionStudio.Domain.Enums;
 
 namespace StableDiffusionStudio.Application.Services;
 
-public class PresetService
+public class PresetService : IPresetService
 {
     private readonly IPresetRepository _repository;
 
