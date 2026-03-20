@@ -1,4 +1,5 @@
 using StableDiffusionStudio.Application.Interfaces;
+using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Infrastructure.Storage;
@@ -17,7 +18,7 @@ public class DbStorageRootProvider : IStorageRootProvider
     {
         var entries = await _settings.GetAsync<List<StorageRootEntry>>(StorageRootsKey, ct);
         if (entries is null) return Array.Empty<StorageRoot>();
-        return entries.Select(e => new StorageRoot(e.Path, e.DisplayName)).ToList();
+        return entries.Select(e => new StorageRoot(e.Path, e.DisplayName, e.ModelTypeTag)).ToList();
     }
 
     public async Task AddRootAsync(StorageRoot root, CancellationToken ct = default)
@@ -25,7 +26,7 @@ public class DbStorageRootProvider : IStorageRootProvider
         var entries = await _settings.GetAsync<List<StorageRootEntry>>(StorageRootsKey, ct) ?? [];
         if (entries.All(e => e.Path != root.Path))
         {
-            entries.Add(new StorageRootEntry(root.Path, root.DisplayName));
+            entries.Add(new StorageRootEntry(root.Path, root.DisplayName, root.ModelTypeTag));
             await _settings.SetAsync(StorageRootsKey, entries, ct);
         }
     }
@@ -38,5 +39,5 @@ public class DbStorageRootProvider : IStorageRootProvider
         await _settings.SetAsync(StorageRootsKey, entries, ct);
     }
 
-    private record StorageRootEntry(string Path, string DisplayName);
+    private record StorageRootEntry(string Path, string DisplayName, ModelType? ModelTypeTag = null);
 }
