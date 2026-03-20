@@ -316,6 +316,136 @@ public class DataManagementServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteAllProjectsAsync_CascadesToEverything()
+    {
+        // Arrange
+        var project1 = Project.Create("Project 1", null);
+        var project2 = Project.Create("Project 2", null);
+        _context.Projects.Add(project1);
+        _context.Projects.Add(project2);
+
+        var model = ModelRecord.Create("M", "/m.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1024, "local");
+        _context.ModelRecords.Add(model);
+
+        var genParams = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = model.Id,
+            Steps = 20,
+            CfgScale = 7.0,
+            Width = 512,
+            Height = 512,
+            BatchSize = 1
+        };
+        var genJob = GenerationJob.Create(project1.Id, genParams);
+        _context.GenerationJobs.Add(genJob);
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob.Id, "/fake/1.png", 1, 512, 512, 1.0, "{}"));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var deleted = await _service.DeleteAllProjectsAsync();
+
+        // Assert
+        deleted.Should().Be(2);
+        (await _context.Projects.CountAsync()).Should().Be(0);
+        (await _context.GenerationJobs.CountAsync()).Should().Be(0);
+        (await _context.GeneratedImages.CountAsync()).Should().Be(0);
+        // Models should still exist
+        (await _context.ModelRecords.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DeleteAllJobRecordsAsync_ClearsAllRecords()
+    {
+        _context.JobRecords.Add(JobRecord.Create("scan"));
+        _context.JobRecords.Add(JobRecord.Create("download"));
+        await _context.SaveChangesAsync();
+
+        var deleted = await _service.DeleteAllJobRecordsAsync();
+
+        deleted.Should().Be(2);
+        (await _context.JobRecords.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteGenerationJobsAsync_RemovesAllJobsAndImages()
+    {
+        var project = Project.Create("Test", null);
+        _context.Projects.Add(project);
+
+        var model = ModelRecord.Create("M", "/m.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1024, "local");
+        _context.ModelRecords.Add(model);
+
+        var genParams = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = model.Id,
+            Steps = 20,
+            CfgScale = 7.0,
+            Width = 512,
+            Height = 512,
+            BatchSize = 1
+        };
+        var genJob1 = GenerationJob.Create(project.Id, genParams);
+        var genJob2 = GenerationJob.Create(project.Id, genParams);
+        _context.GenerationJobs.Add(genJob1);
+        _context.GenerationJobs.Add(genJob2);
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob1.Id, "/fake/1.png", 1, 512, 512, 1.0, "{}"));
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob2.Id, "/fake/2.png", 2, 512, 512, 1.0, "{}"));
+        await _context.SaveChangesAsync();
+
+        var deleted = await _service.DeleteGenerationJobsAsync();
+
+        deleted.Should().Be(2);
+        (await _context.GenerationJobs.CountAsync()).Should().Be(0);
+        (await _context.GeneratedImages.CountAsync()).Should().Be(0);
+        // Project should still exist
+        (await _context.Projects.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetUsageSummaryAsync_EmptyDb_ReturnsZeros()
+    {
+        var summary = await _service.GetUsageSummaryAsync();
+
+        summary.ProjectCount.Should().Be(0);
+        summary.ModelRecordCount.Should().Be(0);
+        summary.GenerationJobCount.Should().Be(0);
+        summary.GeneratedImageCount.Should().Be(0);
+        summary.JobRecordCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetAssetsDiskUsageAsync_NonExistentDir_ReturnsZero()
+    {
+        var usage = await _service.GetAssetsDiskUsageAsync();
+        usage.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteProjectAsync_NonExistent_ReturnsZero()
+    {
+        var deleted = await _service.DeleteProjectAsync(Guid.NewGuid());
+        deleted.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteGeneratedImageAsync_NonExistent_DoesNotThrow()
+    {
+        await _service.DeleteGeneratedImageAsync(Guid.NewGuid());
+        // Should not throw
+    }
+
+    [Fact]
+    public async Task DeleteGenerationJobAsync_NonExistent_DoesNotThrow()
+    {
+        await _service.DeleteGenerationJobAsync(Guid.NewGuid());
+        // Should not throw
+    }
+
+    [Fact]
     public async Task DeleteProjectAsync_CascadesToGenerationJobs()
     {
         // Arrange

@@ -88,6 +88,67 @@ public class DbInferenceSettingsProviderTests : IDisposable
         loaded.OffloadParamsToCPU.Should().BeTrue();
     }
 
+    [Fact]
+    public async Task GetSettingsAsync_PreservesHighVRAMPreset()
+    {
+        await _provider.SaveSettingsAsync(InferenceSettings.HighVRAM);
+        var loaded = await _provider.GetSettingsAsync();
+
+        loaded.KeepClipOnCPU.Should().BeFalse();
+        loaded.KeepVaeOnCPU.Should().BeFalse();
+        loaded.KeepControlNetOnCPU.Should().BeFalse();
+        loaded.OffloadParamsToCPU.Should().BeFalse();
+        loaded.VaeTiling.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SaveAndGet_RoundTripsAllFields()
+    {
+        var settings = new InferenceSettings
+        {
+            ThreadCount = 16,
+            FlashAttention = false,
+            DiffusionFlashAttention = true,
+            VaeTiling = false,
+            VaeDecodeOnly = true,
+            KeepClipOnCPU = true,
+            KeepVaeOnCPU = false,
+            KeepControlNetOnCPU = true,
+            OffloadParamsToCPU = false,
+            EnableMmap = true
+        };
+
+        await _provider.SaveSettingsAsync(settings);
+        var loaded = await _provider.GetSettingsAsync();
+
+        loaded.ThreadCount.Should().Be(16);
+        loaded.FlashAttention.Should().BeFalse();
+        loaded.DiffusionFlashAttention.Should().BeTrue();
+        loaded.VaeTiling.Should().BeFalse();
+        loaded.VaeDecodeOnly.Should().BeTrue();
+        loaded.KeepClipOnCPU.Should().BeTrue();
+        loaded.KeepVaeOnCPU.Should().BeFalse();
+        loaded.KeepControlNetOnCPU.Should().BeTrue();
+        loaded.OffloadParamsToCPU.Should().BeFalse();
+        loaded.EnableMmap.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_DefaultSettings_HaveExpectedValues()
+    {
+        var settings = await _provider.GetSettingsAsync();
+
+        settings.FlashAttention.Should().BeTrue();
+        settings.DiffusionFlashAttention.Should().BeTrue();
+        settings.VaeTiling.Should().BeTrue();
+        settings.VaeDecodeOnly.Should().BeTrue();
+        settings.KeepClipOnCPU.Should().BeTrue();
+        settings.KeepVaeOnCPU.Should().BeTrue();
+        settings.KeepControlNetOnCPU.Should().BeFalse();
+        settings.OffloadParamsToCPU.Should().BeFalse();
+        settings.EnableMmap.Should().BeFalse();
+    }
+
     public void Dispose()
     {
         _context.Database.CloseConnection();

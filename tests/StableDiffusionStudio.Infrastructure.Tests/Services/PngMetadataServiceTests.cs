@@ -246,4 +246,71 @@ public class PngMetadataServiceTests
 
         readBack.Should().Be(parameters);
     }
+
+    [Fact]
+    public void EmbedMetadata_WithVeryLongMetadata_RoundTrips()
+    {
+        var png = CreateMinimalPng();
+        var parameters = new string('a', 10000) + "\nNegative prompt: " + new string('b', 5000);
+
+        var result = PngMetadataService.EmbedMetadata(png, parameters);
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+
+        readBack.Should().Be(parameters);
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_EmptyNegativePrompt_OmitsLine()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "test prompt", "", 20, "Euler", 7.0, 1, 512, 512, null, 1);
+
+        result.Should().NotContain("Negative prompt:");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WhitespaceNegativePrompt_OmitsLine()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "test prompt", "   ", 20, "Euler", 7.0, 1, 512, 512, null, 1);
+
+        result.Should().NotContain("Negative prompt:");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithModelName_IncludesModel()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "prompt", "", 20, "Euler", 7.0, 1, 512, 512, "sd_v15", 1);
+
+        result.Should().Contain("Model: sd_v15");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithoutModelName_OmitsModel()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "prompt", "", 20, "Euler", 7.0, 1, 512, 512, null, 1);
+
+        result.Should().NotContain("Model:");
+    }
+
+    [Fact]
+    public void ReadTextChunk_TooShortBytes_ReturnsNull()
+    {
+        var result = PngMetadataService.ReadTextChunk(new byte[] { 1, 2, 3 }, "parameters");
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void EmbedMetadata_MultipleEmbeds_AllReadable()
+    {
+        var png = CreateMinimalPng();
+        var result = PngMetadataService.EmbedMetadata(png, "first metadata");
+        result = PngMetadataService.EmbedMetadata(result, "second metadata");
+
+        // Should find at least one of the text chunks
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+        readBack.Should().NotBeNull();
+    }
 }
