@@ -19,7 +19,9 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 {
     private readonly ILogger<StableDiffusionCppBackend> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private DiffusionModel? _model;
+    private string? _loadedModelPath;
     private bool _nativeAvailable;
     private bool _checkedAvailability;
     private bool _isFluxModel;
@@ -103,12 +105,33 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
     public async Task LoadModelAsync(ModelLoadRequest request, CancellationToken ct = default)
     {
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            await LoadModelCoreAsync(request, ct);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private async Task LoadModelCoreAsync(ModelLoadRequest request, CancellationToken ct)
+    {
+        // Reuse loaded model if the checkpoint path hasn't changed
+        if (_model is not null && _loadedModelPath == request.CheckpointPath)
+        {
+            _logger.LogInformation("Model already loaded, reusing: {Path}", request.CheckpointPath);
+            return;
+        }
+
         // Fully unload previous model to free GPU VRAM before loading new one
         if (_model is not null)
         {
             _logger.LogInformation("Unloading previous model to free VRAM");
             _model.Dispose();
             _model = null;
+            _loadedModelPath = null;
             GC.Collect(); // Encourage native memory release
             GC.WaitForPendingFinalizers();
         }
@@ -165,6 +188,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         try
         {
             _model = new DiffusionModel(modelParams);
+            _loadedModelPath = request.CheckpointPath;
             _logger.LogInformation("Model loaded successfully: {FileName}", fileName);
         }
         catch (Exception ex)
@@ -186,6 +210,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                         retryParams.VaePath = request.VaePath;
 
                     _model = new DiffusionModel(retryParams);
+                    _loadedModelPath = request.CheckpointPath;
                     _logger.LogInformation("Model loaded successfully via DiffusionModelPath: {FileName}", fileName);
                     return;
                 }
@@ -199,13 +224,25 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 $"Failed to load model: {fileName}. " +
                 $"Error: {ex.Message}", ex);
         }
-
     }
 
-    public Task<InferenceResult> GenerateAsync(InferenceRequest request, IProgress<InferenceProgress> progress, CancellationToken ct = default)
+    public async Task<InferenceResult> GenerateAsync(InferenceRequest request, IProgress<InferenceProgress> progress, CancellationToken ct = default)
+    {
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            return GenerateCore(request, progress, ct);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private InferenceResult GenerateCore(InferenceRequest request, IProgress<InferenceProgress> progress, CancellationToken ct)
     {
         if (_model is null)
-            return Task.FromResult(new InferenceResult(false, [], "No model loaded"));
+            return new InferenceResult(false, [], "No model loaded");
 
         var images = new List<GeneratedImageData>();
 
@@ -269,16 +306,16 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                     i + 1, request.BatchSize, seed, sw.Elapsed.TotalSeconds);
             }
 
-            return Task.FromResult(new InferenceResult(true, images, null));
+            return new InferenceResult(true, images, null);
         }
         catch (OperationCanceledException)
         {
-            return Task.FromResult(new InferenceResult(false, images, "Generation cancelled"));
+            return new InferenceResult(false, images, "Generation cancelled");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Generation failed");
-            return Task.FromResult(new InferenceResult(false, images, ex.Message));
+            return new InferenceResult(false, images, ex.Message);
         }
         finally
         {
@@ -290,14 +327,17 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     {
         _model?.Dispose();
         _model = null;
+        _loadedModelPath = null;
         _logger.LogInformation("Model unloaded");
         return Task.CompletedTask;
     }
 
     public void Dispose()
     {
+        _semaphore.Dispose();
         _model?.Dispose();
         _model = null;
+        _loadedModelPath = null;
     }
 
     internal static SdSampler MapSampler(Sampler sampler) => sampler switch
