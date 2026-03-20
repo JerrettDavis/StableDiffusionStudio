@@ -64,6 +64,65 @@ public class ChannelJobQueueTests : IDisposable
         dto.Status.Should().Be(JobStatus.Pending);
     }
 
+    [Fact]
+    public async Task EnqueueAsync_MultipleJobs_AllPersisted()
+    {
+        var id1 = await _queue.EnqueueAsync("type-a", "data-1");
+        var id2 = await _queue.EnqueueAsync("type-b", "data-2");
+        var id3 = await _queue.EnqueueAsync("type-a", "data-3");
+
+        var jobs = await _queue.ListAsync();
+        jobs.Should().HaveCount(3);
+        jobs.Select(j => j.Id).Should().Contain(new[] { id1, id2, id3 });
+    }
+
+    [Fact]
+    public async Task ListAsync_ActiveOnly_FiltersCorrectly()
+    {
+        // Create two jobs; manually complete one
+        var id1 = await _queue.EnqueueAsync("scan");
+        var id2 = await _queue.EnqueueAsync("scan");
+
+        // Manually mark job1 as completed
+        var job1 = await _context.JobRecords.FindAsync(id1);
+        job1!.Start();
+        job1.Complete();
+        await _context.SaveChangesAsync();
+
+        var activeJobs = await _queue.ListAsync(activeOnly: true);
+        activeJobs.Should().HaveCount(1);
+        activeJobs[0].Id.Should().Be(id2);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_NonExistent_ReturnsNull()
+    {
+        var dto = await _queue.GetByIdAsync(Guid.NewGuid());
+        dto.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task EnqueueAsync_WithNullData_Works()
+    {
+        var jobId = await _queue.EnqueueAsync("simple-job");
+
+        var dto = await _queue.GetByIdAsync(jobId);
+        dto.Should().NotBeNull();
+        dto!.Type.Should().Be("simple-job");
+    }
+
+    [Fact]
+    public async Task ListAsync_ReturnsNewestFirst()
+    {
+        await _queue.EnqueueAsync("first");
+        await Task.Delay(10);
+        await _queue.EnqueueAsync("second");
+
+        var jobs = await _queue.ListAsync();
+        jobs[0].Type.Should().Be("second");
+        jobs[1].Type.Should().Be("first");
+    }
+
     public void Dispose()
     {
         _context.Database.CloseConnection();

@@ -246,4 +246,209 @@ public class CivitAIProviderTests
         result.Models[0].Description.Should().NotContain("</p>");
         result.Models[0].Description.Should().Be("A photorealistic model");
     }
+
+    [Fact]
+    public async Task SearchAsync_WithPagination_Uses1BasedPages()
+    {
+        var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 2, "totalPages": 5}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Page: 1); // 0-based page 1 -> API page 2
+        await provider.SearchAsync(query);
+
+        handler.SentRequests.Should().ContainSingle();
+        handler.SentRequests[0].RequestUri!.ToString().Should().Contain("page=2");
+    }
+
+    [Fact]
+    public async Task SearchAsync_IncludesAuthToken_WhenAvailable()
+    {
+        _credentialStore.GetTokenAsync("civitai", Arg.Any<CancellationToken>())
+            .Returns("civit_test_token");
+
+        var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 1, "totalPages": 0}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
+
+        var provider = CreateProvider(handler);
+        await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "test"));
+
+        handler.SentRequests[0].Headers.Authorization.Should().NotBeNull();
+        handler.SentRequests[0].Headers.Authorization!.Scheme.Should().Be("Bearer");
+        handler.SentRequests[0].Headers.Authorization!.Parameter.Should().Be("civit_test_token");
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithFamilyFilter_StillWorks()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, SampleApiResponse);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Family: ModelFamily.SD15);
+        var result = await provider.SearchAsync(query);
+
+        // Family filter is applied at the result level by CivitAI, not query param
+        result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task SearchAsync_InfersFluxFamily()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 99999,
+                    "name": "Flux Model",
+                    "type": "Checkpoint",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 11111,
+                            "baseModel": "Flux.1 D",
+                            "images": [],
+                            "files": [{"id": 22222, "name": "flux.safetensors", "sizeKB": 1024}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "flux"));
+
+        result.Models[0].Family.Should().Be(ModelFamily.Flux);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_ConstructsCorrectUrl()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"civit_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("civitai", "12345", "model.safetensors",
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            var result = await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests.Should().ContainSingle();
+            handler.SentRequests[0].RequestUri!.ToString().Should().Contain("civitai.com/api/v1/download/models/12345");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WithApiKey_IncludesTokenInUrl()
+    {
+        _credentialStore.GetTokenAsync("civitai", Arg.Any<CancellationToken>())
+            .Returns("civit_key_123");
+
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"civit_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("civitai", "12345", "model.safetensors",
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests[0].RequestUri!.ToString().Should().Contain("token=civit_key_123");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadAsync_HttpError_ReturnsFailure()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.NotFound, "Not Found");
+
+        var provider = CreateProvider(handler);
+        var request = new DownloadRequest("civitai", "12345", null,
+            new StorageRoot(Path.GetTempPath(), "Test"), ModelType.Checkpoint);
+        var result = await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task DownloadAsync_NoVariantFileName_UsesDefault()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"civit_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("civitai", "12345", null,
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests[0].RequestUri!.ToString().Should().Contain("civitai.com/api/v1/download/models/12345");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithMultipleVersions_UsesFirst()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 100,
+                    "name": "Multi Version Model",
+                    "type": "Checkpoint",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 201,
+                            "baseModel": "SD 1.5",
+                            "images": [{"url": "https://img.com/v2.jpg"}],
+                            "files": [{"id": 301, "name": "v2.safetensors", "sizeKB": 2048}]
+                        },
+                        {
+                            "id": 200,
+                            "baseModel": "SD 1.5",
+                            "images": [{"url": "https://img.com/v1.jpg"}],
+                            "files": [{"id": 300, "name": "v1.safetensors", "sizeKB": 1024}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "test"));
+
+        result.Models[0].PreviewImageUrl.Should().Be("https://img.com/v2.jpg");
+        result.Models[0].Variants[0].FileName.Should().Be("v2.safetensors");
+    }
 }
