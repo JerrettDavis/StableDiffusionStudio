@@ -16,6 +16,8 @@ public interface IDataManagementService
     Task<int> DeleteAllModelRecordsAsync(CancellationToken ct = default);
     Task<int> DeleteAllProjectsAsync(CancellationToken ct = default);
     Task<int> DeleteProjectAsync(Guid projectId, CancellationToken ct = default);
+    Task DeleteGenerationJobAsync(Guid jobId, CancellationToken ct = default);
+    Task DeleteGeneratedImageAsync(Guid imageId, CancellationToken ct = default);
     Task ResetAllDataAsync(CancellationToken ct = default);
 
     // Disk cleanup

@@ -1,7 +1,10 @@
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @inject GenerationService GenerationService
+@inject IDataManagementService DataManagement
 @inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 @if (_jobs is null)
 {
@@ -20,17 +23,36 @@ else
             @foreach (var image in job.Images)
             {
                 <MudItem xs="6" sm="4" md="3">
-                    <MudCard Elevation="1" Class="cursor-pointer" @onclick="() => ShowDetail(image, job)">
-                        <MudCardMedia Image="@GetImageUrl(image)" Height="200" />
+                    <MudCard Elevation="1" Class="position-relative">
+                        <div class="cursor-pointer" @onclick="() => ShowDetail(image, job)">
+                            <MudCardMedia Image="@GetImageUrl(image)" Height="200" />
+                        </div>
                         <MudCardContent Class="pa-2">
-                            <MudText Typo="Typo.caption">Seed: @image.Seed</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
+                            <div class="d-flex align-center justify-space-between">
+                                <div>
+                                    <MudText Typo="Typo.caption">Seed: @image.Seed</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error" OnClick="() => DeleteImage(image)" />
+                            </div>
                         </MudCardContent>
                     </MudCard>
                 </MudItem>
             }
         }
     </MudGrid>
+
+    @if (_jobs.Any(j => j.Images.Count > 0))
+    {
+        <div class="d-flex justify-end mt-3">
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="DeleteAllForProject">
+                Delete All Images
+            </MudButton>
+        </div>
+    }
 }
 
 @code {
@@ -49,7 +71,6 @@ else
 
     private string GetImageUrl(GeneratedImageDto image)
     {
-        // Extract relative path from the full file path for static file serving
         var assetsBase = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "StableDiffusionStudio", "Assets");
@@ -72,11 +93,42 @@ else
             { x => x.Image, image },
             { x => x.Job, job }
         };
-        var dialog = await DialogService.ShowAsync<Dialogs.ImageDetailDialog>("Image Details", parameters);
+        var dialog = await DialogService.ShowAsync<Dialogs.ImageDetailDialog>("Image Details", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
         var result = await dialog.Result;
         if (result is not null && !result.Canceled)
         {
-            await OnReuseSettings.InvokeAsync(job);
+            var action = result.Data as string;
+            if (action == "reuse")
+                await OnReuseSettings.InvokeAsync(job);
+            else if (action == "deleted")
+                await Refresh();
+        }
+    }
+
+    private async Task DeleteImage(GeneratedImageDto image)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Image", "Delete this generated image? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await DataManagement.DeleteGeneratedImageAsync(image.Id);
+            Snackbar.Add("Image deleted", MudBlazor.Severity.Info);
+            await Refresh();
+        }
+    }
+
+    private async Task DeleteAllForProject()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete All Images", "Delete ALL generated images for this project? This cannot be undone.",
+            yesText: "Delete All", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            var count = await DataManagement.DeleteGeneratedImagesForProjectAsync(ProjectId);
+            Snackbar.Add($"Deleted {count} image(s)", MudBlazor.Severity.Info);
+            await Refresh();
         }
     }
 }
