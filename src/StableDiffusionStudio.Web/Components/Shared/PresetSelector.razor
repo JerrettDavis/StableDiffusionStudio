@@ -1,7 +1,8 @@
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
-@inject PresetService PresetService
+@inject IPresetService PresetService
 
 <div class="d-flex align-center gap-2">
     <MudSelect T="Guid?" Label="Preset" Value="_selectedPresetId" ValueChanged="OnPresetSelected"

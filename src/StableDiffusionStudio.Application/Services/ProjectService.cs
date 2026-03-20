@@ -5,7 +5,7 @@ using StableDiffusionStudio.Domain.Entities;
 
 namespace StableDiffusionStudio.Application.Services;
 
-public class ProjectService
+public class ProjectService : IProjectService
 {
     private readonly IProjectRepository _repository;
 

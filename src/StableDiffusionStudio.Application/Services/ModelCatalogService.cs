@@ -7,7 +7,7 @@ using StableDiffusionStudio.Domain.Enums;
 
 namespace StableDiffusionStudio.Application.Services;
 
-public class ModelCatalogService
+public class ModelCatalogService : IModelCatalogService
 {
     private readonly IModelCatalogRepository _repository;
     private readonly IEnumerable<IModelProvider> _providers;

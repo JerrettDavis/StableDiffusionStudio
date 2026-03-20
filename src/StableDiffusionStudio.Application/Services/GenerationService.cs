@@ -8,7 +8,7 @@ using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Application.Services;
 
-public class GenerationService
+public class GenerationService : IGenerationService
 {
     private readonly IGenerationJobRepository _repository;
     private readonly IModelCatalogRepository _modelCatalog;

@@ -1,7 +1,7 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Application.Interfaces
-@inject ModelCatalogService CatalogService
+@inject IModelCatalogService CatalogService
 @inject ISettingsProvider SettingsProvider
 
 @if (_recentModels is not null && _recentModels.Count > 0)

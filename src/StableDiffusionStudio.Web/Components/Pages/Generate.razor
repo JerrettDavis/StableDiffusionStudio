@@ -7,13 +7,13 @@
 @using StableDiffusionStudio.Domain.ValueObjects
 @using StableDiffusionStudio.Domain.Services
 @using Microsoft.JSInterop
-@inject ProjectService ProjectService
-@inject GenerationService GenerationService
-@inject ModelCatalogService ModelCatalogService
+@inject IProjectService ProjectService
+@inject IGenerationService GenerationService
+@inject IModelCatalogService ModelCatalogService
 @inject IInferenceBackend InferenceBackend
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
-@inject PromptHistoryService PromptHistoryService
+@inject IPromptHistoryService PromptHistoryService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 

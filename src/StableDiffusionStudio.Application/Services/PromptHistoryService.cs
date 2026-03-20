@@ -4,7 +4,7 @@ using StableDiffusionStudio.Domain.Entities;
 
 namespace StableDiffusionStudio.Application.Services;
 
-public class PromptHistoryService
+public class PromptHistoryService : IPromptHistoryService
 {
     private readonly IPromptHistoryRepository _repository;
     private readonly ILogger<PromptHistoryService>? _logger;

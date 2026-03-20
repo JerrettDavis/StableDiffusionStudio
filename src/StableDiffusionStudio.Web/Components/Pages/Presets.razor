@@ -1,8 +1,9 @@
 @page "/presets"
 @using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
-@inject PresetService PresetService
+@inject IPresetService PresetService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
