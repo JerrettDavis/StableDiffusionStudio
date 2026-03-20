@@ -97,12 +97,30 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         _model?.Dispose();
         _model = null;
 
-        _logger.LogInformation("Loading model: {Path}", request.CheckpointPath);
+        var fileName = Path.GetFileName(request.CheckpointPath);
+        var fileNameLower = fileName.ToLowerInvariant();
+        _logger.LogInformation("Loading model: {FileName} from {Path}", fileName, request.CheckpointPath);
 
         var modelParams = DiffusionModelParameter.Create();
-        modelParams.ModelPath = request.CheckpointPath;
         modelParams.FlashAttention = true;
-        modelParams.ThreadCount = Environment.ProcessorCount;
+
+        // Detect model type from filename and configure accordingly
+        var isFlux = fileNameLower.Contains("flux");
+        var isDiffusionModel = fileNameLower.Contains("_dev") || fileNameLower.Contains("_schnell");
+
+        if (isFlux && isDiffusionModel)
+        {
+            // Flux models: use DiffusionModelPath for standalone diffusion models
+            modelParams.DiffusionModelPath = request.CheckpointPath;
+            modelParams.VaeTiling = true; // Flux needs tiling for memory
+            modelParams.OffloadParamsToCPU = true; // Help with large models
+            _logger.LogInformation("Configured as Flux diffusion model");
+        }
+        else
+        {
+            // SD 1.5, SDXL, and other standard models: use ModelPath
+            modelParams.ModelPath = request.CheckpointPath;
+        }
 
         if (!string.IsNullOrWhiteSpace(request.VaePath))
             modelParams.VaePath = request.VaePath;
@@ -110,14 +128,34 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         try
         {
             _model = new DiffusionModel(modelParams);
-            _logger.LogInformation("Model loaded successfully");
+            _logger.LogInformation("Model loaded successfully: {FileName}", fileName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load model from {Path}", request.CheckpointPath);
+            _logger.LogError(ex, "Failed to load model: {FileName}", fileName);
+
+            // If Flux failed with DiffusionModelPath, try with ModelPath as fallback
+            if (isFlux && isDiffusionModel)
+            {
+                _logger.LogInformation("Retrying Flux model with ModelPath instead of DiffusionModelPath");
+                modelParams.DiffusionModelPath = string.Empty;
+                modelParams.ModelPath = request.CheckpointPath;
+                try
+                {
+                    _model = new DiffusionModel(modelParams);
+                    _logger.LogInformation("Model loaded successfully on retry: {FileName}", fileName);
+                    return Task.CompletedTask;
+                }
+                catch (Exception retryEx)
+                {
+                    _logger.LogError(retryEx, "Retry also failed for {FileName}", fileName);
+                }
+            }
+
             throw new InvalidOperationException(
-                $"Failed to load model: {Path.GetFileName(request.CheckpointPath)}. " +
-                $"stable-diffusion.cpp supports .safetensors and .gguf formats. " +
+                $"Failed to load model: {fileName}. " +
+                $"Ensure the model file is a valid .safetensors or .gguf checkpoint. " +
+                $"Flux GGUF models may need additional components (CLIP, T5XXL, VAE). " +
                 $"Error: {ex.Message}", ex);
         }
 
