@@ -162,4 +162,88 @@ public class PngMetadataServiceTests
 
         value.Should().BeNull();
     }
+
+    [Fact]
+    public void EmbedMetadata_EmptyBytes_ReturnsEmpty()
+    {
+        var result = PngMetadataService.EmbedMetadata([], "test");
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithAllFieldsPopulated()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "a beautiful landscape, photorealistic",
+            "ugly, blurry, deformed",
+            30,
+            "DPM++ 2M Karras",
+            7.5,
+            42,
+            1024,
+            1024,
+            "sdxl_base_v1.0",
+            2);
+
+        result.Should().Contain("a beautiful landscape, photorealistic");
+        result.Should().Contain("Negative prompt: ugly, blurry, deformed");
+        result.Should().Contain("Steps: 30");
+        result.Should().Contain("Sampler: DPM++ 2M Karras");
+        result.Should().Contain("CFG scale: 7.5");
+        result.Should().Contain("Seed: 42");
+        result.Should().Contain("Size: 1024x1024");
+        result.Should().Contain("Model: sdxl_base_v1.0");
+        result.Should().Contain("Clip skip: 2");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithMinimalFields()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "test prompt", "", 20, "Euler", 7.0, 1, 512, 512, null, 1);
+
+        result.Should().Contain("test prompt");
+        result.Should().Contain("Steps: 20");
+        result.Should().NotContain("Negative prompt:");
+        result.Should().NotContain("Model:");
+        result.Should().NotContain("Clip skip:");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithClipSkipOne_OmitsIt()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "prompt", "", 20, "Euler", 7.0, 1, 512, 512, "model", 1);
+
+        result.Should().NotContain("Clip skip:");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithClipSkipGreaterThanOne_IncludesIt()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "prompt", "", 20, "Euler", 7.0, 1, 512, 512, "model", 3);
+
+        result.Should().Contain("Clip skip: 3");
+    }
+
+    [Fact]
+    public void ReadTextChunk_OnMinimalPng_ReturnsNull()
+    {
+        var png = CreateMinimalPng();
+        var result = PngMetadataService.ReadTextChunk(png, "parameters");
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void EmbedMetadata_ThenReadTextChunk_WithUnicodeContent_RoundTrips()
+    {
+        var png = CreateMinimalPng();
+        var parameters = "a beautiful sunset, high quality, masterpiece";
+
+        var result = PngMetadataService.EmbedMetadata(png, parameters);
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+
+        readBack.Should().Be(parameters);
+    }
 }
