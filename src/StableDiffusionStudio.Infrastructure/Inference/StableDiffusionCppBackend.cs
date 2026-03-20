@@ -107,6 +107,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         var modelParams = DiffusionModelParameter.Create();
         modelParams.FlashAttention = true;
+        modelParams.ThreadCount = Environment.ProcessorCount; // Library default is -1 which its own validator rejects
 
         // Detect model type from filename and configure accordingly
         var isFlux = fileNameLower.Contains("flux");
