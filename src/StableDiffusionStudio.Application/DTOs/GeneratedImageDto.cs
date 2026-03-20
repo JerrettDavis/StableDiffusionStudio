@@ -9,4 +9,5 @@ public record GeneratedImageDto(
     int Height,
     double GenerationTimeSeconds,
     string ParametersJson,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    bool IsFavorite = false);

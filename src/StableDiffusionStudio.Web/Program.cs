@@ -132,6 +132,7 @@ using (var scope = app.Services.CreateScope())
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationJobs LIMIT 0");
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationPresets LIMIT 0");
         await db.Database.ExecuteSqlRawAsync("SELECT Id FROM PromptHistories LIMIT 0");
+        await db.Database.ExecuteSqlRawAsync("SELECT IsFavorite FROM GeneratedImages LIMIT 0");
     }
     catch
     {

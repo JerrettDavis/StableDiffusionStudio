@@ -20,5 +20,27 @@ public class GeneratedImageTests
         image.GenerationTimeSeconds.Should().Be(2.5);
         image.ParametersJson.Should().Be("{\"prompt\":\"test\"}");
         image.CreatedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(2));
+        image.IsFavorite.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ToggleFavorite_SetsTrueWhenFalse()
+    {
+        var image = GeneratedImage.Create(Guid.NewGuid(), "/test.png", 1, 512, 512, 1.0, "{}");
+
+        image.ToggleFavorite();
+
+        image.IsFavorite.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ToggleFavorite_SetsFalseWhenTrue()
+    {
+        var image = GeneratedImage.Create(Guid.NewGuid(), "/test.png", 1, 512, 512, 1.0, "{}");
+
+        image.ToggleFavorite();
+        image.ToggleFavorite();
+
+        image.IsFavorite.Should().BeFalse();
     }
 }

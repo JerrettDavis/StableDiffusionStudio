@@ -71,4 +71,21 @@ public class GenerationJobRepository : IGenerationJobRepository
 
         await _context.SaveChangesAsync(ct);
     }
+
+    public async Task<GeneratedImage?> GetImageByIdAsync(Guid imageId, CancellationToken ct = default)
+    {
+        return await _context.GeneratedImages
+            .FirstOrDefaultAsync(i => i.Id == imageId, ct);
+    }
+
+    public async Task UpdateImageAsync(GeneratedImage image, CancellationToken ct = default)
+    {
+        var entry = _context.Entry(image);
+        if (entry.State == EntityState.Detached)
+        {
+            _context.GeneratedImages.Attach(image);
+            entry.State = EntityState.Modified;
+        }
+        await _context.SaveChangesAsync(ct);
+    }
 }
