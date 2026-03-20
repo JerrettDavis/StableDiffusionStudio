@@ -5,6 +5,8 @@
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IStorageRootProvider StorageRootProvider
+@inject IDataManagementService DataManagement
+@inject ProjectService ProjectService
 @inject IProviderCredentialStore CredentialStore
 @inject IInferenceSettingsProvider InferenceSettingsProvider
 @inject ModelCatalogService CatalogService
@@ -181,6 +183,98 @@
             </tbody>
         </MudSimpleTable>
     </MudTabPanel>
+
+    <MudTabPanel Text="Data Management" Icon="@Icons.Material.Filled.DeleteSweep">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Manage and clean up application data. Deletions are permanent and cannot be undone.
+        </MudText>
+
+        @if (_usageSummary is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Data Usage</MudText>
+            <MudSimpleTable Dense="true" Striped="true" Class="mb-4">
+                <tbody>
+                    <tr><td>Projects</td><td>@_usageSummary.ProjectCount</td><td></td></tr>
+                    <tr><td>Model Records</td><td>@_usageSummary.ModelRecordCount</td>
+                        <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => ConfirmAndDelete("all model records", DataManagement.DeleteAllModelRecordsAsync))">
+                                Clear
+                            </MudButton></td></tr>
+                    <tr><td>Generation Jobs</td><td>@_usageSummary.GenerationJobCount</td>
+                        <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => ConfirmAndDelete("all generation jobs and images", DataManagement.DeleteGenerationJobsAsync))">
+                                Clear
+                            </MudButton></td></tr>
+                    <tr><td>Generated Images</td><td>@_usageSummary.GeneratedImageCount</td>
+                        <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => ConfirmAndDelete("all generated images", DataManagement.DeleteAllGeneratedImagesAsync))">
+                                Clear
+                            </MudButton></td></tr>
+                    <tr><td>Background Jobs</td><td>@_usageSummary.JobRecordCount</td>
+                        <td>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                                       OnClick="@(() => ConfirmAndDelete("completed job records", DataManagement.DeleteCompletedJobRecordsAsync))">
+                                Clear Completed
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => ConfirmAndDelete("failed job records", DataManagement.DeleteFailedJobRecordsAsync))">
+                                Clear Failed
+                            </MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                                       OnClick="@(() => ConfirmAndDelete("all job records", DataManagement.DeleteAllJobRecordsAsync))">
+                                Clear All
+                            </MudButton>
+                        </td></tr>
+                    <tr><td>Disk Usage (Assets)</td>
+                        <td>@FormatBytes(_usageSummary.AssetsDiskUsageBytes)</td>
+                        <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                                       OnClick="CleanOrphanedAssets">
+                                Clean Orphaned Files
+                            </MudButton></td></tr>
+                </tbody>
+            </MudSimpleTable>
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Per-Project Cleanup</MudText>
+            <MudSelect T="Guid?" Label="Select Project" @bind-Value="_selectedProjectForCleanup"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Class="mb-2">
+                @if (_projectList is not null)
+                {
+                    @foreach (var p in _projectList)
+                    {
+                        <MudSelectItem T="Guid?" Value="@p.Id">@p.Name (@p.Id.ToString()[..8]...)</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            @if (_selectedProjectForCleanup.HasValue)
+            {
+                <div class="d-flex gap-2 mb-4">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small"
+                               OnClick="DeleteProjectImages">Delete Images</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
+                               OnClick="DeleteProjectGenerations">Delete All Generations</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Small"
+                               OnClick="DeleteSelectedProject">Delete Entire Project</MudButton>
+                </div>
+            }
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.subtitle2" Class="mb-2" Color="Color.Error">Danger Zone</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Error"
+                       StartIcon="@Icons.Material.Filled.Warning"
+                       OnClick="ResetAllData">
+                Reset All Data
+            </MudButton>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                Deletes all projects, generations, images, model records, and job history. Settings are preserved.
+            </MudText>
+        }
+    </MudTabPanel>
 </MudTabs>
 
 @code {
@@ -189,6 +283,11 @@
     private readonly Dictionary<string, string> _tokenValues = new();
     private readonly HashSet<string> _configuredProviders = new();
     private bool _validating;
+
+    // Data management fields
+    private DataUsageSummary? _usageSummary;
+    private IReadOnlyList<ProjectDto>? _projectList;
+    private Guid? _selectedProjectForCleanup;
 
     // Inference settings fields
     private int _inferenceSettings_ThreadCount;
@@ -207,6 +306,7 @@
         await LoadRoots();
         await LoadProviders();
         await LoadInferenceSettings();
+        await LoadDataManagement();
     }
 
     private async Task LoadRoots()
@@ -375,5 +475,127 @@
         };
         await InferenceSettingsProvider.SaveSettingsAsync(settings);
         Snackbar.Add("Performance settings saved. Changes will apply on next model load.", MudBlazor.Severity.Success);
+    }
+
+    // Data management methods
+
+    private async Task LoadDataManagement()
+    {
+        _usageSummary = await DataManagement.GetUsageSummaryAsync();
+        _projectList = await ProjectService.ListAsync(new ProjectFilter());
+    }
+
+    private async Task RefreshDataManagement()
+    {
+        _usageSummary = await DataManagement.GetUsageSummaryAsync();
+        _projectList = await ProjectService.ListAsync(new ProjectFilter());
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAndDelete(string description, Func<CancellationToken, Task<int>> deleteAction)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Confirm Deletion",
+            $"Are you sure you want to delete {description}? This action cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var count = await deleteAction(CancellationToken.None);
+            await RefreshDataManagement();
+            Snackbar.Add($"Deleted {count} record(s)", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task CleanOrphanedAssets()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Clean Orphaned Assets",
+            "Delete asset files on disk that are not referenced by any generated image record?",
+            yesText: "Clean", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var count = await DataManagement.CleanOrphanedAssetsAsync();
+            await RefreshDataManagement();
+            Snackbar.Add($"Cleaned {count} orphaned file(s)", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task DeleteProjectImages()
+    {
+        if (!_selectedProjectForCleanup.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Project Images",
+            "Delete all generated images for this project? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var count = await DataManagement.DeleteGeneratedImagesForProjectAsync(_selectedProjectForCleanup.Value);
+            await RefreshDataManagement();
+            Snackbar.Add($"Deleted {count} image(s)", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task DeleteProjectGenerations()
+    {
+        if (!_selectedProjectForCleanup.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Project Generations",
+            "Delete all generation jobs and images for this project? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var count = await DataManagement.DeleteGenerationJobsForProjectAsync(_selectedProjectForCleanup.Value);
+            await RefreshDataManagement();
+            Snackbar.Add($"Deleted {count} generation job(s) and their images", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task DeleteSelectedProject()
+    {
+        if (!_selectedProjectForCleanup.HasValue) return;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Entire Project",
+            "Delete this project and all its generation jobs, images, and files? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await DataManagement.DeleteProjectAsync(_selectedProjectForCleanup.Value);
+            _selectedProjectForCleanup = null;
+            await RefreshDataManagement();
+            Snackbar.Add("Project deleted", MudBlazor.Severity.Success);
+        }
+    }
+
+    private async Task ResetAllData()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Reset All Data",
+            "This will delete ALL projects, generations, images, model records, and job history. Settings will be preserved. This action cannot be undone.",
+            yesText: "Reset Everything", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await DataManagement.ResetAllDataAsync();
+            _selectedProjectForCleanup = null;
+            await RefreshDataManagement();
+            Snackbar.Add("All data has been reset", MudBlazor.Severity.Success);
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        const long kb = 1024;
+        const long mb = 1024 * 1024;
+        const long gb = 1024 * 1024 * 1024;
+
+        if (bytes >= gb) return $"{bytes / (double)gb:F2} GB";
+        if (bytes >= mb) return $"{bytes / (double)mb:F1} MB";
+        if (bytes >= kb) return $"{bytes / (double)kb:F1} KB";
+        return $"{bytes} B";
     }
 }

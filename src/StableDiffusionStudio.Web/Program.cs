@@ -7,6 +7,7 @@ using StableDiffusionStudio.Infrastructure.ModelSources;
 using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
 using StableDiffusionStudio.Infrastructure.Settings;
+using StableDiffusionStudio.Infrastructure.Services;
 using StableDiffusionStudio.Infrastructure.Telemetry;
 using StableDiffusionStudio.Infrastructure.Inference;
 using StableDiffusionStudio.Infrastructure.Storage;
@@ -35,6 +36,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Application services
 builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
 builder.Services.AddScoped<ProjectService>();
+
+// Data management
+builder.Services.AddScoped<IDataManagementService, DataManagementService>();
 
 // Settings
 builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
