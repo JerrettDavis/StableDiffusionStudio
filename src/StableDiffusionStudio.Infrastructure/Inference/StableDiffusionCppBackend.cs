@@ -64,11 +64,15 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     {
         // Search for the native library in known locations relative to the app base directory
         var baseDir = AppContext.BaseDirectory;
+        // Priority: CUDA (fastest) → Vulkan (GPU, no toolkit needed) → CPU (fallback)
         var candidates = new[]
         {
             Path.Combine(baseDir, "runtimes", "win-x64", "native", "cuda12", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cpu", "stable-diffusion.dll"),
             Path.Combine(baseDir, "runtimes", "win-x64", "native", "vulkan", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx512", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx2", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cpu", "stable-diffusion.dll"),
             Path.Combine(baseDir, "runtimes", "win-x64", "native", "stable-diffusion.dll"),
             Path.Combine(baseDir, "stable-diffusion.dll"),
         };

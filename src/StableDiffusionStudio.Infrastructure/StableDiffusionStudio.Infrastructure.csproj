@@ -16,6 +16,7 @@
     <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cpu" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cuda12.Windows" Version="6.0.0" />
+    <PackageReference Include="StableDiffusion.NET.Backend.Vulkan" Version="6.0.0" />
   </ItemGroup>
 
   <PropertyGroup>
