@@ -163,7 +163,8 @@ public class GenerationJobHandler : IJobHandler
             _logger.LogError(ex, "Generation job {JobId} failed", generationJob.Id);
             generationJob.Fail(ex.Message);
             await _generationJobRepository.UpdateAsync(generationJob, ct);
-            throw;
+            job.Fail(ex.Message);
+            // Don't re-throw — we've handled the error by updating both job records
         }
     }
 
