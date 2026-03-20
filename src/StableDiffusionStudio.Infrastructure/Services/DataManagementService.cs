@@ -10,12 +10,10 @@ public class DataManagementService : IDataManagementService
     private readonly AppDbContext _context;
     private readonly string _assetsBasePath;
 
-    public DataManagementService(AppDbContext context)
+    public DataManagementService(AppDbContext context, IAppPaths appPaths)
     {
         _context = context;
-        _assetsBasePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "StableDiffusionStudio", "Assets");
+        _assetsBasePath = appPaths.AssetsDirectory;
     }
 
     public async Task<DataUsageSummary> GetUsageSummaryAsync(CancellationToken ct = default)
