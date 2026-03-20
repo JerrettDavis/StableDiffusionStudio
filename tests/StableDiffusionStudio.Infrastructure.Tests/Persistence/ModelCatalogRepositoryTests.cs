@@ -85,4 +85,64 @@ public class ModelCatalogRepositoryTests : IDisposable
         var retrieved = await _repo.GetByIdAsync(record.Id);
         retrieved.Should().BeNull();
     }
+
+    [Fact]
+    public async Task ListAsync_WithModelTypeFilter_FiltersCorrectly()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("Checkpoint", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local", ModelType.Checkpoint));
+        await _repo.UpsertAsync(ModelRecord.Create("LoRA", "/b.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 100, "local", ModelType.LoRA));
+
+        var results = await _repo.ListAsync(new ModelFilter(Type: ModelType.LoRA));
+
+        results.Should().HaveCount(1);
+        results[0].Title.Should().Be("LoRA");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithMultipleFiltersCombined()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("SD15 Checkpoint", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local", ModelType.Checkpoint));
+        await _repo.UpsertAsync(ModelRecord.Create("SDXL Checkpoint", "/b.safetensors", ModelFamily.SDXL, ModelFormat.SafeTensors, 1000, "local", ModelType.Checkpoint));
+        await _repo.UpsertAsync(ModelRecord.Create("SD15 LoRA", "/c.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 100, "local", ModelType.LoRA));
+
+        var results = await _repo.ListAsync(new ModelFilter(Family: ModelFamily.SD15, Type: ModelType.Checkpoint));
+
+        results.Should().HaveCount(1);
+        results[0].Title.Should().Be("SD15 Checkpoint");
+    }
+
+    [Fact]
+    public async Task UpsertAsync_UpdatesExistingRecord()
+    {
+        var record = ModelRecord.Create("Original", "/path/model.safetensors",
+            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "local");
+        await _repo.UpsertAsync(record);
+
+        record.UpdateMetadata(title: "Updated Title", modelFamily: ModelFamily.SDXL);
+        await _repo.UpsertAsync(record);
+
+        _context.ChangeTracker.Clear();
+        var retrieved = await _repo.GetByIdAsync(record.Id);
+        retrieved!.Title.Should().Be("Updated Title");
+        retrieved.ModelFamily.Should().Be(ModelFamily.SDXL);
+    }
+
+    [Fact]
+    public async Task GetByFilePathAsync_NonExistentPath_ReturnsNull()
+    {
+        var result = await _repo.GetByFilePathAsync("/nonexistent/path.safetensors");
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListAsync_NoFilter_ReturnsAll()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("A", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("B", "/b.safetensors", ModelFamily.SDXL, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("C", "/c.safetensors", ModelFamily.Flux, ModelFormat.SafeTensors, 1000, "local"));
+
+        var results = await _repo.ListAsync(new ModelFilter());
+
+        results.Should().HaveCount(3);
+    }
 }
