@@ -91,6 +91,12 @@
             </MudButton>
             <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary" Class="mt-1">Ctrl+Enter</MudText>
 
+            @if (_isGenerating)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true" Class="mt-2"
+                           OnClick="CancelGeneration">Cancel</MudButton>
+            }
+
             @if (_isGenerating && _generationStatus is not null)
             {
                 <MudPaper Class="pa-3 mt-2" Elevation="0" Outlined="true">
@@ -156,6 +162,8 @@
     private ModelFamily? _currentModelFamily;
     private DotNetObjectReference<GenerationWorkspace>? _dotNetRef;
     private RecentModelsBar? _recentModelsBar;
+    private CancellationTokenSource? _generationCts;
+    private Guid? _currentJobId;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -178,6 +186,8 @@
     public async ValueTask DisposeAsync()
     {
         _dotNetRef?.Dispose();
+        _generationCts?.Cancel();
+        _generationCts?.Dispose();
     }
 
     private async Task OnCheckpointChanged(Guid? modelId)
@@ -256,15 +266,34 @@
         await DialogService.ShowAsync<Dialogs.SavePresetDialog>("Save Preset", parameters);
     }
 
+    private async Task CancelGeneration()
+    {
+        if (_currentJobId.HasValue)
+        {
+            try
+            {
+                await GenerationService.CancelGenerationAsync(_currentJobId.Value);
+            }
+            catch { /* Best-effort cancel */ }
+        }
+        _generationCts?.Cancel();
+    }
+
     private async Task Generate()
     {
         if (_checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt)) return;
+
+        _generationCts?.Cancel();
+        _generationCts?.Dispose();
+        _generationCts = new CancellationTokenSource();
+        var ct = _generationCts.Token;
 
         _isGenerating = true;
         _generationError = null;
         _generationStatus = "Submitting generation job...";
         _generationProgress = 0;
         _generationElapsed = 0;
+        _currentJobId = null;
         StateHasChanged();
 
         try
@@ -289,7 +318,8 @@
             };
 
             var command = new CreateGenerationCommand(ProjectId, parameters);
-            var genJob = await GenerationService.CreateAsync(command);
+            var genJob = await GenerationService.CreateAsync(command, ct);
+            _currentJobId = genJob.Id;
 
             // Record prompt in history
             await PromptHistoryService.RecordUsageAsync(_positivePrompt, _negativePrompt);
@@ -305,9 +335,9 @@
 
             while (started.Elapsed < timeout)
             {
-                await Task.Delay(1000);
+                await Task.Delay(1000, ct);
 
-                var status = await GenerationService.GetJobAsync(genJob.Id);
+                var status = await GenerationService.GetJobAsync(genJob.Id, ct);
                 if (status is null) break;
 
                 _generationElapsed = started.Elapsed.TotalSeconds;
@@ -346,6 +376,11 @@
                 _generationError = "Generation timed out after 10 minutes";
             }
         }
+        catch (OperationCanceledException)
+        {
+            _generationStatus = null;
+            Snackbar.Add("Generation cancelled", Severity.Warning);
+        }
         catch (Exception ex)
         {
             _generationError = ex.Message;
@@ -354,6 +389,7 @@
         {
             _isGenerating = false;
             _generationStatus = null;
+            _currentJobId = null;
             StateHasChanged();
         }
     }
