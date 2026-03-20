@@ -1,16 +1,16 @@
 using Microsoft.Extensions.Logging;
 using StableDiffusionStudio.Application.Commands;
-using StableDiffusionStudio.Application.Services;
+using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Entities;
 
 namespace StableDiffusionStudio.Infrastructure.Jobs;
 
 public class ModelScanJobHandler : IJobHandler
 {
-    private readonly ModelCatalogService _catalogService;
+    private readonly IModelCatalogService _catalogService;
     private readonly ILogger<ModelScanJobHandler> _logger;
 
-    public ModelScanJobHandler(ModelCatalogService catalogService, ILogger<ModelScanJobHandler> logger)
+    public ModelScanJobHandler(IModelCatalogService catalogService, ILogger<ModelScanJobHandler> logger)
     {
         _catalogService = catalogService;
         _logger = logger;

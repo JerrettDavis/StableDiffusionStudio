@@ -122,24 +122,19 @@ app.MapDefaultEndpoints();
 var backend = app.Services.GetRequiredService<IInferenceBackend>();
 app.Logger.LogInformation("Active inference backend: {Backend} ({Id})", backend.DisplayName, backend.BackendId);
 
-// Auto-create/update schema on startup
-// EnsureCreated doesn't update existing DBs, so we delete and recreate if schema is stale
+// Apply EF Core migrations on startup
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<AppDbContext>>();
     try
     {
-        // Test if the schema is current by querying a column from the latest migration
-        await db.Database.ExecuteSqlRawAsync("SELECT Type FROM ModelRecords LIMIT 0");
-        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationJobs LIMIT 0");
-        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM GenerationPresets LIMIT 0");
-        await db.Database.ExecuteSqlRawAsync("SELECT Id FROM PromptHistories LIMIT 0");
-        await db.Database.ExecuteSqlRawAsync("SELECT IsFavorite FROM GeneratedImages LIMIT 0");
+        await db.Database.MigrateAsync();
     }
-    catch
+    catch (Exception ex)
     {
-        // Schema is stale — recreate
-        await db.Database.EnsureDeletedAsync();
+        // Fallback for edge cases (e.g., pre-migration DBs that can't be migrated)
+        logger.LogWarning(ex, "Database migration failed — falling back to EnsureCreated. Existing data may be preserved if schema is compatible.");
         await db.Database.EnsureCreatedAsync();
     }
 }
