@@ -5,7 +5,9 @@
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
+@using StableDiffusionStudio.Domain.Services
 @inject ProjectService ProjectService
+@inject ModelCatalogService ModelCatalogService
 @inject GenerationService GenerationService
 @inject IInferenceBackend InferenceBackend
 @inject IDialogService DialogService
@@ -43,8 +45,15 @@ else
                 <MudText Typo="Typo.h6" Class="mb-3">Generation Workspace</MudText>
 
                 <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
-                               SelectedModelId="_checkpointId" SelectedModelIdChanged="v => _checkpointId = v"
+                               SelectedModelId="_checkpointId" SelectedModelIdChanged="OnCheckpointChanged"
                                Required="true" />
+
+                @if (_activePreset is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mt-1">
+                        @_activePreset.Name
+                    </MudChip>
+                }
 
                 <div class="mt-3">
                     <ModelSelector Label="VAE (optional)" ModelTypeFilter="ModelType.VAE"
@@ -131,8 +140,42 @@ else
     private bool _isGenerating;
     private string? _generationError;
     private GenerationGallery? _gallery;
+    private GenerationPreset? _activePreset;
 
     protected override async Task OnInitializedAsync() => await LoadProject();
+
+    private async Task OnCheckpointChanged(Guid? modelId)
+    {
+        _checkpointId = modelId;
+
+        if (modelId.HasValue)
+        {
+            var model = await ModelCatalogService.GetByIdAsync(modelId.Value);
+            if (model is not null)
+            {
+                var preset = ModelFamilyPresets.GetPreset(model.ModelFamily);
+                ApplyPreset(preset);
+                Snackbar.Add($"Applied {preset.Name} preset", Severity.Info);
+            }
+        }
+        else
+        {
+            _activePreset = null;
+        }
+    }
+
+    private void ApplyPreset(GenerationPreset preset)
+    {
+        _activePreset = preset;
+        _sampler = preset.Sampler;
+        _scheduler = preset.Scheduler;
+        _steps = preset.Steps;
+        _cfgScale = preset.CfgScale;
+        _width = preset.Width;
+        _height = preset.Height;
+        if (string.IsNullOrWhiteSpace(_negativePrompt))
+            _negativePrompt = preset.NegativePrompt;
+    }
 
     private async Task LoadProject()
     {
