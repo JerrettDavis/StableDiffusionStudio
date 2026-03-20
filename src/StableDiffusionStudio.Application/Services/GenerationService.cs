@@ -4,6 +4,7 @@ using StableDiffusionStudio.Application.Commands;
 using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Entities;
+using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Application.Services;
@@ -96,6 +97,20 @@ public class GenerationService : IGenerationService
         image.ToggleFavorite();
         await _repository.UpdateImageAsync(image, ct);
         _logger?.LogInformation("Toggled favorite for image {ImageId}, now {IsFavorite}", imageId, image.IsFavorite);
+    }
+
+    public async Task CancelGenerationAsync(Guid jobId, CancellationToken ct = default)
+    {
+        var job = await _repository.GetByIdAsync(jobId, ct);
+        if (job is null)
+            throw new KeyNotFoundException($"Generation job {jobId} not found.");
+
+        if (job.Status is GenerationJobStatus.Pending or GenerationJobStatus.Running)
+        {
+            job.Cancel();
+            await _repository.UpdateAsync(job, ct);
+            _logger?.LogInformation("Cancelled generation job {JobId}", jobId);
+        }
     }
 
     private static GeneratedImageDto ToImageDto(GeneratedImage i) =>
