@@ -98,6 +98,15 @@ else
                     }
                 </MudButton>
 
+                @if (_isGenerating && _generationStatus is not null)
+                {
+                    <MudPaper Class="pa-3 mt-2" Elevation="0" Outlined="true">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_generationStatus</MudText>
+                        <MudProgressLinear Value="_generationProgress" Max="100" Color="Color.Primary"
+                                           Striped="true" Class="mt-1" />
+                    </MudPaper>
+                }
+
                 @if (_generationError is not null)
                 {
                     <MudAlert Severity="Severity.Error" Class="mt-2" ShowCloseIcon="true"
@@ -139,6 +148,8 @@ else
     private int _batchSize = 1;
     private bool _isGenerating;
     private string? _generationError;
+    private string? _generationStatus;
+    private int _generationProgress;
     private GenerationGallery? _gallery;
     private GenerationPreset? _activePreset;
 
@@ -193,6 +204,8 @@ else
 
         _isGenerating = true;
         _generationError = null;
+        _generationStatus = "Submitting generation job...";
+        _generationProgress = 0;
         StateHasChanged();
 
         try
@@ -215,14 +228,55 @@ else
             };
 
             var command = new CreateGenerationCommand(Id, parameters);
-            var job = await GenerationService.CreateAsync(command);
+            var genJob = await GenerationService.CreateAsync(command);
+            _generationStatus = "Job queued, waiting for backend...";
+            StateHasChanged();
 
-            Snackbar.Add($"Generation job started (ID: {job.Id.ToString()[..8]}...)", Severity.Info);
+            // Poll until complete or failed (max 10 minutes)
+            var timeout = TimeSpan.FromMinutes(10);
+            var started = System.Diagnostics.Stopwatch.StartNew();
 
-            // Wait briefly then refresh gallery to show progress
-            await Task.Delay(2000);
-            if (_gallery is not null)
-                await _gallery.Refresh();
+            while (started.Elapsed < timeout)
+            {
+                await Task.Delay(1000);
+
+                var status = await GenerationService.GetJobAsync(genJob.Id);
+                if (status is null) break;
+
+                switch (status.Status)
+                {
+                    case GenerationJobStatus.Pending:
+                        _generationStatus = "Waiting in queue...";
+                        break;
+                    case GenerationJobStatus.Running:
+                        _generationStatus = "Generating...";
+                        // Estimate progress from elapsed time (rough)
+                        _generationProgress = Math.Min(90, (int)(started.Elapsed.TotalSeconds * 2));
+                        break;
+                    case GenerationJobStatus.Completed:
+                        _generationStatus = null;
+                        _generationProgress = 100;
+                        if (_gallery is not null)
+                            await _gallery.Refresh();
+                        Snackbar.Add($"Generated {status.Images.Count} image(s)", Severity.Success);
+                        return;
+                    case GenerationJobStatus.Failed:
+                        _generationError = status.ErrorMessage ?? "Generation failed";
+                        _generationStatus = null;
+                        return;
+                    case GenerationJobStatus.Cancelled:
+                        _generationStatus = null;
+                        Snackbar.Add("Generation cancelled", Severity.Warning);
+                        return;
+                }
+
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (started.Elapsed >= timeout)
+            {
+                _generationError = "Generation timed out after 10 minutes";
+            }
         }
         catch (Exception ex)
         {
@@ -231,6 +285,7 @@ else
         finally
         {
             _isGenerating = false;
+            _generationStatus = null;
             StateHasChanged();
         }
     }

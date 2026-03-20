@@ -102,7 +102,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         var modelParams = DiffusionModelParameter.Create();
         modelParams.ModelPath = request.CheckpointPath;
         modelParams.FlashAttention = true;
-        modelParams.ThreadCount = -1; // Use all physical cores
+        modelParams.ThreadCount = Environment.ProcessorCount;
 
         if (!string.IsNullOrWhiteSpace(request.VaePath))
             modelParams.VaePath = request.VaePath;
