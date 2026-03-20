@@ -117,4 +117,113 @@ public class GenerationServiceTests
         var act = () => _service.CloneParametersAsync(Guid.NewGuid());
         await act.Should().ThrowAsync<KeyNotFoundException>();
     }
+
+    [Fact]
+    public async Task GetJobStatusAsync_WhenExists_ReturnsStatusDto()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        job.Start();
+        _jobRepo.GetByIdAsync(job.Id, Arg.Any<CancellationToken>()).Returns(job);
+
+        var result = await _service.GetJobStatusAsync(job.Id);
+
+        result.Should().NotBeNull();
+        result!.Status.Should().Be(GenerationJobStatus.Running);
+        result.ElapsedSeconds.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetJobStatusAsync_WhenNotFound_ReturnsNull()
+    {
+        _jobRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((GenerationJob?)null);
+
+        var result = await _service.GetJobStatusAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetJobStatusAsync_CompletedJob_IncludesImageCount()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        job.Start();
+        job.AddImage(GeneratedImage.Create(job.Id, "/img1.png", 42, 512, 512, 1.0, "{}"));
+        job.AddImage(GeneratedImage.Create(job.Id, "/img2.png", 43, 512, 512, 1.0, "{}"));
+        job.Complete();
+        _jobRepo.GetByIdAsync(job.Id, Arg.Any<CancellationToken>()).Returns(job);
+
+        var result = await _service.GetJobStatusAsync(job.Id);
+
+        result!.ImageCount.Should().Be(2);
+        result.Status.Should().Be(GenerationJobStatus.Completed);
+    }
+
+    [Fact]
+    public async Task CancelGenerationAsync_PendingJob_MarksCancelled()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        _jobRepo.GetByIdAsync(job.Id, Arg.Any<CancellationToken>()).Returns(job);
+
+        await _service.CancelGenerationAsync(job.Id);
+
+        job.Status.Should().Be(GenerationJobStatus.Cancelled);
+        await _jobRepo.Received(1).UpdateAsync(job, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CancelGenerationAsync_RunningJob_MarksCancelled()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        job.Start();
+        _jobRepo.GetByIdAsync(job.Id, Arg.Any<CancellationToken>()).Returns(job);
+
+        await _service.CancelGenerationAsync(job.Id);
+
+        job.Status.Should().Be(GenerationJobStatus.Cancelled);
+        await _jobRepo.Received(1).UpdateAsync(job, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CancelGenerationAsync_CompletedJob_DoesNotUpdate()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        job.Start();
+        job.Complete();
+        _jobRepo.GetByIdAsync(job.Id, Arg.Any<CancellationToken>()).Returns(job);
+
+        await _service.CancelGenerationAsync(job.Id);
+
+        job.Status.Should().Be(GenerationJobStatus.Completed);
+        await _jobRepo.DidNotReceive().UpdateAsync(job, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task CancelGenerationAsync_WhenNotFound_ThrowsKeyNotFoundException()
+    {
+        _jobRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((GenerationJob?)null);
+
+        var act = () => _service.CancelGenerationAsync(Guid.NewGuid());
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    [Fact]
+    public async Task ToggleFavoriteAsync_WhenExists_TogglesAndPersists()
+    {
+        var job = GenerationJob.Create(ProjectId, ValidParameters);
+        var image = GeneratedImage.Create(job.Id, "/img.png", 42, 512, 512, 1.0, "{}");
+        _jobRepo.GetImageByIdAsync(image.Id, Arg.Any<CancellationToken>()).Returns(image);
+
+        await _service.ToggleFavoriteAsync(image.Id);
+
+        image.IsFavorite.Should().BeTrue();
+        await _jobRepo.Received(1).UpdateImageAsync(image, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ToggleFavoriteAsync_WhenNotFound_ThrowsKeyNotFoundException()
+    {
+        _jobRepo.GetImageByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((GeneratedImage?)null);
+
+        var act = () => _service.ToggleFavoriteAsync(Guid.NewGuid());
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
 }

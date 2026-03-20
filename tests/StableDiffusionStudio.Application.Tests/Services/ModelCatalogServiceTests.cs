@@ -165,4 +165,57 @@ public class ModelCatalogServiceTests
         providers[0].DisplayName.Should().Be("Test Provider");
         providers[0].Capabilities.CanScanLocal.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenExists_ReturnsDto()
+    {
+        var record = ModelRecord.Create("Test Model", "/path/model.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 2_000_000_000L, "local");
+        _catalogRepo.GetByIdAsync(record.Id, Arg.Any<CancellationToken>()).Returns(record);
+
+        var result = await _service.GetByIdAsync(record.Id);
+
+        result.Should().NotBeNull();
+        result!.Title.Should().Be("Test Model");
+        result.ModelFamily.Should().Be(ModelFamily.SD15);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenNotFound_ReturnsNull()
+    {
+        _catalogRepo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns((ModelRecord?)null);
+
+        var result = await _service.GetByIdAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithNonSearchableProvider_ReturnsEmpty()
+    {
+        var nonSearchProvider = Substitute.For<IModelProvider>();
+        nonSearchProvider.ProviderId.Returns("no-search");
+        nonSearchProvider.Capabilities.Returns(new ModelProviderCapabilities(
+            CanScanLocal: true, CanSearch: false, CanDownload: false,
+            RequiresAuth: false, SupportedModelTypes: Enum.GetValues<ModelType>().ToList()));
+
+        var service = new ModelCatalogService(_catalogRepo, new[] { nonSearchProvider }, _rootProvider, _jobQueue);
+        var query = new ModelSearchQuery("no-search", SearchTerm: "anything");
+
+        var result = await service.SearchAsync(query);
+
+        result.Models.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ScanAsync_WithNoRoots_ReturnsZeroCounts()
+    {
+        _rootProvider.GetRootsAsync(Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<StorageRoot>());
+
+        var result = await _service.ScanAsync(new ScanModelsCommand(null));
+
+        result.NewCount.Should().Be(0);
+        result.UpdatedCount.Should().Be(0);
+    }
 }
