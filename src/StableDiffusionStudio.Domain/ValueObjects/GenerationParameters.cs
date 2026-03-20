@@ -17,4 +17,6 @@ public sealed record GenerationParameters
     public int Width { get; init; } = 512;
     public int Height { get; init; } = 512;
     public int BatchSize { get; init; } = 1;
+    public int ClipSkip { get; init; } = 1;
+    public int BatchCount { get; init; } = 1;
 }

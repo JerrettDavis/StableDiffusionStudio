@@ -26,6 +26,8 @@ public class GenerationParametersTests
         parameters.Width.Should().Be(512);
         parameters.Height.Should().Be(512);
         parameters.BatchSize.Should().Be(1);
+        parameters.ClipSkip.Should().Be(1);
+        parameters.BatchCount.Should().Be(1);
     }
 
     [Fact]
@@ -53,5 +55,31 @@ public class GenerationParametersTests
         modified.Steps.Should().Be(30);
         original.Steps.Should().Be(20);
         modified.PositivePrompt.Should().Be(original.PositivePrompt);
+    }
+
+    [Fact]
+    public void ClipSkip_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            ClipSkip = 2
+        };
+
+        parameters.ClipSkip.Should().Be(2);
+    }
+
+    [Fact]
+    public void BatchCount_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            BatchCount = 3
+        };
+
+        parameters.BatchCount.Should().Be(3);
     }
 }

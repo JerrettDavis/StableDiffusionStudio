@@ -29,9 +29,13 @@
                     CFG: @Params_CfgScale.ToString("F1")
                 </MudSlider>
             </MudItem>
-            <MudItem xs="6">
+            <MudItem xs="5">
                 <MudTextField T="long" Label="Seed (-1 = random)" Value="Params_Seed" ValueChanged="OnSeedChanged"
                               Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="1" Class="d-flex align-center">
+                <MudIconButton Icon="@Icons.Material.Filled.Casino" Size="Size.Small"
+                               OnClick="RandomizeSeed" aria-label="Random seed" />
             </MudItem>
             <MudItem xs="3">
                 <MudSelect T="int" Label="Width" Value="Params_Width" ValueChanged="OnWidthChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
@@ -51,10 +55,36 @@
             </MudItem>
             <MudItem xs="6">
                 <MudSlider T="int" Value="Params_BatchSize" ValueChanged="OnBatchSizeChanged" Min="1" Max="8" Step="1">
-                    Batch: @Params_BatchSize
+                    Batch Size: @Params_BatchSize
                 </MudSlider>
             </MudItem>
         </MudGrid>
+    </MudExpansionPanel>
+
+    <MudExpansionPanel Text="Advanced">
+        <MudGrid>
+            <MudItem xs="6">
+                <MudSlider T="int" Value="Params_ClipSkip" ValueChanged="OnClipSkipChanged" Min="1" Max="12" Step="1">
+                    CLIP Skip: @Params_ClipSkip
+                </MudSlider>
+            </MudItem>
+            <MudItem xs="6">
+                <MudSlider T="int" Value="Params_BatchCount" ValueChanged="OnBatchCountChanged" Min="1" Max="10" Step="1">
+                    Batch Count: @Params_BatchCount
+                </MudSlider>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Quick Resolution</MudText>
+        <MudChipSet T="string" Class="mb-2">
+            <MudChip T="string" OnClick="() => SetResolution(512, 512)">512x512</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(512, 768)">512x768</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(768, 512)">768x512</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(768, 768)">768x768</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1024, 1024)">1024x1024</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1024, 1536)">1024x1536</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1536, 1024)">1536x1024</MudChip>
+        </MudChipSet>
     </MudExpansionPanel>
 </MudExpansionPanels>
 
@@ -75,6 +105,10 @@
     [Parameter] public EventCallback<int> Params_HeightChanged { get; set; }
     [Parameter] public int Params_BatchSize { get; set; } = 1;
     [Parameter] public EventCallback<int> Params_BatchSizeChanged { get; set; }
+    [Parameter] public int Params_ClipSkip { get; set; } = 1;
+    [Parameter] public EventCallback<int> Params_ClipSkipChanged { get; set; }
+    [Parameter] public int Params_BatchCount { get; set; } = 1;
+    [Parameter] public EventCallback<int> Params_BatchCountChanged { get; set; }
 
     private async Task OnSamplerChanged(Sampler v) { Params_Sampler = v; await Params_SamplerChanged.InvokeAsync(v); }
     private async Task OnSchedulerChanged(Scheduler v) { Params_Scheduler = v; await Params_SchedulerChanged.InvokeAsync(v); }
@@ -84,4 +118,20 @@
     private async Task OnWidthChanged(int v) { Params_Width = v; await Params_WidthChanged.InvokeAsync(v); }
     private async Task OnHeightChanged(int v) { Params_Height = v; await Params_HeightChanged.InvokeAsync(v); }
     private async Task OnBatchSizeChanged(int v) { Params_BatchSize = v; await Params_BatchSizeChanged.InvokeAsync(v); }
+    private async Task OnClipSkipChanged(int v) { Params_ClipSkip = v; await Params_ClipSkipChanged.InvokeAsync(v); }
+    private async Task OnBatchCountChanged(int v) { Params_BatchCount = v; await Params_BatchCountChanged.InvokeAsync(v); }
+
+    private async Task RandomizeSeed()
+    {
+        Params_Seed = -1;
+        await Params_SeedChanged.InvokeAsync(-1);
+    }
+
+    private async Task SetResolution(int width, int height)
+    {
+        Params_Width = width;
+        Params_Height = height;
+        await Params_WidthChanged.InvokeAsync(width);
+        await Params_HeightChanged.InvokeAsync(height);
+    }
 }

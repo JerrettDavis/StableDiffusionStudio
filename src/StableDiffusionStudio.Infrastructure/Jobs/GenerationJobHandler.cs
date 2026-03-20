@@ -88,35 +88,51 @@ public class GenerationJobHandler : IJobHandler
             await _inferenceBackend.LoadModelAsync(new ModelLoadRequest(checkpoint.FilePath, vaePath, loras), ct);
             job.UpdateProgress(20, "Generating");
 
-            // Generate
+            // Generate — run BatchCount iterations, each producing BatchSize images
             var parameters = generationJob.Parameters;
-            var request = new InferenceRequest(
-                parameters.PositivePrompt,
-                parameters.NegativePrompt,
-                parameters.Sampler,
-                parameters.Scheduler,
-                parameters.Steps,
-                parameters.CfgScale,
-                parameters.Seed,
-                parameters.Width,
-                parameters.Height,
-                parameters.BatchSize
-            );
+            var batchCount = Math.Max(1, parameters.BatchCount);
+            var allImages = new List<GeneratedImageData>();
 
-            var progress = new Progress<InferenceProgress>(p =>
+            for (int batchIndex = 0; batchIndex < batchCount; batchIndex++)
             {
-                var pct = 20 + (int)(p.Step * 60.0 / p.TotalSteps);
-                job.UpdateProgress(pct, p.Phase);
-            });
+                ct.ThrowIfCancellationRequested();
 
-            var result = await _inferenceBackend.GenerateAsync(request, progress, ct);
+                // Offset the seed for each batch run so we don't produce duplicates
+                var batchSeed = parameters.Seed == -1 ? -1 : parameters.Seed + (batchIndex * parameters.BatchSize);
 
-            if (!result.Success)
-            {
-                generationJob.Fail(result.Error ?? "Generation failed");
-                await _generationJobRepository.UpdateAsync(generationJob, ct);
-                job.Fail(result.Error ?? "Generation failed");
-                return;
+                var request = new InferenceRequest(
+                    parameters.PositivePrompt,
+                    parameters.NegativePrompt,
+                    parameters.Sampler,
+                    parameters.Scheduler,
+                    parameters.Steps,
+                    parameters.CfgScale,
+                    batchSeed,
+                    parameters.Width,
+                    parameters.Height,
+                    parameters.BatchSize,
+                    parameters.ClipSkip
+                );
+
+                var progress = new Progress<InferenceProgress>(p =>
+                {
+                    var batchProgress = (double)batchIndex / batchCount;
+                    var stepProgress = (double)p.Step / p.TotalSteps / batchCount;
+                    var pct = 20 + (int)((batchProgress + stepProgress) * 60.0);
+                    job.UpdateProgress(pct, $"Batch {batchIndex + 1}/{batchCount}: {p.Phase}");
+                });
+
+                var result = await _inferenceBackend.GenerateAsync(request, progress, ct);
+
+                if (!result.Success)
+                {
+                    generationJob.Fail(result.Error ?? "Generation failed");
+                    await _generationJobRepository.UpdateAsync(generationJob, ct);
+                    job.Fail(result.Error ?? "Generation failed");
+                    return;
+                }
+
+                allImages.AddRange(result.Images);
             }
 
             job.UpdateProgress(85, "Saving images");
@@ -131,7 +147,7 @@ public class GenerationJobHandler : IJobHandler
 
             var parametersJson = JsonSerializer.Serialize(parameters);
 
-            foreach (var imageData in result.Images)
+            foreach (var imageData in allImages)
             {
                 var fileName = $"{imageData.Seed}.png";
                 var filePath = Path.Combine(assetsDir, fileName);
@@ -155,8 +171,8 @@ public class GenerationJobHandler : IJobHandler
             await _generationJobRepository.UpdateAsync(generationJob, ct);
             job.UpdateProgress(100, "Complete");
 
-            _logger.LogInformation("Generation job {JobId} completed with {ImageCount} images",
-                generationJob.Id, result.Images.Count);
+            _logger.LogInformation("Generation job {JobId} completed with {ImageCount} images ({BatchCount} batches)",
+                generationJob.Id, allImages.Count, batchCount);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

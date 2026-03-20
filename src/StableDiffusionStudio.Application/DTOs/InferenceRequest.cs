@@ -12,4 +12,5 @@ public sealed record InferenceRequest(
     long Seed,
     int Width,
     int Height,
-    int BatchSize);
+    int BatchSize,
+    int ClipSkip = 1);
