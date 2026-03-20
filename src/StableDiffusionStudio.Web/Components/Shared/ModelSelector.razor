@@ -1,0 +1,39 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject ModelCatalogService CatalogService
+
+<MudSelect T="Guid?" Label="@Label" Value="SelectedModelId" ValueChanged="OnSelectionChanged"
+           Variant="Variant.Outlined" Clearable="@(!Required)">
+    @if (_models is not null)
+    {
+        @foreach (var model in _models)
+        {
+            <MudSelectItem T="Guid?" Value="@model.Id">
+                @model.Title
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-2">@model.ModelFamily.ToString()</MudChip>
+            </MudSelectItem>
+        }
+    }
+</MudSelect>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Model";
+    [Parameter] public ModelType ModelTypeFilter { get; set; } = ModelType.Checkpoint;
+    [Parameter] public Guid? SelectedModelId { get; set; }
+    [Parameter] public EventCallback<Guid?> SelectedModelIdChanged { get; set; }
+    [Parameter] public bool Required { get; set; }
+
+    private IReadOnlyList<ModelRecordDto>? _models;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _models = await CatalogService.ListAsync(new ModelFilter(Type: ModelTypeFilter));
+    }
+
+    private async Task OnSelectionChanged(Guid? value)
+    {
+        SelectedModelId = value;
+        await SelectedModelIdChanged.InvokeAsync(value);
+    }
+}

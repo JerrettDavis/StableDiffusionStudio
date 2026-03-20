@@ -1,0 +1,66 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@using StableDiffusionStudio.Domain.ValueObjects
+@inject ModelCatalogService CatalogService
+
+<MudText Typo="Typo.subtitle2" Class="mb-2">LoRAs</MudText>
+
+@foreach (var lora in SelectedLoras)
+{
+    <MudPaper Class="pa-2 mb-2 d-flex align-center gap-2" Elevation="0" Outlined="true">
+        <MudText Typo="Typo.body2" Style="min-width:120px">@GetLoraTitle(lora.ModelId)</MudText>
+        <MudSlider T="double" Value="lora.Weight" ValueChanged="v => UpdateWeight(lora.ModelId, v)"
+                   Min="0" Max="2" Step="0.05" Style="flex:1">
+            Weight: @lora.Weight.ToString("F2")
+        </MudSlider>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                       OnClick="() => RemoveLora(lora.ModelId)" />
+    </MudPaper>
+}
+
+<MudSelect T="Guid?" Label="Add LoRA" Variant="Variant.Outlined" Margin="Margin.Dense"
+           ValueChanged="AddLora" Value="@((Guid?)null)">
+    @if (_availableLoras is not null)
+    {
+        @foreach (var lora in _availableLoras.Where(l => !SelectedLoras.Any(s => s.ModelId == l.Id)))
+        {
+            <MudSelectItem T="Guid?" Value="@lora.Id">@lora.Title</MudSelectItem>
+        }
+    }
+</MudSelect>
+
+@code {
+    [Parameter] public List<LoraReference> SelectedLoras { get; set; } = [];
+    [Parameter] public EventCallback<List<LoraReference>> SelectedLorasChanged { get; set; }
+
+    private IReadOnlyList<ModelRecordDto>? _availableLoras;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _availableLoras = await CatalogService.ListAsync(new ModelFilter(Type: ModelType.LoRA));
+    }
+
+    private string GetLoraTitle(Guid id) =>
+        _availableLoras?.FirstOrDefault(l => l.Id == id)?.Title ?? "Unknown";
+
+    private async Task AddLora(Guid? id)
+    {
+        if (id is null) return;
+        SelectedLoras.Add(new LoraReference(id.Value, 1.0));
+        await SelectedLorasChanged.InvokeAsync(SelectedLoras);
+    }
+
+    private async Task RemoveLora(Guid id)
+    {
+        SelectedLoras.RemoveAll(l => l.ModelId == id);
+        await SelectedLorasChanged.InvokeAsync(SelectedLoras);
+    }
+
+    private async Task UpdateWeight(Guid id, double weight)
+    {
+        var idx = SelectedLoras.FindIndex(l => l.ModelId == id);
+        if (idx >= 0) SelectedLoras[idx] = new LoraReference(id, weight);
+        await SelectedLorasChanged.InvokeAsync(SelectedLoras);
+    }
+}

@@ -1,0 +1,87 @@
+@using StableDiffusionStudio.Domain.Enums
+
+<MudExpansionPanels>
+    <MudExpansionPanel Text="Generation Parameters">
+        <MudGrid>
+            <MudItem xs="6">
+                <MudSelect T="Sampler" Label="Sampler" Value="Params_Sampler" ValueChanged="OnSamplerChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in Enum.GetValues<Sampler>())
+                    {
+                        <MudSelectItem T="Sampler" Value="@s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudSelect T="Scheduler" Label="Scheduler" Value="Params_Scheduler" ValueChanged="OnSchedulerChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var s in Enum.GetValues<Scheduler>())
+                    {
+                        <MudSelectItem T="Scheduler" Value="@s">@s</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudSlider T="int" Value="Params_Steps" ValueChanged="OnStepsChanged" Min="1" Max="150" Step="1">
+                    Steps: @Params_Steps
+                </MudSlider>
+            </MudItem>
+            <MudItem xs="6">
+                <MudSlider T="double" Value="Params_CfgScale" ValueChanged="OnCfgScaleChanged" Min="1" Max="30" Step="0.5">
+                    CFG: @Params_CfgScale.ToString("F1")
+                </MudSlider>
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField T="long" Label="Seed (-1 = random)" Value="Params_Seed" ValueChanged="OnSeedChanged"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="3">
+                <MudSelect T="int" Label="Width" Value="Params_Width" ValueChanged="OnWidthChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var w in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
+                    {
+                        <MudSelectItem T="int" Value="@w">@w</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="3">
+                <MudSelect T="int" Label="Height" Value="Params_Height" ValueChanged="OnHeightChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var h in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
+                    {
+                        <MudSelectItem T="int" Value="@h">@h</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudSlider T="int" Value="Params_BatchSize" ValueChanged="OnBatchSizeChanged" Min="1" Max="8" Step="1">
+                    Batch: @Params_BatchSize
+                </MudSlider>
+            </MudItem>
+        </MudGrid>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    [Parameter] public Sampler Params_Sampler { get; set; } = Sampler.EulerA;
+    [Parameter] public EventCallback<Sampler> Params_SamplerChanged { get; set; }
+    [Parameter] public Scheduler Params_Scheduler { get; set; } = Scheduler.Normal;
+    [Parameter] public EventCallback<Scheduler> Params_SchedulerChanged { get; set; }
+    [Parameter] public int Params_Steps { get; set; } = 20;
+    [Parameter] public EventCallback<int> Params_StepsChanged { get; set; }
+    [Parameter] public double Params_CfgScale { get; set; } = 7.0;
+    [Parameter] public EventCallback<double> Params_CfgScaleChanged { get; set; }
+    [Parameter] public long Params_Seed { get; set; } = -1;
+    [Parameter] public EventCallback<long> Params_SeedChanged { get; set; }
+    [Parameter] public int Params_Width { get; set; } = 512;
+    [Parameter] public EventCallback<int> Params_WidthChanged { get; set; }
+    [Parameter] public int Params_Height { get; set; } = 512;
+    [Parameter] public EventCallback<int> Params_HeightChanged { get; set; }
+    [Parameter] public int Params_BatchSize { get; set; } = 1;
+    [Parameter] public EventCallback<int> Params_BatchSizeChanged { get; set; }
+
+    private async Task OnSamplerChanged(Sampler v) { Params_Sampler = v; await Params_SamplerChanged.InvokeAsync(v); }
+    private async Task OnSchedulerChanged(Scheduler v) { Params_Scheduler = v; await Params_SchedulerChanged.InvokeAsync(v); }
+    private async Task OnStepsChanged(int v) { Params_Steps = v; await Params_StepsChanged.InvokeAsync(v); }
+    private async Task OnCfgScaleChanged(double v) { Params_CfgScale = v; await Params_CfgScaleChanged.InvokeAsync(v); }
+    private async Task OnSeedChanged(long v) { Params_Seed = v; await Params_SeedChanged.InvokeAsync(v); }
+    private async Task OnWidthChanged(int v) { Params_Width = v; await Params_WidthChanged.InvokeAsync(v); }
+    private async Task OnHeightChanged(int v) { Params_Height = v; await Params_HeightChanged.InvokeAsync(v); }
+    private async Task OnBatchSizeChanged(int v) { Params_BatchSize = v; await Params_BatchSizeChanged.InvokeAsync(v); }
+}
