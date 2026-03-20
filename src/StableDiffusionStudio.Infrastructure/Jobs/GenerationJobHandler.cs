@@ -4,6 +4,7 @@ using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Entities;
 using StableDiffusionStudio.Domain.Enums;
+using StableDiffusionStudio.Infrastructure.Services;
 
 namespace StableDiffusionStudio.Infrastructure.Jobs;
 
@@ -147,11 +148,44 @@ public class GenerationJobHandler : IJobHandler
 
             var parametersJson = JsonSerializer.Serialize(parameters);
 
+            // Resolve model name for metadata embedding
+            string? modelName = null;
+            try
+            {
+                var checkpointModel = await _modelCatalogRepository.GetByIdAsync(parameters.CheckpointModelId, ct);
+                modelName = checkpointModel?.Title;
+            }
+            catch { /* Non-critical — proceed without model name */ }
+
             foreach (var imageData in allImages)
             {
                 var fileName = $"{imageData.Seed}.png";
                 var filePath = Path.Combine(assetsDir, fileName);
-                await File.WriteAllBytesAsync(filePath, imageData.ImageBytes, ct);
+
+                // Embed A1111-compatible metadata into PNG before saving
+                byte[] bytesToSave = imageData.ImageBytes;
+                try
+                {
+                    var a1111Params = PngMetadataService.FormatA1111Parameters(
+                        parameters.PositivePrompt,
+                        parameters.NegativePrompt,
+                        parameters.Steps,
+                        parameters.Sampler.ToString(),
+                        parameters.CfgScale,
+                        imageData.Seed,
+                        parameters.Width,
+                        parameters.Height,
+                        modelName,
+                        parameters.ClipSkip);
+                    bytesToSave = PngMetadataService.EmbedMetadata(imageData.ImageBytes, a1111Params);
+                }
+                catch (Exception ex)
+                {
+                    // If embedding fails, save original bytes — never break the output
+                    _logger.LogWarning(ex, "Failed to embed PNG metadata for seed {Seed}", imageData.Seed);
+                }
+
+                await File.WriteAllBytesAsync(filePath, bytesToSave, ct);
 
                 var generatedImage = GeneratedImage.Create(
                     generationJob.Id,
