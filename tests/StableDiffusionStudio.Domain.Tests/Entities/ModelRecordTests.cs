@@ -109,4 +109,63 @@ public class ModelRecordTests
         record.PreviewImagePath.Should().Be("/path/preview.png");
         record.CompatibilityHints.Should().Be("Requires 8GB VRAM");
     }
+
+    [Fact]
+    public void Create_WithWhitespaceOnlyTitle_UsesFilename()
+    {
+        var record = ModelRecord.Create("   ", "/models/cool-model.safetensors",
+            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "local");
+
+        record.Title.Should().Be("cool-model.safetensors");
+    }
+
+    [Fact]
+    public void UpdateMetadata_WithNullFields_DoesNotOverwriteExisting()
+    {
+        var record = ModelRecord.Create("Original Title", "/path/model.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local");
+        record.UpdateMetadata(description: "Existing description");
+
+        record.UpdateMetadata(title: null, description: null);
+
+        record.Title.Should().Be("Original Title");
+        record.Description.Should().Be("Existing description");
+    }
+
+    [Fact]
+    public void UpdateMetadata_UpdatesLastVerifiedAt()
+    {
+        var record = ModelRecord.Create(null, "/path/model.safetensors",
+            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "local");
+        var originalVerified = record.LastVerifiedAt;
+
+        record.UpdateMetadata(title: "Updated");
+
+        record.LastVerifiedAt.Should().BeOnOrAfter(originalVerified!.Value);
+    }
+
+    [Fact]
+    public void MarkAvailable_UpdatesLastVerifiedAt()
+    {
+        var record = ModelRecord.Create(null, "/path/model.safetensors",
+            ModelFamily.Unknown, ModelFormat.SafeTensors, 1000, "local");
+        record.MarkMissing();
+        var beforeRestore = DateTimeOffset.UtcNow;
+
+        record.MarkAvailable();
+
+        record.LastVerifiedAt.Should().BeOnOrAfter(beforeRestore);
+        record.Status.Should().Be(ModelStatus.Available);
+    }
+
+    [Fact]
+    public void Create_SetsDetectedAtToNow()
+    {
+        var before = DateTimeOffset.UtcNow;
+        var record = ModelRecord.Create("Test", "/path/model.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local");
+
+        record.DetectedAt.Should().BeOnOrAfter(before);
+        record.DetectedAt.Should().BeCloseTo(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(2));
+    }
 }

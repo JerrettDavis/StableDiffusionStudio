@@ -88,4 +88,67 @@ public class ProjectTests
         project.UpdateDescription("New description");
         project.Description.Should().Be("New description");
     }
+
+    [Fact]
+    public void Archive_AlreadyArchived_IsIdempotent()
+    {
+        var project = Project.Create("Test", null);
+        project.Archive();
+        var firstUpdatedAt = project.UpdatedAt;
+
+        project.Archive();
+
+        project.Status.Should().Be(ProjectStatus.Archived);
+    }
+
+    [Fact]
+    public void Restore_ActiveProject_RemainsActive()
+    {
+        var project = Project.Create("Test", null);
+        project.Restore();
+        project.Status.Should().Be(ProjectStatus.Active);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Rename_WithInvalidName_ThrowsArgumentException(string? name)
+    {
+        var project = Project.Create("Test", null);
+        var act = () => project.Rename(name!);
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Pin_AlreadyPinned_IsIdempotent()
+    {
+        var project = Project.Create("Test", null);
+        project.Pin();
+        project.Pin();
+        project.IsPinned.Should().BeTrue();
+    }
+
+    [Fact]
+    public void UpdateDescription_ToNull_ClearsDescription()
+    {
+        var project = Project.Create("Test", "Some description");
+        project.UpdateDescription(null);
+        project.Description.Should().BeNull();
+    }
+
+    [Fact]
+    public void Rename_TrimsWhitespace()
+    {
+        var project = Project.Create("Test", null);
+        project.Rename("  Trimmed Name  ");
+        project.Name.Should().Be("Trimmed Name");
+    }
+
+    [Fact]
+    public void Create_TrimsName()
+    {
+        var project = Project.Create("  Padded Name  ", null);
+        project.Name.Should().Be("Padded Name");
+    }
 }
