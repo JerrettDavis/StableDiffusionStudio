@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using StableDiffusionStudio.Application.DTOs;
@@ -16,7 +17,8 @@ public class StableDiffusionCppBackendTests
     public StableDiffusionCppBackendTests()
     {
         var logger = Substitute.For<ILogger<StableDiffusionCppBackend>>();
-        _backend = new StableDiffusionCppBackend(logger);
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        _backend = new StableDiffusionCppBackend(logger, scopeFactory);
     }
 
     [Fact]
