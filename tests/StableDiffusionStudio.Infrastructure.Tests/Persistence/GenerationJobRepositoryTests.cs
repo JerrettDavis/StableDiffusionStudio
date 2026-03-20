@@ -193,4 +193,70 @@ public class GenerationJobRepositoryTests : IDisposable
         retrieved.Parameters.Loras[0].Weight.Should().Be(0.8);
         retrieved.Parameters.Loras[1].Weight.Should().Be(1.2);
     }
+
+    [Fact]
+    public async Task GetImageByIdAsync_ReturnsCorrectImage()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        var image = GeneratedImage.Create(job.Id, "/images/test.png", 42, 512, 768, 1.5, "{}");
+        job.AddImage(image);
+        await _repo.AddAsync(job);
+
+        var retrieved = await _repo.GetImageByIdAsync(image.Id);
+
+        retrieved.Should().NotBeNull();
+        retrieved!.Id.Should().Be(image.Id);
+        retrieved.Seed.Should().Be(42);
+    }
+
+    [Fact]
+    public async Task GetImageByIdAsync_WhenNotFound_ReturnsNull()
+    {
+        var result = await _repo.GetImageByIdAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateImageAsync_PersistsIsFavorite()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        var image = GeneratedImage.Create(job.Id, "/images/test.png", 42, 512, 768, 1.5, "{}");
+        job.AddImage(image);
+        await _repo.AddAsync(job);
+
+        image.ToggleFavorite();
+        await _repo.UpdateImageAsync(image);
+
+        var retrieved = await _repo.GetImageByIdAsync(image.Id);
+        retrieved!.IsFavorite.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WithMultipleNewImages_PersistsAll()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        await _repo.AddAsync(job);
+
+        job.AddImage(GeneratedImage.Create(job.Id, "/img1.png", 1, 512, 512, 1.0, "{}"));
+        job.AddImage(GeneratedImage.Create(job.Id, "/img2.png", 2, 512, 512, 1.0, "{}"));
+        job.AddImage(GeneratedImage.Create(job.Id, "/img3.png", 3, 512, 512, 1.0, "{}"));
+        await _repo.UpdateAsync(job);
+
+        var retrieved = await _repo.GetByIdAsync(job.Id);
+        retrieved!.Images.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task ListByProjectAsync_DefaultPagination_Returns20OrLess()
+    {
+        var projectId = Guid.NewGuid();
+        for (int i = 0; i < 25; i++)
+        {
+            await _repo.AddAsync(GenerationJob.Create(projectId, ValidParameters));
+        }
+
+        var results = await _repo.ListByProjectAsync(projectId);
+
+        results.Should().HaveCount(20);
+    }
 }

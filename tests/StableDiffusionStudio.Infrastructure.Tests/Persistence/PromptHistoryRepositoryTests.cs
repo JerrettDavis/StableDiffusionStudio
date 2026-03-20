@@ -107,6 +107,59 @@ public class PromptHistoryRepositoryTests : IDisposable
         updated!.UseCount.Should().Be(2);
     }
 
+    [Fact]
+    public async Task ListRecentAsync_RespectsLimit()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            await _repo.UpsertAsync(PromptHistory.Create($"prompt {i}", ""));
+        }
+
+        var results = await _repo.ListRecentAsync(take: 3);
+
+        results.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task SearchAsync_RespectsLimit()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            await _repo.UpsertAsync(PromptHistory.Create($"sunset variation {i}", ""));
+        }
+
+        var results = await _repo.SearchAsync("sunset", take: 5);
+
+        results.Should().HaveCount(5);
+    }
+
+    [Fact]
+    public async Task SearchAsync_MatchesExactCase()
+    {
+        await _repo.UpsertAsync(PromptHistory.Create("A Beautiful Sunset", ""));
+
+        var results = await _repo.SearchAsync("Sunset");
+
+        results.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_NonExistent_DoesNotThrow()
+    {
+        var act = () => _repo.DeleteAsync(Guid.NewGuid());
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task FindByPromptsAsync_PartialMatch_ReturnsNull()
+    {
+        await _repo.UpsertAsync(PromptHistory.Create("a beautiful sunset", "ugly"));
+
+        var found = await _repo.FindByPromptsAsync("a beautiful sunset", "different negative");
+
+        found.Should().BeNull();
+    }
+
     public void Dispose()
     {
         _context.Dispose();
