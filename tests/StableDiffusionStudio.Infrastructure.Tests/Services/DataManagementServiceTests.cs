@@ -205,4 +205,149 @@ public class DataManagementServiceTests : IDisposable
         // Settings must be preserved
         (await _context.Settings.CountAsync()).Should().Be(1);
     }
+
+    [Fact]
+    public async Task DeleteGenerationJobAsync_CascadesToImages()
+    {
+        // Arrange
+        var project = Project.Create("Test", null);
+        _context.Projects.Add(project);
+
+        var model = ModelRecord.Create("M", "/m.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1024, "local");
+        _context.ModelRecords.Add(model);
+
+        var genParams = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = model.Id,
+            Steps = 20,
+            CfgScale = 7.0,
+            Width = 512,
+            Height = 512,
+            BatchSize = 1
+        };
+        var genJob = GenerationJob.Create(project.Id, genParams);
+        _context.GenerationJobs.Add(genJob);
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob.Id, "/fake/1.png", 1, 512, 512, 1.0, "{}"));
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob.Id, "/fake/2.png", 2, 512, 512, 1.0, "{}"));
+        await _context.SaveChangesAsync();
+
+        // Act
+        await _service.DeleteGenerationJobAsync(genJob.Id);
+
+        // Assert
+        (await _context.GenerationJobs.CountAsync()).Should().Be(0);
+        (await _context.GeneratedImages.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteGeneratedImageAsync_RemovesSingleImage()
+    {
+        // Arrange
+        var project = Project.Create("Test", null);
+        _context.Projects.Add(project);
+
+        var model = ModelRecord.Create("M", "/m.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1024, "local");
+        _context.ModelRecords.Add(model);
+
+        var genParams = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = model.Id,
+            Steps = 20,
+            CfgScale = 7.0,
+            Width = 512,
+            Height = 512,
+            BatchSize = 1
+        };
+        var genJob = GenerationJob.Create(project.Id, genParams);
+        _context.GenerationJobs.Add(genJob);
+        var image1 = GeneratedImage.Create(genJob.Id, "/fake/1.png", 1, 512, 512, 1.0, "{}");
+        var image2 = GeneratedImage.Create(genJob.Id, "/fake/2.png", 2, 512, 512, 1.0, "{}");
+        _context.GeneratedImages.Add(image1);
+        _context.GeneratedImages.Add(image2);
+        await _context.SaveChangesAsync();
+
+        // Act
+        await _service.DeleteGeneratedImageAsync(image1.Id);
+
+        // Assert
+        (await _context.GeneratedImages.CountAsync()).Should().Be(1);
+        (await _context.GeneratedImages.FindAsync(image2.Id)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task CleanOrphanedAssetsAsync_WithNoOrphans_ReturnsZero()
+    {
+        // The assets directory doesn't exist or has no orphaned files
+        var result = await _service.CleanOrphanedAssetsAsync();
+        result.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task DeleteFailedJobRecordsAsync_OnlyRemovesFailed()
+    {
+        // Arrange
+        var completed = JobRecord.Create("scan");
+        completed.Start();
+        completed.Complete();
+        _context.JobRecords.Add(completed);
+
+        var failed = JobRecord.Create("scan");
+        failed.Start();
+        failed.Fail("error");
+        _context.JobRecords.Add(failed);
+
+        var pending = JobRecord.Create("scan");
+        _context.JobRecords.Add(pending);
+
+        await _context.SaveChangesAsync();
+
+        // Act
+        var deleted = await _service.DeleteFailedJobRecordsAsync();
+
+        // Assert
+        deleted.Should().Be(1);
+        var remaining = await _context.JobRecords.ToListAsync();
+        remaining.Should().HaveCount(2);
+        remaining.Should().NotContain(j => j.Status == JobStatus.Failed);
+    }
+
+    [Fact]
+    public async Task DeleteProjectAsync_CascadesToGenerationJobs()
+    {
+        // Arrange
+        var project = Project.Create("Test", null);
+        _context.Projects.Add(project);
+
+        var model = ModelRecord.Create("M", "/m.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1024, "local");
+        _context.ModelRecords.Add(model);
+
+        var genParams = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = model.Id,
+            Steps = 20,
+            CfgScale = 7.0,
+            Width = 512,
+            Height = 512,
+            BatchSize = 1
+        };
+        var genJob = GenerationJob.Create(project.Id, genParams);
+        _context.GenerationJobs.Add(genJob);
+        _context.GeneratedImages.Add(GeneratedImage.Create(genJob.Id, "/fake/1.png", 1, 512, 512, 1.0, "{}"));
+        await _context.SaveChangesAsync();
+
+        // Act
+        var deleted = await _service.DeleteProjectAsync(project.Id);
+
+        // Assert
+        deleted.Should().Be(1);
+        (await _context.Projects.CountAsync()).Should().Be(0);
+        (await _context.GenerationJobs.CountAsync()).Should().Be(0);
+        (await _context.GeneratedImages.CountAsync()).Should().Be(0);
+    }
 }
