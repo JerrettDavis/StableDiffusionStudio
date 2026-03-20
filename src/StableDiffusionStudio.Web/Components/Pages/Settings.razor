@@ -2,9 +2,11 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IStorageRootProvider StorageRootProvider
 @inject IProviderCredentialStore CredentialStore
+@inject IInferenceSettingsProvider InferenceSettingsProvider
 @inject ModelCatalogService CatalogService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -38,9 +40,15 @@
                 {
                     <MudListItem T="StorageRoot" Icon="@Icons.Material.Filled.Folder">
                         <div class="d-flex align-center justify-space-between" style="width: 100%;">
-                            <div>
-                                <MudText Typo="Typo.subtitle1">@root.DisplayName</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@root.Path</MudText>
+                            <div class="d-flex align-center gap-2">
+                                <div>
+                                    <MudText Typo="Typo.subtitle1">@root.DisplayName</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@root.Path</MudText>
+                                </div>
+                                @if (root.ModelTypeTag.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Primary">@root.ModelTypeTag</MudChip>
+                                }
                             </div>
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
                                            Size="Size.Small" OnClick="() => RemoveRoot(root)" />
@@ -92,6 +100,66 @@
         }
     </MudTabPanel>
 
+    <MudTabPanel Text="Performance / Backend" Icon="@Icons.Material.Filled.Speed">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Configure hardware utilization and memory management for image generation.
+        </MudText>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">VRAM Presets</MudText>
+        <MudChipSet T="string" Class="mb-3">
+            <MudChip T="string" Color="Color.Success" OnClick="ApplyHighVRAM">High VRAM (16GB+)</MudChip>
+            <MudChip T="string" Color="Color.Primary" OnClick="ApplyDefaultVRAM">Default (8-16GB)</MudChip>
+            <MudChip T="string" Color="Color.Warning" OnClick="ApplyLowVRAM">Low VRAM (&lt;8GB)</MudChip>
+        </MudChipSet>
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudNumericField T="int" Label="CPU Threads (0 = auto)" @bind-Value="_inferenceSettings_ThreadCount"
+                                 Min="0" Max="128" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
+                    Auto = @Environment.ProcessorCount threads
+                </MudText>
+            </MudItem>
+        </MudGrid>
+
+        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Memory Optimization</MudText>
+        <MudGrid>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_FlashAttention" Label="Flash Attention" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_DiffusionFlashAttention" Label="Diffusion Flash Attention (fp16 K/V)" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeTiling" Label="VAE Tiling" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeDecodeOnly" Label="VAE Decode Only" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepClipOnCPU" Label="CLIP on CPU" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepVaeOnCPU" Label="VAE on CPU" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepControlNetOnCPU" Label="ControlNet on CPU" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_OffloadParamsToCPU" Label="Offload Params to CPU" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch T="bool" @bind-Value="_inferenceSettings_EnableMmap" Label="Enable Memory Mapping" Color="Color.Primary" />
+            </MudItem>
+        </MudGrid>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="SaveInferenceSettings">
+            Save Performance Settings
+        </MudButton>
+    </MudTabPanel>
+
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
             Appearance settings will be available in a future update.
@@ -122,10 +190,23 @@
     private readonly HashSet<string> _configuredProviders = new();
     private bool _validating;
 
+    // Inference settings fields
+    private int _inferenceSettings_ThreadCount;
+    private bool _inferenceSettings_FlashAttention;
+    private bool _inferenceSettings_DiffusionFlashAttention;
+    private bool _inferenceSettings_VaeTiling;
+    private bool _inferenceSettings_VaeDecodeOnly;
+    private bool _inferenceSettings_KeepClipOnCPU;
+    private bool _inferenceSettings_KeepVaeOnCPU;
+    private bool _inferenceSettings_KeepControlNetOnCPU;
+    private bool _inferenceSettings_OffloadParamsToCPU;
+    private bool _inferenceSettings_EnableMmap;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadRoots();
         await LoadProviders();
+        await LoadInferenceSettings();
     }
 
     private async Task LoadRoots()
@@ -242,5 +323,57 @@
             await LoadRoots();
             Snackbar.Add("Directory removed", MudBlazor.Severity.Info);
         }
+    }
+
+    private async Task LoadInferenceSettings()
+    {
+        var settings = await InferenceSettingsProvider.GetSettingsAsync();
+        _inferenceSettings_ThreadCount = settings.ThreadCount;
+        _inferenceSettings_FlashAttention = settings.FlashAttention;
+        _inferenceSettings_DiffusionFlashAttention = settings.DiffusionFlashAttention;
+        _inferenceSettings_VaeTiling = settings.VaeTiling;
+        _inferenceSettings_VaeDecodeOnly = settings.VaeDecodeOnly;
+        _inferenceSettings_KeepClipOnCPU = settings.KeepClipOnCPU;
+        _inferenceSettings_KeepVaeOnCPU = settings.KeepVaeOnCPU;
+        _inferenceSettings_KeepControlNetOnCPU = settings.KeepControlNetOnCPU;
+        _inferenceSettings_OffloadParamsToCPU = settings.OffloadParamsToCPU;
+        _inferenceSettings_EnableMmap = settings.EnableMmap;
+    }
+
+    private void ApplySettingsFromPreset(InferenceSettings preset)
+    {
+        _inferenceSettings_ThreadCount = preset.ThreadCount;
+        _inferenceSettings_FlashAttention = preset.FlashAttention;
+        _inferenceSettings_DiffusionFlashAttention = preset.DiffusionFlashAttention;
+        _inferenceSettings_VaeTiling = preset.VaeTiling;
+        _inferenceSettings_VaeDecodeOnly = preset.VaeDecodeOnly;
+        _inferenceSettings_KeepClipOnCPU = preset.KeepClipOnCPU;
+        _inferenceSettings_KeepVaeOnCPU = preset.KeepVaeOnCPU;
+        _inferenceSettings_KeepControlNetOnCPU = preset.KeepControlNetOnCPU;
+        _inferenceSettings_OffloadParamsToCPU = preset.OffloadParamsToCPU;
+        _inferenceSettings_EnableMmap = preset.EnableMmap;
+    }
+
+    private void ApplyHighVRAM() => ApplySettingsFromPreset(InferenceSettings.HighVRAM);
+    private void ApplyDefaultVRAM() => ApplySettingsFromPreset(InferenceSettings.Default);
+    private void ApplyLowVRAM() => ApplySettingsFromPreset(InferenceSettings.LowVRAM);
+
+    private async Task SaveInferenceSettings()
+    {
+        var settings = new InferenceSettings
+        {
+            ThreadCount = _inferenceSettings_ThreadCount,
+            FlashAttention = _inferenceSettings_FlashAttention,
+            DiffusionFlashAttention = _inferenceSettings_DiffusionFlashAttention,
+            VaeTiling = _inferenceSettings_VaeTiling,
+            VaeDecodeOnly = _inferenceSettings_VaeDecodeOnly,
+            KeepClipOnCPU = _inferenceSettings_KeepClipOnCPU,
+            KeepVaeOnCPU = _inferenceSettings_KeepVaeOnCPU,
+            KeepControlNetOnCPU = _inferenceSettings_KeepControlNetOnCPU,
+            OffloadParamsToCPU = _inferenceSettings_OffloadParamsToCPU,
+            EnableMmap = _inferenceSettings_EnableMmap
+        };
+        await InferenceSettingsProvider.SaveSettingsAsync(settings);
+        Snackbar.Add("Performance settings saved. Changes will apply on next model load.", MudBlazor.Severity.Success);
     }
 }

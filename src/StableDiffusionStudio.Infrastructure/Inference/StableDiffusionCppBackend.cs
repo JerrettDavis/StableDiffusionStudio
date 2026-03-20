@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StableDiffusion.NET;
 using HPPH.System.Drawing;
 using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Enums;
+using StableDiffusionStudio.Domain.ValueObjects;
 using Sampler = StableDiffusionStudio.Domain.Enums.Sampler;
 using Scheduler = StableDiffusionStudio.Domain.Enums.Scheduler;
 using SdSampler = StableDiffusion.NET.Sampler;
@@ -16,6 +18,7 @@ namespace StableDiffusionStudio.Infrastructure.Inference;
 public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 {
     private readonly ILogger<StableDiffusionCppBackend> _logger;
+    private readonly IServiceScopeFactory _scopeFactory;
     private DiffusionModel? _model;
     private bool _nativeAvailable;
     private bool _checkedAvailability;
@@ -30,9 +33,10 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         MaxWidth: 2048, MaxHeight: 2048,
         SupportsLoRA: true, SupportsVAE: true);
 
-    public StableDiffusionCppBackend(ILogger<StableDiffusionCppBackend> logger)
+    public StableDiffusionCppBackend(ILogger<StableDiffusionCppBackend> logger, IServiceScopeFactory scopeFactory)
     {
         _logger = logger;
+        _scopeFactory = scopeFactory;
     }
 
     public Task<bool> IsAvailableAsync(CancellationToken ct = default)
@@ -97,7 +101,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         _logger.LogDebug("Added {BaseDir} to Backends.SearchPaths", baseDir);
     }
 
-    public Task LoadModelAsync(ModelLoadRequest request, CancellationToken ct = default)
+    public async Task LoadModelAsync(ModelLoadRequest request, CancellationToken ct = default)
     {
         // Fully unload previous model to free GPU VRAM before loading new one
         if (_model is not null)
@@ -113,14 +117,24 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         var fileNameLower = fileName.ToLowerInvariant();
         _logger.LogInformation("Loading model: {FileName} from {Path}", fileName, request.CheckpointPath);
 
+        // Read inference settings from the database via a scoped provider
+        InferenceSettings settings;
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var settingsProvider = scope.ServiceProvider.GetRequiredService<IInferenceSettingsProvider>();
+            settings = await settingsProvider.GetSettingsAsync(ct);
+        }
+
         var modelParams = DiffusionModelParameter.Create();
-        modelParams.ThreadCount = Environment.ProcessorCount; // Library default -1 rejected by validator
-        modelParams.FlashAttention = true;
-        modelParams.DiffusionFlashAttention = true; // Reduces VRAM by converting K/V to fp16
-        modelParams.VaeTiling = true; // Process VAE in tiles to reduce peak VRAM
-        modelParams.VaeDecodeOnly = true; // Only need decode for txt2img
-        modelParams.KeepClipOnCPU = true; // Offload text encoder to CPU RAM
-        modelParams.KeepVaeOnCPU = true; // Offload VAE to CPU RAM — frees GPU for the diffusion model
+        modelParams.ThreadCount = settings.EffectiveThreadCount;
+        modelParams.FlashAttention = settings.FlashAttention;
+        modelParams.DiffusionFlashAttention = settings.DiffusionFlashAttention;
+        modelParams.VaeTiling = settings.VaeTiling;
+        modelParams.VaeDecodeOnly = settings.VaeDecodeOnly;
+        modelParams.KeepClipOnCPU = settings.KeepClipOnCPU;
+        modelParams.KeepVaeOnCPU = settings.KeepVaeOnCPU;
+        modelParams.KeepControlNetOnCPU = settings.KeepControlNetOnCPU;
+        modelParams.EnableMmap = settings.EnableMmap;
 
         // Detect model type from filename
         var isFlux = fileNameLower.Contains("flux");
@@ -130,10 +144,15 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         modelParams.ModelPath = request.CheckpointPath;
 
+        // For Flux models, always offload params regardless of setting
         if (isFlux)
         {
-            modelParams.OffloadParamsToCPU = true; // Flux models are huge — keep params in CPU RAM
+            modelParams.OffloadParamsToCPU = true;
             _logger.LogInformation("Configured Flux-specific settings (OffloadParamsToCPU)");
+        }
+        else
+        {
+            modelParams.OffloadParamsToCPU = settings.OffloadParamsToCPU;
         }
 
         if (!string.IsNullOrWhiteSpace(request.VaePath))
@@ -161,14 +180,14 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                     var retryParams = DiffusionModelParameter.Create();
                     retryParams.DiffusionModelPath = request.CheckpointPath;
                     retryParams.FlashAttention = true;
-                    retryParams.ThreadCount = Environment.ProcessorCount;
+                    retryParams.ThreadCount = settings.EffectiveThreadCount;
                     retryParams.VaeTiling = true;
                     if (!string.IsNullOrWhiteSpace(request.VaePath))
                         retryParams.VaePath = request.VaePath;
 
                     _model = new DiffusionModel(retryParams);
                     _logger.LogInformation("Model loaded successfully via DiffusionModelPath: {FileName}", fileName);
-                    return Task.CompletedTask;
+                    return;
                 }
                 catch (Exception retryEx)
                 {
@@ -181,7 +200,6 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 $"Error: {ex.Message}", ex);
         }
 
-        return Task.CompletedTask;
     }
 
     public Task<InferenceResult> GenerateAsync(InferenceRequest request, IProgress<InferenceProgress> progress, CancellationToken ct = default)
@@ -213,6 +231,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 genParams.Width = request.Width;
                 genParams.Height = request.Height;
                 genParams.Seed = seed;
+                genParams.ClipSkip = request.ClipSkip;
                 genParams.SampleParameter.SampleSteps = request.Steps;
                 genParams.SampleParameter.SampleMethod = MapSampler(request.Sampler);
                 genParams.SampleParameter.Scheduler = MapScheduler(request.Scheduler);

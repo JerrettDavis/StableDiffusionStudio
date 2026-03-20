@@ -38,6 +38,7 @@ builder.Services.AddScoped<ProjectService>();
 
 // Settings
 builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
+builder.Services.AddScoped<IInferenceSettingsProvider, DbInferenceSettingsProvider>();
 
 // Model services
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
