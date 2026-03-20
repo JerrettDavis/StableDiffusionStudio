@@ -102,4 +102,58 @@ public class LocalFolderProviderTests
         var result = await _provider.ValidateCredentialsAsync();
         result.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task ScanLocalAsync_WithModelTypeTag_OverridesInferredType()
+    {
+        var root = new StorageRoot(_fixturesPath, "LoRA Models", ModelType.LoRA);
+        var results = await _provider.ScanLocalAsync(root);
+
+        // All models should have the overridden type
+        results.Should().OnlyContain(r => r.Type == ModelType.LoRA);
+    }
+
+    [Fact]
+    public async Task ScanLocalAsync_NonExistentDirectory_ReturnsEmpty()
+    {
+        var root = new StorageRoot("/nonexistent/path/that/does/not/exist", "Nonexistent");
+        var results = await _provider.ScanLocalAsync(root);
+
+        results.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ScanLocalAsync_DiscoveredModel_HasCorrectFields()
+    {
+        var root = new StorageRoot(_fixturesPath, "Test Models");
+        var results = await _provider.ScanLocalAsync(root);
+
+        var model = results.First();
+        model.FilePath.Should().NotBeNullOrEmpty();
+        model.FileSize.Should().BeGreaterThanOrEqualTo(0);
+        model.Tags.Should().NotBeNull();
+        Enum.IsDefined(model.Format).Should().BeTrue();
+        Enum.IsDefined(model.Family).Should().BeTrue();
+        Enum.IsDefined(model.Type).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ScanLocalAsync_IgnoresNonModelFiles()
+    {
+        var root = new StorageRoot(_fixturesPath, "Test Models");
+        var results = await _provider.ScanLocalAsync(root);
+
+        // Should not include .txt or .png files
+        results.Should().NotContain(r => r.FilePath.EndsWith(".txt"));
+        results.Should().NotContain(r => r.FilePath.EndsWith(".png"));
+    }
+
+    [Fact]
+    public void Capabilities_ReportsCorrectModelTypes()
+    {
+        var caps = _provider.Capabilities;
+        caps.SupportedModelTypes.Should().Contain(ModelType.Checkpoint);
+        caps.SupportedModelTypes.Should().Contain(ModelType.LoRA);
+        caps.SupportedModelTypes.Should().Contain(ModelType.VAE);
+    }
 }
