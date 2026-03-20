@@ -9,6 +9,7 @@ using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
 using StableDiffusionStudio.Infrastructure.Settings;
 using StableDiffusionStudio.Infrastructure.Telemetry;
 using StableDiffusionStudio.Infrastructure.Storage;
+using Microsoft.Extensions.FileProviders;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
 
@@ -61,6 +62,12 @@ builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
 
+// Generation services
+builder.Services.AddScoped<GenerationService>();
+builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
+builder.Services.AddSingleton<IInferenceBackend, MockInferenceBackend>();
+builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
+
 // Telemetry
 builder.Services.AddSingleton<StudioMetrics>();
 
@@ -89,6 +96,18 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStaticFiles();
+
+// Serve generated image assets from the local app data directory
+var assetsPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "StableDiffusionStudio", "Assets");
+Directory.CreateDirectory(assetsPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(assetsPath),
+    RequestPath = "/assets"
+});
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
