@@ -41,7 +41,7 @@ public class LocalFolderProvider : IModelProvider
             var modelFileInfo = new ModelFileInfo(fileInfo.Name, fileInfo.Length, ReadHeaderHint(filePath));
             var format = ModelFileAnalyzer.InferFormat(modelFileInfo);
             var family = ModelFileAnalyzer.InferFamily(modelFileInfo);
-            var modelType = ModelFileAnalyzer.InferModelType(modelFileInfo);
+            var modelType = root.ModelTypeTag ?? ModelFileAnalyzer.InferModelType(modelFileInfo);
             var previewPath = FindPreviewImage(filePath);
 
             results.Add(new DiscoveredModel(

@@ -1,4 +1,5 @@
 @using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IStorageRootProvider StorageRootProvider
 
@@ -8,6 +9,15 @@
         <MudTextField @bind-Value="_path" Label="Directory Path" Required="true"
                       Placeholder="C:\Models\StableDiffusion" Class="mb-3" AutoFocus="true" />
         <MudTextField @bind-Value="_displayName" Label="Display Name" Required="true" Placeholder="My Models" />
+        <MudSelect T="ModelType?" Label="Model Type (optional)" @bind-Value="_modelTypeTag"
+                   Variant="Variant.Outlined" Clearable="true" Class="mt-3"
+                   HelperText="Tag this folder for a specific model type">
+            <MudSelectItem T="ModelType?" Value="@((ModelType?)null)">Auto-detect</MudSelectItem>
+            @foreach (var t in Enum.GetValues<ModelType>().Where(t => t != ModelType.Unknown))
+            {
+                <MudSelectItem T="ModelType?" Value="@t">@t</MudSelectItem>
+            }
+        </MudSelect>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
@@ -20,11 +30,12 @@
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     private string _path = string.Empty;
     private string _displayName = string.Empty;
+    private ModelType? _modelTypeTag;
     private bool IsValid => !string.IsNullOrWhiteSpace(_path) && !string.IsNullOrWhiteSpace(_displayName);
 
     private async Task Submit()
     {
-        await StorageRootProvider.AddRootAsync(new StorageRoot(_path, _displayName));
+        await StorageRootProvider.AddRootAsync(new StorageRoot(_path, _displayName, _modelTypeTag));
         MudDialog.Close(DialogResult.Ok(true));
     }
     private void Cancel() => MudDialog.Cancel();
