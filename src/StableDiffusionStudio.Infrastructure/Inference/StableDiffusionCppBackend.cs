@@ -107,11 +107,19 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         if (!string.IsNullOrWhiteSpace(request.VaePath))
             modelParams.VaePath = request.VaePath;
 
-        _model = new DiffusionModel(modelParams);
-
-        // LoRAs are applied per-generation via ImageGenerationParameter.Loras
-        // Store for later use if needed, but the SD.NET API supports per-generation LoRA
-        _logger.LogInformation("Model loaded successfully");
+        try
+        {
+            _model = new DiffusionModel(modelParams);
+            _logger.LogInformation("Model loaded successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load model from {Path}", request.CheckpointPath);
+            throw new InvalidOperationException(
+                $"Failed to load model: {Path.GetFileName(request.CheckpointPath)}. " +
+                $"stable-diffusion.cpp supports .safetensors and .gguf formats. " +
+                $"Error: {ex.Message}", ex);
+        }
 
         return Task.CompletedTask;
     }

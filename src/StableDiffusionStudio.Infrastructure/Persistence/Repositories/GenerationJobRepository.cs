@@ -15,7 +15,10 @@ public class GenerationJobRepository : IGenerationJobRepository
 
     public async Task<GenerationJob?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
+        // AsNoTracking ensures we always get fresh data from DB,
+        // critical for polling job status updated by background workers
         return await _context.GenerationJobs
+            .AsNoTracking()
             .Include(j => j.Images)
             .FirstOrDefaultAsync(j => j.Id == id, ct);
     }
@@ -24,6 +27,7 @@ public class GenerationJobRepository : IGenerationJobRepository
         Guid projectId, int skip = 0, int take = 20, CancellationToken ct = default)
     {
         return await _context.GenerationJobs
+            .AsNoTracking()
             .Include(j => j.Images)
             .Where(j => j.ProjectId == projectId)
             .OrderByDescending(j => j.CreatedAt)
