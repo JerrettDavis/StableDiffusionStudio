@@ -36,7 +36,7 @@
     private string GetImageUrl()
     {
         var assetsBase = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "StableDiffusionStudio", "Assets");
 
         if (Image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))

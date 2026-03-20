@@ -51,7 +51,7 @@ else
     {
         // Extract relative path from the full file path for static file serving
         var assetsBase = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "StableDiffusionStudio", "Assets");
 
         if (image.FilePath.StartsWith(assetsBase, StringComparison.OrdinalIgnoreCase))
