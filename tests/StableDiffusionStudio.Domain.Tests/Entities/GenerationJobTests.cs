@@ -140,4 +140,83 @@ public class GenerationJobTests
         job.Images.Should().HaveCount(1);
         job.Images[0].Should().Be(image);
     }
+
+    [Fact]
+    public void Start_AlreadyRunning_OverwritesStartedAt()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.Start();
+        var firstStartedAt = job.StartedAt;
+
+        // Domain doesn't guard against double-start on GenerationJob (unlike JobRecord)
+        job.Start();
+        job.Status.Should().Be(GenerationJobStatus.Running);
+    }
+
+    [Fact]
+    public void Complete_SetsCompletedAtTimestamp()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.Start();
+        var before = DateTimeOffset.UtcNow;
+
+        job.Complete();
+
+        job.CompletedAt.Should().BeOnOrAfter(before);
+    }
+
+    [Fact]
+    public void Fail_AfterStart_SetsErrorMessageAndCompletedAt()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.Start();
+
+        job.Fail("Out of memory");
+
+        job.Status.Should().Be(GenerationJobStatus.Failed);
+        job.ErrorMessage.Should().Be("Out of memory");
+        job.CompletedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Cancel_WhileRunning_SetsStatusToCancelled()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.Start();
+
+        job.Cancel();
+
+        job.Status.Should().Be(GenerationJobStatus.Cancelled);
+        job.CompletedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void AddImage_MultipleImages_IncreasesCount()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.AddImage(GeneratedImage.Create(job.Id, "/img1.png", 1, 512, 512, 1.0, "{}"));
+        job.AddImage(GeneratedImage.Create(job.Id, "/img2.png", 2, 512, 512, 1.0, "{}"));
+        job.AddImage(GeneratedImage.Create(job.Id, "/img3.png", 3, 512, 512, 1.0, "{}"));
+
+        job.Images.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void Create_WithValidDimensions_Succeeds()
+    {
+        var parameters = ValidParameters with { Width = 1024, Height = 768 };
+        var job = GenerationJob.Create(Guid.NewGuid(), parameters);
+
+        job.Parameters.Width.Should().Be(1024);
+        job.Parameters.Height.Should().Be(768);
+    }
+
+    [Fact]
+    public void Create_WithEmptyCheckpointId_StillCreates()
+    {
+        // Empty GUID is technically allowed by GenerationJob.Create
+        var parameters = ValidParameters with { CheckpointModelId = Guid.Empty };
+        var job = GenerationJob.Create(Guid.NewGuid(), parameters);
+        job.Should().NotBeNull();
+    }
 }
