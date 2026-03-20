@@ -59,6 +59,9 @@ else
                               Variant="Variant.Outlined" Class="mt-3"
                               Placeholder="What to avoid..." />
 
+                <NegativePromptHelper NegativePrompt="_negativePrompt"
+                                      NegativePromptChanged="v => { _negativePrompt = v; StateHasChanged(); }" />
+
                 <PromptHistoryPanel @ref="_promptHistoryPanel" OnPromptSelected="OnPromptHistorySelected" />
 
                 <div class="mt-3">
