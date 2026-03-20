@@ -8,6 +8,7 @@ using StableDiffusionStudio.Infrastructure.Persistence;
 using StableDiffusionStudio.Infrastructure.Persistence.Repositories;
 using StableDiffusionStudio.Infrastructure.Settings;
 using StableDiffusionStudio.Infrastructure.Telemetry;
+using StableDiffusionStudio.Infrastructure.Inference;
 using StableDiffusionStudio.Infrastructure.Storage;
 using Microsoft.Extensions.FileProviders;
 using StableDiffusionStudio.Web.Components;
@@ -65,7 +66,15 @@ builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-dow
 // Generation services
 builder.Services.AddScoped<GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
-builder.Services.AddSingleton<IInferenceBackend, MockInferenceBackend>();
+builder.Services.AddSingleton<MockInferenceBackend>();
+builder.Services.AddSingleton<StableDiffusionCppBackend>();
+builder.Services.AddSingleton<IInferenceBackend>(sp =>
+{
+    var sdCpp = sp.GetRequiredService<StableDiffusionCppBackend>();
+    if (sdCpp.IsAvailableAsync().GetAwaiter().GetResult())
+        return sdCpp;
+    return sp.GetRequiredService<MockInferenceBackend>();
+});
 builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
 
 // Telemetry
