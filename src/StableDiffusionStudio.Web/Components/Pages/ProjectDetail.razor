@@ -114,7 +114,13 @@ else
                 @if (_isGenerating && _generationStatus is not null)
                 {
                     <MudPaper Class="pa-3 mt-2" Elevation="0" Outlined="true">
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_generationStatus</MudText>
+                        <div class="d-flex align-center justify-space-between">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@_generationStatus</MudText>
+                            @if (_generationElapsed > 0)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatElapsed(_generationElapsed)</MudText>
+                            }
+                        </div>
                         <MudProgressLinear Value="_generationProgress" Max="100" Color="Color.Primary"
                                            Striped="true" Class="mt-1" />
                     </MudPaper>
@@ -165,6 +171,7 @@ else
     private string? _generationError;
     private string? _generationStatus;
     private int _generationProgress;
+    private double _generationElapsed;
     private GenerationGallery? _gallery;
     private PromptHistoryPanel? _promptHistoryPanel;
     private GenerationPreset? _activePreset;
@@ -263,6 +270,7 @@ else
         _generationError = null;
         _generationStatus = "Submitting generation job...";
         _generationProgress = 0;
+        _generationElapsed = 0;
         StateHasChanged();
 
         try
@@ -308,6 +316,8 @@ else
                 var status = await GenerationService.GetJobAsync(genJob.Id);
                 if (status is null) break;
 
+                _generationElapsed = started.Elapsed.TotalSeconds;
+
                 switch (status.Status)
                 {
                     case GenerationJobStatus.Pending:
@@ -315,7 +325,6 @@ else
                         break;
                     case GenerationJobStatus.Running:
                         _generationStatus = "Generating...";
-                        // Estimate progress from elapsed time (rough)
                         _generationProgress = Math.Min(90, (int)(started.Elapsed.TotalSeconds * 2));
                         break;
                     case GenerationJobStatus.Completed:
@@ -424,5 +433,12 @@ else
             Nav.NavigateTo("/projects");
             Snackbar.Add("Project deleted", Severity.Warning);
         }
+    }
+
+    private static string FormatElapsed(double totalSeconds)
+    {
+        var minutes = (int)(totalSeconds / 60);
+        var seconds = (int)(totalSeconds % 60);
+        return minutes > 0 ? $"{minutes}m {seconds}s" : $"{seconds}s";
     }
 }
