@@ -136,7 +136,7 @@ app.UseStaticFiles();
 
 // Serve generated image assets from the local app data directory
 var assetsPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
     "StableDiffusionStudio", "Assets");
 Directory.CreateDirectory(assetsPath);
 app.UseStaticFiles(new StaticFileOptions
