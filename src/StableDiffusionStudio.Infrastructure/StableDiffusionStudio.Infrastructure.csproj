@@ -14,6 +14,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
     <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
+    <PackageReference Include="StableDiffusion.NET.Backend.Cpu" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cuda12.Windows" Version="6.0.0" />
   </ItemGroup>
 

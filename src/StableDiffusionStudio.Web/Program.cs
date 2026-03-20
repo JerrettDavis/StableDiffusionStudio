@@ -103,6 +103,10 @@ var app = builder.Build();
 
 app.MapDefaultEndpoints();
 
+// Force backend resolution at startup to get logging
+var backend = app.Services.GetRequiredService<IInferenceBackend>();
+app.Logger.LogInformation("Active inference backend: {Backend} ({Id})", backend.DisplayName, backend.BackendId);
+
 // Auto-create/update schema on startup
 // EnsureCreated doesn't update existing DBs, so we delete and recreate if schema is stale
 using (var scope = app.Services.CreateScope())

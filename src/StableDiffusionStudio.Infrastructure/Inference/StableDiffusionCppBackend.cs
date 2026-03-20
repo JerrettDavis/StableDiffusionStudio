@@ -40,7 +40,12 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         {
             try
             {
-                // Try to initialize events — this loads the native library
+                // Try to find and load the native library manually if auto-discovery fails.
+                // The CUDA backend package puts the DLL in runtimes/win-x64/native/cuda12/
+                // but the auto-resolver only finds it if CUDA_PATH env var is set.
+                TryLoadNativeLibrary();
+
+                // Initialize events — this triggers the P/Invoke that confirms the library loaded
                 StableDiffusionCpp.InitializeEvents();
                 _nativeAvailable = true;
                 _logger.LogInformation("StableDiffusion.NET native library loaded successfully");
@@ -53,6 +58,38 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
             _checkedAvailability = true;
         }
         return Task.FromResult(_nativeAvailable);
+    }
+
+    private void TryLoadNativeLibrary()
+    {
+        // Search for the native library in known locations relative to the app base directory
+        var baseDir = AppContext.BaseDirectory;
+        var candidates = new[]
+        {
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cuda12", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cpu", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "vulkan", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "runtimes", "win-x64", "native", "stable-diffusion.dll"),
+            Path.Combine(baseDir, "stable-diffusion.dll"),
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                _logger.LogInformation("Found native library at: {Path}", path);
+                if (StableDiffusionCpp.LoadNativeLibrary(path))
+                {
+                    _logger.LogInformation("Loaded native library from: {Path}", path);
+                    return;
+                }
+                _logger.LogWarning("Found but failed to load native library from: {Path}", path);
+            }
+        }
+
+        // Also add the base directory to search paths so the Backends class can find it
+        Backends.SearchPaths.Add(baseDir);
+        _logger.LogDebug("Added {BaseDir} to Backends.SearchPaths", baseDir);
     }
 
     public Task LoadModelAsync(ModelLoadRequest request, CancellationToken ct = default)
