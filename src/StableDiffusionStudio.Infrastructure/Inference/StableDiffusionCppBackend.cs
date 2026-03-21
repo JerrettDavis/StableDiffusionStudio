@@ -25,6 +25,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     private bool _nativeAvailable;
     private bool _checkedAvailability;
     private bool _isFluxModel;
+    private bool _loadedFromCuda;
 
     public string BackendId => "stable-diffusion-cpp";
     public string DisplayName => "Stable Diffusion (C++)";
@@ -84,13 +85,11 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
             }
         }
 
-        // Priority: Vulkan (universal GPU, no CUDA toolkit needed) → CUDA → CPU (fallback)
-        // Vulkan is preferred because CUDA crashes on Flux models (ExecutionEngineException 0xC000001D)
-        // and Vulkan works for all model types (SD1.5, SDXL, Flux)
+        // Priority: CUDA (fastest for NVIDIA GPUs) → Vulkan (universal GPU) → CPU (fallback)
         var candidates = new[]
         {
-            Path.Combine(nativeDir, "vulkan", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "cuda12", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "vulkan", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx512", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx2", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx", "stable-diffusion.dll"),
@@ -106,7 +105,8 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 _logger.LogInformation("Trying native library: {Path}", path);
                 if (StableDiffusionCpp.LoadNativeLibrary(path))
                 {
-                    _logger.LogInformation("Loaded native library from: {Path}", path);
+                    _loadedFromCuda = path.Contains("cuda", StringComparison.OrdinalIgnoreCase);
+                    _logger.LogInformation("Loaded native library from: {Path} (CUDA={IsCuda})", path, _loadedFromCuda);
                     return;
                 }
                 _logger.LogWarning("Found but failed to load: {Path}", path);
@@ -191,11 +191,14 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
             if (!string.IsNullOrWhiteSpace(request.VaePath))
                 modelParams.VaePath = request.VaePath;
 
-            modelParams.OffloadParamsToCPU = true;
-            // Flux architecture doesn't support DiffusionFlashAttention on all backends
-            // (causes illegal instruction / ExecutionEngineException on CUDA)
-            modelParams.DiffusionFlashAttention = false;
-            modelParams.FlashAttention = false;
+            // CRITICAL: Do NOT offload to CPU on hybrid CPUs (Intel 12th-14th gen)
+            // stable-diffusion.cpp has a known AVX512 false detection bug (#1343)
+            // that causes illegal instruction crashes when CPU offloading runs on
+            // E-cores that don't support AVX512. Keep everything on GPU.
+            modelParams.OffloadParamsToCPU = false;
+            modelParams.KeepClipOnCPU = false;
+            modelParams.KeepVaeOnCPU = false;
+            modelParams.KeepControlNetOnCPU = false;
 
             _logger.LogInformation("Flux model configured: DiffusionModel={Model}, CLIP-L={ClipL}, T5-XXL={T5xxl}, VAE={Vae}",
                 Path.GetFileName(request.CheckpointPath),
@@ -206,7 +209,20 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         else
         {
             modelParams.ModelPath = request.CheckpointPath;
-            modelParams.OffloadParamsToCPU = settings.OffloadParamsToCPU;
+
+            // For SDXL/SD1.5 with CUDA: only offload to CPU if safe
+            // Hybrid Intel CPUs (12th-14th gen) crash with AVX512 false detection
+            if (_loadedFromCuda && IsHybridCpu())
+            {
+                _logger.LogInformation("Hybrid CPU detected — disabling CPU offloading to avoid AVX512 crash");
+                modelParams.OffloadParamsToCPU = false;
+                modelParams.KeepClipOnCPU = false;
+                modelParams.KeepVaeOnCPU = false;
+            }
+            else
+            {
+                modelParams.OffloadParamsToCPU = settings.OffloadParamsToCPU;
+            }
 
             if (!string.IsNullOrWhiteSpace(request.VaePath))
                 modelParams.VaePath = request.VaePath;
@@ -421,4 +437,26 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         Scheduler.SGMUniform => SdScheduler.SGM_Uniform,
         _ => SdScheduler.Default
     };
+
+    /// <summary>
+    /// Detects Intel hybrid CPUs (12th-14th gen) that have P-cores + E-cores.
+    /// These CPUs falsely report AVX512 support but crash when E-cores execute AVX512
+    /// instructions. stable-diffusion.cpp issue #1343.
+    /// </summary>
+    private static bool IsHybridCpu()
+    {
+        try
+        {
+            var cpuName = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "";
+            // Intel 12th gen (Alder Lake), 13th gen (Raptor Lake), 14th gen
+            // These all have hybrid P/E core architecture with AVX512 issues
+            return cpuName.Contains("Intel", StringComparison.OrdinalIgnoreCase) &&
+                   (cpuName.Contains("12th Gen") || cpuName.Contains("13th Gen") ||
+                    cpuName.Contains("14th Gen") || cpuName.Contains("Core Ultra"));
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
