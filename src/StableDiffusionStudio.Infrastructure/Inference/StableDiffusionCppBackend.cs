@@ -451,25 +451,4 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         _ => SdScheduler.Default
     };
 
-    /// <summary>
-    /// Detects Intel hybrid CPUs (12th-14th gen) that have P-cores + E-cores.
-    /// These CPUs falsely report AVX512 support but crash when E-cores execute AVX512
-    /// instructions. stable-diffusion.cpp issue #1343.
-    /// </summary>
-    private static bool IsHybridCpu()
-    {
-        try
-        {
-            var cpuName = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "";
-            // Intel 12th gen (Alder Lake), 13th gen (Raptor Lake), 14th gen
-            // These all have hybrid P/E core architecture with AVX512 issues
-            return cpuName.Contains("Intel", StringComparison.OrdinalIgnoreCase) &&
-                   (cpuName.Contains("12th Gen") || cpuName.Contains("13th Gen") ||
-                    cpuName.Contains("14th Gen") || cpuName.Contains("Core Ultra"));
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
