@@ -6,6 +6,8 @@
 @using StableDiffusionStudio.Domain.ValueObjects
 @using StableDiffusionStudio.Domain.Services
 @using Microsoft.JSInterop
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Nav
 @inject IGenerationService GenerationService
 @inject IModelCatalogService ModelCatalogService
 @inject IInferenceBackend InferenceBackend
@@ -126,6 +128,30 @@
     <MudItem xs="12" md="8">
         <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-3">Generated Images</MudText>
+
+            @if (_isGenerating && _previewImageSrc is not null)
+            {
+                <MudPaper Elevation="0" Class="generation-preview mb-4" Style="border: 1px solid var(--mud-palette-lines-default); border-radius: var(--studio-radius-lg); overflow: hidden">
+                    <div style="position: relative">
+                        <img src="@_previewImageSrc"
+                             style="width: 100%; display: block; image-rendering: auto;"
+                             alt="Generation preview" />
+                        <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 8px 12px; background: linear-gradient(transparent, rgba(0,0,0,0.7))">
+                            <div class="d-flex align-center justify-space-between">
+                                <MudText Typo="Typo.caption" Style="color: #fff">
+                                    Step <span class="param-value" style="color: var(--mud-palette-primary)">@_previewStep</span> / @_previewTotalSteps
+                                </MudText>
+                                <MudText Typo="Typo.caption" Style="color: rgba(255,255,255,0.6)">
+                                    TAE Preview
+                                </MudText>
+                            </div>
+                            <MudProgressLinear Value="_previewStep" Max="_previewTotalSteps" Color="Color.Primary"
+                                               Size="Size.Small" Class="mt-1" Style="border-radius: 2px" />
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+
             <GenerationGallery @ref="_gallery" ProjectId="ProjectId" OnReuseSettings="ReuseSettings" />
         </MudPaper>
     </MudItem>
@@ -164,6 +190,10 @@
     private RecentModelsBar? _recentModelsBar;
     private CancellationTokenSource? _generationCts;
     private Guid? _currentJobId;
+    private HubConnection? _hubConnection;
+    private string? _previewImageSrc;
+    private int _previewStep;
+    private int _previewTotalSteps;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -171,6 +201,46 @@
         {
             _dotNetRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("shortcutHelper.registerGenerateShortcut", _dotNetRef);
+
+            // Connect to SignalR hub for real-time preview updates
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<string, int, int, string>("GenerationPreview",
+                async (projectId, step, totalSteps, imageDataUrl) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = imageDataUrl;
+                        _previewStep = step;
+                        _previewTotalSteps = totalSteps;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            _hubConnection.On<string>("GenerationComplete",
+                async (projectId) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = null;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            _hubConnection.On<string, string>("GenerationFailed",
+                async (projectId, error) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = null;
+                        await InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            await _hubConnection.StartAsync();
         }
     }
 
@@ -188,6 +258,8 @@
         _dotNetRef?.Dispose();
         _generationCts?.Cancel();
         _generationCts?.Dispose();
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
     }
 
     private async Task OnCheckpointChanged(Guid? modelId)

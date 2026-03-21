@@ -163,6 +163,11 @@ body {
   border-radius: var(--studio-radius) !important;
 }
 
+/* --- Progressive preview animation --- */
+.generation-preview img {
+    transition: opacity 150ms ease;
+}
+
 /* --- Blazor defaults --- */
 h1:focus {
   outline: none;
