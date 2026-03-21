@@ -84,11 +84,13 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
             }
         }
 
-        // Priority: CUDA (fastest) → Vulkan (GPU, no toolkit needed) → CPU (fallback)
+        // Priority: Vulkan (universal GPU, no CUDA toolkit needed) → CUDA → CPU (fallback)
+        // Vulkan is preferred because CUDA crashes on Flux models (ExecutionEngineException 0xC000001D)
+        // and Vulkan works for all model types (SD1.5, SDXL, Flux)
         var candidates = new[]
         {
-            Path.Combine(nativeDir, "cuda12", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "vulkan", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "cuda12", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx512", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx2", "stable-diffusion.dll"),
             Path.Combine(nativeDir, "avx", "stable-diffusion.dll"),
