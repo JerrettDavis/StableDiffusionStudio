@@ -125,26 +125,34 @@ public class GenerationJobHandler : IJobHandler
                 );
 
                 var projectIdStr = generationJob.ProjectId.ToString();
-                var progress = new Progress<InferenceProgress>(async p =>
+
+                // Use a direct IProgress implementation that sends synchronously
+                // Progress<T> with async callbacks doesn't work reliably without a SynchronizationContext
+                var progress = new DirectProgress<InferenceProgress>(p =>
                 {
                     var batchProgress = (double)batchIndex / batchCount;
                     var stepProgress = (double)p.Step / p.TotalSteps / batchCount;
                     var pct = 20 + (int)((batchProgress + stepProgress) * 60.0);
                     job.UpdateProgress(pct, $"Batch {batchIndex + 1}/{batchCount}: {p.Phase}");
 
-                    // Push preview image via SignalR
+                    // Push preview image via SignalR (fire-and-forget from native callback thread)
                     if (p.PreviewImageBytes is not null)
                     {
                         try
                         {
                             var base64 = Convert.ToBase64String(p.PreviewImageBytes);
-                            await _generationNotifier.SendPreviewAsync(
+                            _generationNotifier.SendPreviewAsync(
                                 projectIdStr, p.Step, p.TotalSteps,
-                                $"data:image/png;base64,{base64}");
+                                $"data:image/png;base64,{base64}")
+                                .ContinueWith(t =>
+                                {
+                                    if (t.IsFaulted)
+                                        _logger.LogDebug(t.Exception, "Failed to send preview");
+                                }, TaskContinuationOptions.OnlyOnFaulted);
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogDebug(ex, "Failed to send preview via SignalR");
+                            _logger.LogDebug(ex, "Failed to encode preview");
                         }
                     }
                 });
@@ -267,4 +275,15 @@ public class GenerationJobHandler : IJobHandler
     }
 
     private sealed record GenerationJobData(Guid GenerationJobId);
+}
+
+/// <summary>
+/// An IProgress implementation that invokes the callback synchronously on the reporting thread.
+/// Unlike Progress<T>, this doesn't capture SynchronizationContext and doesn't use ThreadPool.
+/// </summary>
+internal class DirectProgress<T> : IProgress<T>
+{
+    private readonly Action<T> _handler;
+    public DirectProgress(Action<T> handler) => _handler = handler;
+    public void Report(T value) => _handler(value);
 }
