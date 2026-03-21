@@ -1,0 +1,152 @@
+@using StableDiffusionStudio.Infrastructure.Services
+@using StableDiffusionStudio.Domain.Enums
+@using Microsoft.AspNetCore.Components.Forms
+
+<MudExpansionPanels Class="mt-3">
+    <MudExpansionPanel Text="PNG Info Reader" IsInitiallyExpanded="false">
+        <MudFileUpload T="IBrowserFile" Accept=".png" FilesChanged="OnFileUploaded" MaximumFileCount="1">
+            <ActivatorContent>
+                <MudPaper Outlined="true" Class="pa-4 d-flex flex-column align-center justify-center"
+                          Style="min-height:100px; border-style:dashed; cursor:pointer">
+                    <MudIcon Icon="@Icons.Material.Filled.ImageSearch" Size="Size.Large" Color="Color.Secondary" />
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                        Drop a PNG here or click to browse
+                    </MudText>
+                </MudPaper>
+            </ActivatorContent>
+        </MudFileUpload>
+
+        @if (_isLoading)
+        {
+            <MudProgressLinear Indeterminate="true" Class="mt-2" />
+        }
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-2" ShowCloseIcon="true"
+                      CloseIconClicked="() => _error = null">
+                @_error
+            </MudAlert>
+        }
+
+        @if (_parsed is not null)
+        {
+            <MudPaper Class="pa-3 mt-2" Outlined="true">
+                <MudText Typo="Typo.subtitle2" Color="Color.Primary">Parsed Parameters</MudText>
+
+                @if (!string.IsNullOrWhiteSpace(_parsed.PositivePrompt))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">Positive Prompt</MudText>
+                    <MudText Typo="Typo.body2" Style="word-break:break-word">@_parsed.PositivePrompt</MudText>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_parsed.NegativePrompt))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">Negative Prompt</MudText>
+                    <MudText Typo="Typo.body2" Style="word-break:break-word">@_parsed.NegativePrompt</MudText>
+                }
+
+                <MudSimpleTable Dense="true" Elevation="0" Class="mt-2">
+                    <tbody>
+                        @if (_parsed.Steps.HasValue)
+                        {
+                            <tr><td>Steps</td><td>@_parsed.Steps</td></tr>
+                        }
+                        @if (_parsed.Sampler is not null)
+                        {
+                            <tr><td>Sampler</td><td>@_parsed.Sampler</td></tr>
+                        }
+                        @if (_parsed.CfgScale.HasValue)
+                        {
+                            <tr><td>CFG Scale</td><td>@_parsed.CfgScale</td></tr>
+                        }
+                        @if (_parsed.Seed.HasValue)
+                        {
+                            <tr><td>Seed</td><td>@_parsed.Seed</td></tr>
+                        }
+                        @if (_parsed.Width.HasValue && _parsed.Height.HasValue)
+                        {
+                            <tr><td>Size</td><td>@(_parsed.Width)x@(_parsed.Height)</td></tr>
+                        }
+                        @if (_parsed.Model is not null)
+                        {
+                            <tr><td>Model</td><td>@_parsed.Model</td></tr>
+                        }
+                        @if (_parsed.ClipSkip.HasValue)
+                        {
+                            <tr><td>Clip Skip</td><td>@_parsed.ClipSkip</td></tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" FullWidth="true"
+                           StartIcon="@Icons.Material.Filled.Send"
+                           OnClick="SendToGenerate">
+                    Send to Generate
+                </MudButton>
+            </MudPaper>
+        }
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+@code {
+    [Parameter] public EventCallback<A1111ParameterParser.ParsedParameters> OnParametersParsed { get; set; }
+
+    private A1111ParameterParser.ParsedParameters? _parsed;
+    private string? _error;
+    private bool _isLoading;
+
+    private async Task OnFileUploaded(IBrowserFile file)
+    {
+        _error = null;
+        _parsed = null;
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            if (!file.Name.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                _error = "Please upload a PNG file.";
+                return;
+            }
+
+            // Read the file (limit to 50MB)
+            const long maxSize = 50 * 1024 * 1024;
+            using var stream = file.OpenReadStream(maxSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            var metadata = PngMetadataService.ReadTextChunk(bytes, "parameters");
+            if (string.IsNullOrWhiteSpace(metadata))
+            {
+                _error = "No A1111-compatible metadata found in this PNG.";
+                return;
+            }
+
+            _parsed = A1111ParameterParser.Parse(metadata);
+            if (_parsed is null)
+            {
+                _error = "Could not parse the metadata parameters.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to read file: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SendToGenerate()
+    {
+        if (_parsed is not null)
+        {
+            await OnParametersParsed.InvokeAsync(_parsed);
+        }
+    }
+}
