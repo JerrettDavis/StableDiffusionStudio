@@ -9,6 +9,8 @@ public interface IContentSafetyService
     Task SetFilterModeAsync(NsfwFilterMode mode, CancellationToken ct = default);
     Task<ContentSafetyThresholds> GetThresholdsAsync(CancellationToken ct = default);
     Task SetThresholdsAsync(ContentSafetyThresholds thresholds, CancellationToken ct = default);
+    Task<bool> GetNsfwShieldEnabledAsync(CancellationToken ct = default);
+    Task SetNsfwShieldEnabledAsync(bool enabled, CancellationToken ct = default);
 }
 
 public record ContentSafetyThresholds(double NsfwThreshold, double QuestionableThreshold);
