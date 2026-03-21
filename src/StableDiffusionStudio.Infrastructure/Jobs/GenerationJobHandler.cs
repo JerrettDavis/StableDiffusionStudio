@@ -15,6 +15,7 @@ public class GenerationJobHandler : IJobHandler
     private readonly IInferenceBackend _inferenceBackend;
     private readonly IAppPaths _appPaths;
     private readonly IContentSafetyService _contentSafetyService;
+    private readonly IGenerationNotifier _generationNotifier;
     private readonly ILogger<GenerationJobHandler> _logger;
 
     public GenerationJobHandler(
@@ -23,6 +24,7 @@ public class GenerationJobHandler : IJobHandler
         IInferenceBackend inferenceBackend,
         IAppPaths appPaths,
         IContentSafetyService contentSafetyService,
+        IGenerationNotifier generationNotifier,
         ILogger<GenerationJobHandler> logger)
     {
         _generationJobRepository = generationJobRepository;
@@ -30,6 +32,7 @@ public class GenerationJobHandler : IJobHandler
         _inferenceBackend = inferenceBackend;
         _appPaths = appPaths;
         _contentSafetyService = contentSafetyService;
+        _generationNotifier = generationNotifier;
         _logger = logger;
     }
 
@@ -121,12 +124,29 @@ public class GenerationJobHandler : IJobHandler
                     parameters.ClipSkip
                 );
 
-                var progress = new Progress<InferenceProgress>(p =>
+                var projectIdStr = generationJob.ProjectId.ToString();
+                var progress = new Progress<InferenceProgress>(async p =>
                 {
                     var batchProgress = (double)batchIndex / batchCount;
                     var stepProgress = (double)p.Step / p.TotalSteps / batchCount;
                     var pct = 20 + (int)((batchProgress + stepProgress) * 60.0);
                     job.UpdateProgress(pct, $"Batch {batchIndex + 1}/{batchCount}: {p.Phase}");
+
+                    // Push preview image via SignalR
+                    if (p.PreviewImageBytes is not null)
+                    {
+                        try
+                        {
+                            var base64 = Convert.ToBase64String(p.PreviewImageBytes);
+                            await _generationNotifier.SendPreviewAsync(
+                                projectIdStr, p.Step, p.TotalSteps,
+                                $"data:image/png;base64,{base64}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to send preview via SignalR");
+                        }
+                    }
                 });
 
                 var result = await _inferenceBackend.GenerateAsync(request, progress, ct);
@@ -222,6 +242,8 @@ public class GenerationJobHandler : IJobHandler
             await _generationJobRepository.UpdateAsync(generationJob, ct);
             job.UpdateProgress(100, "Complete");
 
+            await _generationNotifier.SendCompletedAsync(generationJob.ProjectId.ToString());
+
             _logger.LogInformation("Generation job {JobId} completed with {ImageCount} images ({BatchCount} batches)",
                 generationJob.Id, allImages.Count, batchCount);
         }
@@ -231,6 +253,8 @@ public class GenerationJobHandler : IJobHandler
             generationJob.Fail(ex.Message);
             await _generationJobRepository.UpdateAsync(generationJob, ct);
             job.Fail(ex.Message);
+
+            await _generationNotifier.SendFailedAsync(generationJob.ProjectId.ToString(), ex.Message);
             // Don't re-throw — we've handled the error by updating both job records
         }
     }
