@@ -38,27 +38,26 @@ else
             @foreach (var image in GetFilteredImages(job))
             {
                 <MudItem xs="6" sm="4" md="3">
-                    <MudCard Elevation="1" Class="position-relative">
-                        <div class="cursor-pointer" @onclick="() => ShowDetail(image, job)">
-                            <MudCardMedia Image="@GetImageUrl(image)" Height="200" />
-                        </div>
-                        <MudCardContent Class="pa-2">
-                            <div class="d-flex align-center justify-space-between">
-                                <div>
-                                    <MudText Typo="Typo.caption">Seed: @image.Seed</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
-                                </div>
-                                <div class="d-flex">
-                                    <MudIconButton Icon="@(image.IsFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Outlined.FavoriteBorder)"
-                                                   Size="Size.Small"
-                                                   Color="@(image.IsFavorite ? Color.Error : Color.Default)"
-                                                   OnClick="() => ToggleFavorite(image)" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                                   Color="Color.Error" OnClick="() => DeleteImage(image)" />
+                    <div class="gallery-card position-relative" style="cursor:pointer" @onclick="() => ShowDetail(image, job)">
+                        <MudCard Elevation="0" Style="overflow:hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: var(--studio-radius-lg)">
+                            <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
+                                <MudImage Src="@GetImageUrl(image)" Style="width:100%; height:100%; object-fit:cover;" />
+                                <div class="image-overlay">
+                                    <div style="width:100%">
+                                        <MudText Typo="Typo.caption" Style="color:#fff">Seed: @image.Seed</MudText>
+                                        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.7)">@image.GenerationTimeSeconds.ToString("F1")s</MudText>
+                                    </div>
                                 </div>
                             </div>
-                        </MudCardContent>
-                    </MudCard>
+                        </MudCard>
+                        <div class="d-flex justify-space-between align-center mt-1 px-1">
+                            <MudIconButton Icon="@(image.IsFavorite ? Icons.Material.Filled.Favorite : Icons.Material.Outlined.FavoriteBorder)"
+                                           Size="Size.Small" Color="@(image.IsFavorite ? Color.Error : Color.Default)"
+                                           OnClick="() => ToggleFavorite(image)" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Default"
+                                           OnClick="() => DeleteImage(image)" />
+                        </div>
+                    </div>
                 </MudItem>
             }
         }
