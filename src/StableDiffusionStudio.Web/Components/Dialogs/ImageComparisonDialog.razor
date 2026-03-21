@@ -1,0 +1,51 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Compare Images</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div style="position:relative; width:100%; aspect-ratio:1; overflow:hidden; background:var(--mud-palette-surface); border-radius:var(--mud-default-borderradius)">
+            <!-- Image A (full, underneath) -->
+            <img src="@ImageAUrl" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain" alt="Image A" />
+            <!-- Image B (clipped from right) -->
+            <div style="position:absolute; top:0; bottom:0; right:0; overflow:hidden; width:@((100 - _sliderPercent).ToString("F1"))%">
+                <img src="@ImageBUrl"
+                     style="position:absolute; top:0; right:0; width:@(100.0 * 100.0 / Math.Max(100 - _sliderPercent, 0.1))%; max-width:none; height:100%; object-fit:contain"
+                     alt="Image B" />
+            </div>
+            <!-- Divider line -->
+            <div style="position:absolute; top:0; bottom:0; left:@(_sliderPercent.ToString("F1"))%; width:2px; background:white; box-shadow:0 0 4px rgba(0,0,0,0.5); z-index:5; pointer-events:none"></div>
+            <!-- Slider control -->
+            <input type="range" min="0" max="100" value="@_sliderPercent"
+                   @oninput="OnSliderChange"
+                   style="position:absolute; bottom:10px; left:10%; width:80%; z-index:10; opacity:0.8" />
+        </div>
+        <div class="d-flex justify-space-between mt-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Image A — @ImageALabel</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">Image B — @ImageBLabel</MudText>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public required string ImageAUrl { get; set; }
+    [Parameter] public required string ImageBUrl { get; set; }
+    [Parameter] public string ImageALabel { get; set; } = "Left";
+    [Parameter] public string ImageBLabel { get; set; } = "Right";
+
+    private double _sliderPercent = 50;
+
+    private void OnSliderChange(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var val))
+            _sliderPercent = val;
+    }
+
+    private void Close() => MudDialog.Close();
+}
