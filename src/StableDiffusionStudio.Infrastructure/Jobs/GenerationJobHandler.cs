@@ -127,15 +127,26 @@ public class GenerationJobHandler : IJobHandler
             var batchCount = Math.Max(1, parameters.BatchCount);
             var allImages = new List<GeneratedImageData>();
 
-            // Load init image bytes for img2img if applicable
+            // Load init image bytes for img2img / inpainting if applicable
             byte[]? initImageBytes = null;
-            if (parameters.Mode == Domain.Enums.GenerationMode.ImageToImage
+            if (parameters.Mode is Domain.Enums.GenerationMode.ImageToImage or Domain.Enums.GenerationMode.Inpainting
                 && !string.IsNullOrWhiteSpace(parameters.InitImagePath)
                 && File.Exists(parameters.InitImagePath))
             {
                 initImageBytes = await File.ReadAllBytesAsync(parameters.InitImagePath, ct);
-                _logger.LogInformation("Loaded init image for img2img: {Path} ({Size} bytes)",
-                    parameters.InitImagePath, initImageBytes.Length);
+                _logger.LogInformation("Loaded init image for {Mode}: {Path} ({Size} bytes)",
+                    parameters.Mode, parameters.InitImagePath, initImageBytes.Length);
+            }
+
+            // Load mask image bytes for inpainting if applicable
+            byte[]? maskImageBytes = null;
+            if (parameters.Mode == Domain.Enums.GenerationMode.Inpainting
+                && !string.IsNullOrWhiteSpace(parameters.MaskImagePath)
+                && File.Exists(parameters.MaskImagePath))
+            {
+                maskImageBytes = await File.ReadAllBytesAsync(parameters.MaskImagePath, ct);
+                _logger.LogInformation("Loaded mask image for inpainting: {Path} ({Size} bytes)",
+                    parameters.MaskImagePath, maskImageBytes.Length);
             }
 
             for (int batchIndex = 0; batchIndex < batchCount; batchIndex++)
@@ -159,7 +170,8 @@ public class GenerationJobHandler : IJobHandler
                     parameters.ClipSkip,
                     parameters.Eta,
                     initImageBytes,
-                    parameters.DenoisingStrength
+                    parameters.DenoisingStrength,
+                    maskImageBytes
                 );
 
                 var projectIdStr = generationJob.ProjectId.ToString();

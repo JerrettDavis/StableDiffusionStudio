@@ -50,6 +50,16 @@ public class GenerationService : IGenerationService
             parameters = parameters with { InitImagePath = initPath };
         }
 
+        // If mask image bytes are provided, save them to disk and set the path on parameters
+        if (command.MaskImageBytes is not null)
+        {
+            var maskDir = _appPaths.GetProjectAssetsDirectory(command.ProjectId);
+            Directory.CreateDirectory(maskDir);
+            var maskPath = Path.Combine(maskDir, $"mask_{Guid.NewGuid():N}.png");
+            await File.WriteAllBytesAsync(maskPath, command.MaskImageBytes, ct);
+            parameters = parameters with { MaskImagePath = maskPath };
+        }
+
         var job = GenerationJob.Create(command.ProjectId, parameters);
         await _repository.AddAsync(job, ct);
 

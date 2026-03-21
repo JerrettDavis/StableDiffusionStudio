@@ -349,11 +349,21 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 ImageGenerationParameter genParams;
                 if (request.InitImage is not null && request.DenoisingStrength < 1.0)
                 {
-                    // img2img: create from init image
+                    // img2img or inpainting: create from init image
                     var initImage = LoadImageFromBytes(request.InitImage);
                     genParams = ImageGenerationParameter.ImageToImage(request.PositivePrompt, initImage);
                     genParams.Strength = (float)request.DenoisingStrength;
-                    _logger.LogInformation("Using img2img pipeline with denoising strength {Strength}", request.DenoisingStrength);
+
+                    // If a mask is provided, set it for inpainting (white = regenerate, black = keep)
+                    if (request.MaskImage is not null)
+                    {
+                        genParams.MaskImage = LoadImageFromBytes(request.MaskImage);
+                        _logger.LogInformation("Using inpainting pipeline with mask and denoising strength {Strength}", request.DenoisingStrength);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Using img2img pipeline with denoising strength {Strength}", request.DenoisingStrength);
+                    }
                 }
                 else
                 {

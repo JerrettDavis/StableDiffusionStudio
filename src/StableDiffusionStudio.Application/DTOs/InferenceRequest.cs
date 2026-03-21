@@ -16,4 +16,5 @@ public sealed record InferenceRequest(
     int ClipSkip = 1,
     double Eta = 0.0,
     byte[]? InitImage = null,
-    double DenoisingStrength = 1.0);
+    double DenoisingStrength = 1.0,
+    byte[]? MaskImage = null);

@@ -359,4 +359,68 @@ public class GenerationParametersTests
         img2img.DenoisingStrength.Should().Be(0.75);
         original.Mode.Should().Be(GenerationMode.TextToImage);
     }
+
+    [Fact]
+    public void DefaultValues_MaskImagePath_IsNull()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.MaskImagePath.Should().BeNull();
+    }
+
+    [Fact]
+    public void MaskImagePath_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            MaskImagePath = "/path/to/mask.png"
+        };
+
+        parameters.MaskImagePath.Should().Be("/path/to/mask.png");
+    }
+
+    [Fact]
+    public void Mode_CanBeSetToInpainting()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            Mode = GenerationMode.Inpainting
+        };
+
+        parameters.Mode.Should().Be(GenerationMode.Inpainting);
+    }
+
+    [Fact]
+    public void With_CanCreateInpaintingFromTxt2Img()
+    {
+        var original = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            Mode = GenerationMode.TextToImage
+        };
+
+        var inpaint = original with
+        {
+            Mode = GenerationMode.Inpainting,
+            InitImagePath = "/path/to/init.png",
+            MaskImagePath = "/path/to/mask.png",
+            DenoisingStrength = 0.8
+        };
+
+        inpaint.Mode.Should().Be(GenerationMode.Inpainting);
+        inpaint.InitImagePath.Should().Be("/path/to/init.png");
+        inpaint.MaskImagePath.Should().Be("/path/to/mask.png");
+        inpaint.DenoisingStrength.Should().Be(0.8);
+        original.Mode.Should().Be(GenerationMode.TextToImage);
+        original.MaskImagePath.Should().BeNull();
+    }
 }

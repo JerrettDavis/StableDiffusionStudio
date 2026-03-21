@@ -9,5 +9,8 @@ public enum GenerationMode
     TextToImage,
 
     /// <summary>Image-to-image: generate using an init image + prompt with denoising.</summary>
-    ImageToImage
+    ImageToImage,
+
+    /// <summary>Inpainting: selectively regenerate parts of an image using a mask.</summary>
+    Inpainting
 }

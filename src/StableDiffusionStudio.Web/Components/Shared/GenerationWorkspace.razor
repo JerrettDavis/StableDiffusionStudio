@@ -27,11 +27,21 @@
                             Color="Color.Primary" Outlined="true" Dense="true">
                 <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.TextToImage">txt2img</MudToggleItem>
                 <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.ImageToImage">img2img</MudToggleItem>
+                <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.Inpainting">Inpaint</MudToggleItem>
             </MudToggleGroup>
 
             @if (_generationMode == Domain.Enums.GenerationMode.ImageToImage)
             {
                 <ImageUpload @bind-ImageBytes="_initImageBytes" />
+            }
+
+            @if (_generationMode == Domain.Enums.GenerationMode.Inpainting)
+            {
+                <ImageUpload @bind-ImageBytes="_initImageBytes" />
+                @if (_initImageBytes is not null)
+                {
+                    <InpaintCanvas @ref="_inpaintCanvas" InitImageBytes="_initImageBytes" />
+                }
             }
 
             <RecentModelsBar @ref="_recentModelsBar" SelectedModelId="_checkpointId"
@@ -108,7 +118,7 @@
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4"
                        StartIcon="@Icons.Material.Filled.AutoAwesome"
-                       Disabled="@(_isGenerating || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt) || (_generationMode == Domain.Enums.GenerationMode.ImageToImage && _initImageBytes is null))"
+                       Disabled="@(_isGenerating || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt) || (_generationMode == Domain.Enums.GenerationMode.ImageToImage && _initImageBytes is null) || (_generationMode == Domain.Enums.GenerationMode.Inpainting && _initImageBytes is null))"
                        OnClick="Generate">
                 @if (_isGenerating)
                 {
@@ -193,6 +203,7 @@
     private double _hiresDenoisingStrength = 0.55;
     private Domain.Enums.GenerationMode _generationMode = Domain.Enums.GenerationMode.TextToImage;
     private byte[]? _initImageBytes;
+    private InpaintCanvas? _inpaintCanvas;
     private bool _isGenerating;
     private string? _generationError;
     private string? _generationStatus;
@@ -410,7 +421,14 @@
                 HiresDenoisingStrength = _hiresDenoisingStrength
             };
 
-            var command = new CreateGenerationCommand(ProjectId, parameters, _initImageBytes);
+            // Capture mask bytes from inpaint canvas if in inpainting mode
+            byte[]? maskBytes = null;
+            if (_generationMode == Domain.Enums.GenerationMode.Inpainting && _inpaintCanvas is not null)
+            {
+                maskBytes = await _inpaintCanvas.GetMaskBytesAsync();
+            }
+
+            var command = new CreateGenerationCommand(ProjectId, parameters, _initImageBytes, maskBytes);
             var genJobs = await GenerationService.CreateWithMatrixAsync(command, ct);
             var genJob = genJobs[0];
             _currentJobId = genJob.Id;
