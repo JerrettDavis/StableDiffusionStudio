@@ -11,7 +11,7 @@
 @inject NavigationManager Nav
 @implements IAsyncDisposable
 
-@if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null))
+@if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null || _previewStep > 0))
 {
     <div class="d-flex align-center mb-2">
         <MudToggleIconButton @bind-Toggled="_showFavoritesOnly"
@@ -29,7 +29,7 @@
 {
     <MudProgressLinear Indeterminate="true" />
 }
-else if (_jobs.All(j => j.Images.Count == 0) && _previewImageSrc is null)
+else if (_jobs.All(j => j.Images.Count == 0) && _previewImageSrc is null && _previewStep <= 0)
 {
     <EmptyState Title="No images yet" Subtitle="Generate your first image to see it here"
                 Icon="@Icons.Material.Filled.Image" />
@@ -38,27 +38,39 @@ else
 {
     <MudGrid>
         @* Live preview card — appears as the first item while generating *@
-        @if (_previewImageSrc is not null)
+        @if (_previewStep > 0 || _previewImageSrc is not null)
         {
             <MudItem xs="6" sm="4" md="3">
                 <div class="gallery-card position-relative">
                     <MudCard Elevation="0" Style="overflow:hidden; border: 2px solid var(--mud-palette-primary); border-radius: var(--studio-radius-lg)">
-                        <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
-                            <img src="@_previewImageSrc"
-                                 style="width:100%; height:100%; object-fit:cover; display:block;"
-                                 alt="Generation preview" />
-                            <div style="position:absolute; bottom:0; left:0; right:0; padding:8px; background:linear-gradient(transparent, rgba(0,0,0,0.8))">
-                                <MudText Typo="Typo.caption" Style="color:#fff">
-                                    Step <span class="param-value" style="color:var(--mud-palette-primary)">@_previewStep</span>/@_previewTotalSteps
-                                </MudText>
-                                <MudProgressLinear Value="_previewStep" Max="_previewTotalSteps" Color="Color.Primary"
-                                                   Size="Size.Small" Class="mt-1" Style="border-radius:2px" />
-                            </div>
+                        <div style="position:relative; overflow:hidden; aspect-ratio: 1; background: var(--mud-palette-surface);">
+                            @if (_previewImageSrc is not null && _previewImageSrc.Length > 0)
+                            {
+                                <img src="@_previewImageSrc" style="width:100%; height:100%; object-fit:cover; display:block;" alt="Preview" />
+                            }
+                            else
+                            {
+                                <!-- Skeleton placeholder with step progress -->
+                                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:8px">
+                                    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="false"
+                                                          Value="@((_previewStep * 100.0) / Math.Max(_previewTotalSteps, 1))" />
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        Step @_previewStep / @_previewTotalSteps
+                                    </MudText>
+                                </div>
+                            }
                             <div style="position:absolute; top:4px; left:4px">
                                 <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="generating-pulse">
                                     Generating
                                 </MudChip>
                             </div>
+                            @if (_previewTotalSteps > 0)
+                            {
+                                <div style="position:absolute; bottom:0; left:0; right:0; padding:4px 8px; background:linear-gradient(transparent, rgba(0,0,0,0.6))">
+                                    <MudProgressLinear Value="_previewStep" Max="_previewTotalSteps" Color="Color.Primary"
+                                                       Size="Size.Small" Style="border-radius:2px" />
+                                </div>
+                            }
                         </div>
                     </MudCard>
                 </div>
@@ -165,9 +177,9 @@ else
                 {
                     if (projectId == ProjectId.ToString())
                     {
-                        _previewImageSrc = imageDataUrl;
                         _previewStep = step;
                         _previewTotalSteps = totalSteps;
+                        _previewImageSrc = string.IsNullOrEmpty(imageDataUrl) ? null : imageDataUrl;
                         InvokeAsync(StateHasChanged);
                     }
                 });
@@ -178,6 +190,8 @@ else
                     if (projectId == ProjectId.ToString())
                     {
                         _previewImageSrc = null;
+                        _previewStep = 0;
+                        _previewTotalSteps = 0;
                         InvokeAsync(async () =>
                         {
                             await Refresh();
@@ -192,6 +206,8 @@ else
                     if (projectId == ProjectId.ToString())
                     {
                         _previewImageSrc = null;
+                        _previewStep = 0;
+                        _previewTotalSteps = 0;
                         InvokeAsync(StateHasChanged);
                     }
                 });

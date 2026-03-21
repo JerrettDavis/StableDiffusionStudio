@@ -156,27 +156,26 @@ public class GenerationJobHandler : IJobHandler
                     var pct = 20 + (int)((batchProgress + stepProgress) * 60.0);
                     job.UpdateProgress(pct, $"Batch {batchIndex + 1}/{batchCount}: {p.Phase}");
 
-                    // Push preview image via SignalR (fire-and-forget from native callback thread)
-                    if (p.PreviewImageBytes is not null)
+                    // Always send step progress via SignalR (even without preview image)
+                    try
                     {
-                        try
+                        string? previewDataUrl = null;
+                        if (p.PreviewImageBytes is not null)
                         {
-                            _logger.LogInformation("PREVIEW: Sending preview for step {Step}/{Total}, {Bytes} bytes",
-                                p.Step, p.TotalSteps, p.PreviewImageBytes.Length);
-                            var base64 = Convert.ToBase64String(p.PreviewImageBytes);
-                            _generationNotifier.SendPreviewAsync(
-                                projectIdStr, p.Step, p.TotalSteps,
-                                $"data:image/png;base64,{base64}")
-                                .ContinueWith(t =>
-                                {
-                                    if (t.IsFaulted)
-                                        _logger.LogDebug(t.Exception, "Failed to send preview");
-                                }, TaskContinuationOptions.OnlyOnFaulted);
+                            previewDataUrl = $"data:image/png;base64,{Convert.ToBase64String(p.PreviewImageBytes)}";
                         }
-                        catch (Exception ex)
-                        {
-                            _logger.LogDebug(ex, "Failed to encode preview");
-                        }
+                        _generationNotifier.SendPreviewAsync(
+                            projectIdStr, p.Step, p.TotalSteps,
+                            previewDataUrl ?? "")
+                            .ContinueWith(t =>
+                            {
+                                if (t.IsFaulted)
+                                    _logger.LogDebug(t.Exception, "Failed to send progress");
+                            }, TaskContinuationOptions.OnlyOnFaulted);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to send progress notification");
                     }
                 });
 
