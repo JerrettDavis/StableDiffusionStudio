@@ -86,25 +86,8 @@ builder.Services.AddScoped<IGenerationService, GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
 builder.Services.AddSingleton<MockInferenceBackend>();
 builder.Services.AddSingleton<StableDiffusionCppBackend>();
-// Backend selection: try real SD.NET first, fall back to mock
-// Deferred check — don't evaluate at DI build time, check on first use
-builder.Services.AddSingleton<IInferenceBackend>(sp =>
-{
-    var sdCpp = sp.GetRequiredService<StableDiffusionCppBackend>();
-    var logger = sp.GetRequiredService<ILogger<StableDiffusionCppBackend>>();
-    try
-    {
-        var available = sdCpp.IsAvailableAsync().GetAwaiter().GetResult();
-        logger.LogInformation("StableDiffusion.NET backend available: {Available}", available);
-        if (available) return sdCpp;
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Failed to check StableDiffusion.NET availability");
-    }
-    logger.LogInformation("Using MockInferenceBackend");
-    return sp.GetRequiredService<MockInferenceBackend>();
-});
+// Backend selection: lazy wrapper that checks on first use, never blocks startup
+builder.Services.AddSingleton<IInferenceBackend, LazyInferenceBackend>();
 builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
 
 // Telemetry
@@ -125,10 +108,6 @@ builder.Services.AddRazorComponents()
 var app = builder.Build();
 
 app.MapDefaultEndpoints();
-
-// Force backend resolution at startup to get logging
-var backend = app.Services.GetRequiredService<IInferenceBackend>();
-app.Logger.LogInformation("Active inference backend: {Backend} ({Id})", backend.DisplayName, backend.BackendId);
 
 // Database initialization — ensure schema is up to date
 using (var scope = app.Services.CreateScope())
