@@ -112,6 +112,7 @@ builder.Services.AddSingleton<StudioMetrics>();
 
 // SignalR
 builder.Services.AddSignalR();
+builder.Services.AddScoped<IGenerationNotifier, SignalRGenerationNotifier>();
 
 // Blazor
 builder.Services.AddRazorComponents()

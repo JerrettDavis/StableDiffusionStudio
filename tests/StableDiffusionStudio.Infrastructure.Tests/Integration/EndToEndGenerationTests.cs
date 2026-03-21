@@ -89,7 +89,7 @@ public class EndToEndGenerationTests : IDisposable
             .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
             _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
-            Substitute.For<ILogger<GenerationJobHandler>>());
+            Substitute.For<IGenerationNotifier>(), Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", $"{{\"GenerationJobId\":\"{genJobDto.Id}\"}}");
         jobRecord.Start();
@@ -152,7 +152,7 @@ public class EndToEndGenerationTests : IDisposable
             .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
             _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
-            Substitute.For<ILogger<GenerationJobHandler>>());
+            Substitute.For<IGenerationNotifier>(), Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", $"{{\"GenerationJobId\":\"{genJobDto.Id}\"}}");
         jobRecord.Start();
@@ -174,7 +174,7 @@ public class EndToEndGenerationTests : IDisposable
             .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
             _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
-            Substitute.For<ILogger<GenerationJobHandler>>());
+            Substitute.For<IGenerationNotifier>(), Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", "invalid-json");
         jobRecord.Start();
@@ -194,7 +194,7 @@ public class EndToEndGenerationTests : IDisposable
             .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
             _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
-            Substitute.For<ILogger<GenerationJobHandler>>());
+            Substitute.For<IGenerationNotifier>(), Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", null);
         jobRecord.Start();

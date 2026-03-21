@@ -32,7 +32,7 @@ public class GenerationJobHandlerTests
             .Returns(Domain.Enums.NsfwFilterMode.Off);
         _contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
             .Returns(new ContentClassification(Domain.Enums.ContentRating.Unknown, 0, 0, 0, 0, 1));
-        _handler = new GenerationJobHandler(_genJobRepo, _modelCatalog, _backend, _appPaths, _contentSafety, _logger);
+        _handler = new GenerationJobHandler(_genJobRepo, _modelCatalog, _backend, _appPaths, _contentSafety, Substitute.For<IGenerationNotifier>(), _logger);
     }
 
     private static GenerationParameters ValidParameters => new()
