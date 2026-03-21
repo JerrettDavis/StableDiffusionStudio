@@ -130,7 +130,7 @@ app.MapDefaultEndpoints();
 var backend = app.Services.GetRequiredService<IInferenceBackend>();
 app.Logger.LogInformation("Active inference backend: {Backend} ({Id})", backend.DisplayName, backend.BackendId);
 
-// Database initialization with robust migration handling
+// Database initialization — ensure schema is up to date
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -148,52 +148,33 @@ using (var scope = app.Services.CreateScope())
 
         if (tableCount == 0)
         {
-            // Fresh database — create schema from scratch
+            // Fresh database — create full schema from the EF model
             logger.LogInformation("Fresh database detected — creating schema");
             await db.Database.EnsureCreatedAsync();
-
-            // Mark all migrations as applied (we just created the full schema)
-            var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
-            foreach (var migration in pendingMigrations)
-            {
-                await db.Database.ExecuteSqlRawAsync(
-                    "INSERT INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
-                    migration, "10.0.5");
-            }
-
             logger.LogInformation("Schema created successfully");
         }
         else
         {
-            // Existing database — apply any pending migrations
-            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
-            if (pending.Count > 0)
-            {
-                logger.LogInformation("Applying {Count} pending migration(s): {Migrations}",
-                    pending.Count, string.Join(", ", pending));
-            }
-            await db.Database.MigrateAsync();
-            logger.LogInformation("Database migration complete");
+            // Existing database — ensure all tables and columns exist
+            // SQLite doesn't support full ALTER TABLE, so we use CREATE TABLE IF NOT EXISTS
+            // and ADD COLUMN with graceful duplicate handling
+            logger.LogInformation("Existing database detected — ensuring schema is up to date");
+            await RepairSchema(db, logger);
+            logger.LogInformation("Schema repair complete");
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Database initialization failed");
-
-        // Last resort: try to apply schema changes manually for SQLite
-        // SQLite doesn't support all ALTER TABLE operations through EF migrations well,
-        // so we do it manually for known missing columns/tables
+        logger.LogError(ex, "Database initialization failed — recreating from scratch");
         try
         {
-            logger.LogWarning("Attempting manual schema repair...");
-            await RepairSchema(db, logger);
-        }
-        catch (Exception repairEx)
-        {
-            logger.LogError(repairEx, "Manual schema repair failed — deleting and recreating database");
             await db.Database.EnsureDeletedAsync();
             await db.Database.EnsureCreatedAsync();
-            logger.LogWarning("Database recreated from scratch — previous data was lost");
+            logger.LogWarning("Database recreated — previous data was lost");
+        }
+        catch (Exception fatalEx)
+        {
+            logger.LogCritical(fatalEx, "Cannot create database — app may not function correctly");
         }
     }
 }
@@ -313,6 +294,20 @@ public partial class Program
         {
             try
             {
+                // Check if column already exists before trying to add it
+                var checkConn = db.Database.GetDbConnection();
+                if (checkConn.State != System.Data.ConnectionState.Open)
+                    await checkConn.OpenAsync();
+                using var checkCmd = checkConn.CreateCommand();
+                checkCmd.CommandText = $"SELECT count(*) FROM pragma_table_info('{table}') WHERE name='{column}'";
+                var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+
+                if (exists)
+                {
+                    logger.LogDebug("Column {Table}.{Column} already exists — skipping", table, column);
+                    continue;
+                }
+
                 await db.Database.ExecuteSqlRawAsync(alterSql);
                 logger.LogInformation("Added column {Table}.{Column}", table, column);
             }
