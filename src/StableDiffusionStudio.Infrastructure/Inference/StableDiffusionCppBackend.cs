@@ -168,7 +168,10 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         modelParams.FlashAttention = settings.FlashAttention;
         modelParams.DiffusionFlashAttention = settings.DiffusionFlashAttention;
         modelParams.VaeTiling = settings.VaeTiling;
-        modelParams.VaeDecodeOnly = settings.VaeDecodeOnly;
+        // Always keep VAE encoder available — img2img and inpainting require encoding
+        // the init image to latent space. VaeDecodeOnly=true skips building the encoder
+        // graph, which causes GGML_ASSERT failures on img2img.
+        modelParams.VaeDecodeOnly = false;
         modelParams.KeepClipOnCPU = settings.KeepClipOnCPU;
         modelParams.KeepVaeOnCPU = settings.KeepVaeOnCPU;
         modelParams.KeepControlNetOnCPU = settings.KeepControlNetOnCPU;
