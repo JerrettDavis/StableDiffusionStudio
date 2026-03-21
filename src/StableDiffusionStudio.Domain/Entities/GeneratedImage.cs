@@ -1,3 +1,5 @@
+using StableDiffusionStudio.Domain.Enums;
+
 namespace StableDiffusionStudio.Domain.Entities;
 
 public class GeneratedImage
@@ -12,6 +14,9 @@ public class GeneratedImage
     public string ParametersJson { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
     public bool IsFavorite { get; private set; }
+    public ContentRating ContentRating { get; private set; } = ContentRating.Unknown;
+    public double NsfwScore { get; private set; }
+    public bool IsRevealed { get; private set; }
 
     private GeneratedImage() { } // EF Core
 
@@ -36,4 +41,13 @@ public class GeneratedImage
     {
         IsFavorite = !IsFavorite;
     }
+
+    public void SetContentRating(ContentRating rating, double score)
+    {
+        ContentRating = rating;
+        NsfwScore = score;
+    }
+
+    public void Reveal() => IsRevealed = true;
+    public void Conceal() => IsRevealed = false;
 }

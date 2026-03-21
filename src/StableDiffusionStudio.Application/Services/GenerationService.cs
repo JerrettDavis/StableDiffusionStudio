@@ -99,6 +99,26 @@ public class GenerationService : IGenerationService
         _logger?.LogInformation("Toggled favorite for image {ImageId}, now {IsFavorite}", imageId, image.IsFavorite);
     }
 
+    public async Task RevealImageAsync(Guid imageId, CancellationToken ct = default)
+    {
+        var image = await _repository.GetImageByIdAsync(imageId, ct);
+        if (image is null)
+            throw new KeyNotFoundException($"Image {imageId} not found.");
+
+        image.Reveal();
+        await _repository.UpdateImageAsync(image, ct);
+    }
+
+    public async Task ConcealImageAsync(Guid imageId, CancellationToken ct = default)
+    {
+        var image = await _repository.GetImageByIdAsync(imageId, ct);
+        if (image is null)
+            throw new KeyNotFoundException($"Image {imageId} not found.");
+
+        image.Conceal();
+        await _repository.UpdateImageAsync(image, ct);
+    }
+
     public async Task CancelGenerationAsync(Guid jobId, CancellationToken ct = default)
     {
         var job = await _repository.GetByIdAsync(jobId, ct);
@@ -115,5 +135,6 @@ public class GenerationService : IGenerationService
 
     private static GeneratedImageDto ToImageDto(GeneratedImage i) =>
         new(i.Id, i.GenerationJobId, i.FilePath, i.Seed, i.Width, i.Height,
-            i.GenerationTimeSeconds, i.ParametersJson, i.CreatedAt, i.IsFavorite);
+            i.GenerationTimeSeconds, i.ParametersJson, i.CreatedAt, i.IsFavorite,
+            i.ContentRating, i.NsfwScore, i.IsRevealed);
 }

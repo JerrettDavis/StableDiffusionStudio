@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StableDiffusionStudio.Domain.Entities;
+using StableDiffusionStudio.Domain.Enums;
 
 namespace StableDiffusionStudio.Infrastructure.Persistence.Configurations;
 
@@ -18,6 +19,14 @@ public class GeneratedImageConfiguration : IEntityTypeConfiguration<GeneratedIma
         builder.Property(i => i.CreatedAt).HasConversion(dateTimeOffsetConverter);
 
         builder.Property(i => i.IsFavorite).HasDefaultValue(false);
+
+        builder.Property(i => i.ContentRating)
+            .HasConversion<string>()
+            .HasMaxLength(50)
+            .HasDefaultValue(ContentRating.Unknown);
+
+        builder.Property(i => i.NsfwScore).HasDefaultValue(0.0);
+        builder.Property(i => i.IsRevealed).HasDefaultValue(false);
 
         builder.HasIndex(i => i.GenerationJobId);
     }
