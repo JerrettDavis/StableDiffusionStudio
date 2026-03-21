@@ -159,6 +159,48 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Clean up stale jobs from previous sessions
+// Jobs left in Pending/Running state after a restart will never complete
+using (var scope = app.Services.CreateScope())
+{
+    var cleanupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Mark stale generation jobs as Failed
+        var staleGenJobs = await db.GenerationJobs
+            .Where(j => j.Status == Domain.Enums.GenerationJobStatus.Pending
+                     || j.Status == Domain.Enums.GenerationJobStatus.Running)
+            .ToListAsync();
+        foreach (var job in staleGenJobs)
+        {
+            job.Fail("Cancelled — app was restarted");
+        }
+
+        // Mark stale background jobs as Failed
+        var staleJobRecords = await db.JobRecords
+            .Where(j => j.Status == Domain.Enums.JobStatus.Pending
+                     || j.Status == Domain.Enums.JobStatus.Running)
+            .ToListAsync();
+        foreach (var job in staleJobRecords)
+        {
+            job.Fail("Cancelled — app was restarted");
+        }
+
+        if (staleGenJobs.Count > 0 || staleJobRecords.Count > 0)
+        {
+            await db.SaveChangesAsync();
+            cleanupLogger.LogInformation("Cleaned up {GenJobs} stale generation job(s) and {JobRecords} stale background job(s)",
+                staleGenJobs.Count, staleJobRecords.Count);
+        }
+    }
+    catch (Exception ex)
+    {
+        cleanupLogger.LogWarning(ex, "Failed to clean up stale jobs");
+    }
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
