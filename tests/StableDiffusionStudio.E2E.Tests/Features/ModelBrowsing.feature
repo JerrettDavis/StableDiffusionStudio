@@ -18,6 +18,6 @@ Feature: Model Browsing
 
   Scenario: View the dashboard
     Given I am on the home page
-    Then I should see the "Dashboard" heading
-    And I should see the "Quick Start" section
-    And I should see a "New Project" link
+    Then I should see the "Welcome back" heading
+    And I should see the "Quick Actions" section
+    And I should see a "Generate" button

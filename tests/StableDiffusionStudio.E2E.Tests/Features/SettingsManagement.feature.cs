@@ -193,8 +193,8 @@ namespace StableDiffusionStudio.E2E.Tests.Features
     await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 13
-    await testRunner.ThenAsync("I should see navigation links for \"Home\", \"Projects\", \"Models\", \"Jobs\", and \"Sett" +
-                        "ings\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+    await testRunner.ThenAsync("I should see navigation links for \"Dashboard\", \"Projects\", \"Models\", \"Jobs\", and " +
+                        "\"Settings\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
 #line 14
     await testRunner.WhenAsync("I navigate to the projects page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");

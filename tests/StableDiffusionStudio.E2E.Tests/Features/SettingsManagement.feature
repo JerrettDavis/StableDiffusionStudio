@@ -10,7 +10,7 @@ Feature: Settings Management
 
   Scenario: Navigation works correctly
     Given I am on the home page
-    Then I should see navigation links for "Home", "Projects", "Models", "Jobs", and "Settings"
+    Then I should see navigation links for "Dashboard", "Projects", "Models", "Jobs", and "Settings"
     When I navigate to the projects page
     Then I should see the "Projects" heading
     When I navigate to the models page
