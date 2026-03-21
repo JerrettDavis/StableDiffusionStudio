@@ -13,4 +13,5 @@ public sealed record InferenceRequest(
     int Width,
     int Height,
     int BatchSize,
-    int ClipSkip = 1);
+    int ClipSkip = 1,
+    double Eta = 0.0);

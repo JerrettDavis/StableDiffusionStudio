@@ -355,6 +355,7 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 genParams.SampleParameter.SampleSteps = request.Steps;
                 genParams.SampleParameter.SampleMethod = MapSampler(request.Sampler);
                 genParams.SampleParameter.Scheduler = MapScheduler(request.Scheduler);
+                genParams.SampleParameter.Eta = (float)request.Eta;
 
                 if (_isFluxModel)
                 {

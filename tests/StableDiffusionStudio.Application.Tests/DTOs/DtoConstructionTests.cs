@@ -255,4 +255,24 @@ public class DtoConstructionTests
         query.Page.Should().Be(0);
         query.PageSize.Should().Be(20);
     }
+
+    [Fact]
+    public void InferenceRequest_DefaultEta_IsZero()
+    {
+        var request = new InferenceRequest(
+            "prompt", "neg", Sampler.Euler, Scheduler.Normal,
+            20, 7.0, -1, 512, 512, 1);
+
+        request.Eta.Should().Be(0.0);
+    }
+
+    [Fact]
+    public void InferenceRequest_WithEta_SetsCorrectly()
+    {
+        var request = new InferenceRequest(
+            "prompt", "neg", Sampler.Euler, Scheduler.Normal,
+            20, 7.0, -1, 512, 512, 1, 1, 0.5);
+
+        request.Eta.Should().Be(0.5);
+    }
 }

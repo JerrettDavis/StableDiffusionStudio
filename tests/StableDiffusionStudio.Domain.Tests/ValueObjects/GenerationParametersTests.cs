@@ -169,4 +169,55 @@ public class GenerationParametersTests
         parameters.ClipSkip.Should().Be(2);
         parameters.BatchCount.Should().Be(3);
     }
+
+    [Fact]
+    public void DefaultValues_Eta_IsZero()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.Eta.Should().Be(0.0);
+    }
+
+    [Fact]
+    public void DefaultValues_DenoisingStrength_IsOne()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.DenoisingStrength.Should().Be(1.0);
+    }
+
+    [Fact]
+    public void Eta_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            Eta = 0.5
+        };
+
+        parameters.Eta.Should().Be(0.5);
+    }
+
+    [Fact]
+    public void DenoisingStrength_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            DenoisingStrength = 0.75
+        };
+
+        parameters.DenoisingStrength.Should().Be(0.75);
+    }
+
 }

@@ -86,7 +86,9 @@
                                 Params_Height="_height" Params_HeightChanged="v => _height = v"
                                 Params_BatchSize="_batchSize" Params_BatchSizeChanged="v => _batchSize = v"
                                 Params_ClipSkip="_clipSkip" Params_ClipSkipChanged="v => _clipSkip = v"
-                                Params_BatchCount="_batchCount" Params_BatchCountChanged="v => _batchCount = v" />
+                                Params_BatchCount="_batchCount" Params_BatchCountChanged="v => _batchCount = v"
+                                Params_Eta="_eta" Params_EtaChanged="v => _eta = v"
+                                Params_DenoisingStrength="_denoisingStrength" Params_DenoisingStrengthChanged="v => _denoisingStrength = v" />
             </div>
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4"
@@ -166,6 +168,8 @@
     private int _batchSize = 1;
     private int _clipSkip = 1;
     private int _batchCount = 1;
+    private double _eta = 0.0;
+    private double _denoisingStrength = 1.0;
     private bool _isGenerating;
     private string? _generationError;
     private string? _generationStatus;
@@ -373,7 +377,9 @@
                 Height = _height,
                 BatchSize = _batchSize,
                 ClipSkip = _clipSkip,
-                BatchCount = _batchCount
+                BatchCount = _batchCount,
+                Eta = _eta,
+                DenoisingStrength = _denoisingStrength
             };
 
             var command = new CreateGenerationCommand(ProjectId, parameters);
@@ -466,6 +472,8 @@
         _batchSize = job.Parameters.BatchSize;
         _clipSkip = job.Parameters.ClipSkip;
         _batchCount = job.Parameters.BatchCount;
+        _eta = job.Parameters.Eta;
+        _denoisingStrength = job.Parameters.DenoisingStrength;
         RecalculateTokenCounts();
         Snackbar.Add("Settings loaded from previous generation", Severity.Success);
         StateHasChanged();
