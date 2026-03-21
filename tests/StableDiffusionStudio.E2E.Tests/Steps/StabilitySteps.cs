@@ -61,11 +61,5 @@ public class StabilitySteps
         }
     }
 
-    [Then(@"I should see the ""(.*)"" tab")]
-    public async Task ThenIShouldSeeTheTab(string tabText)
-    {
-        var tab = Page.GetByText(tabText, new() { Exact = false });
-        (await tab.CountAsync()).Should().BeGreaterThan(0,
-            $"Expected to find tab with text '{tabText}'");
-    }
+    // "I should see the ... tab" step is defined in NavigationSteps — no duplicate needed
 }
