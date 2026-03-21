@@ -74,6 +74,8 @@
 
             <PromptHistoryPanel @ref="_promptHistoryPanel" OnPromptSelected="OnPromptHistorySelected" />
 
+            <PngInfoDropZone OnParametersParsed="OnPngInfoParsed" />
+
             <div class="mt-3">
                 <ParameterPanel Params_Sampler="_sampler" Params_SamplerChanged="v => _sampler = v"
                                 Params_Scheduler="_scheduler" Params_SchedulerChanged="v => _scheduler = v"
@@ -474,6 +476,21 @@
         _positivePrompt = prompts.Positive;
         _negativePrompt = prompts.Negative;
         RecalculateTokenCounts();
+        StateHasChanged();
+    }
+
+    private void OnPngInfoParsed(Infrastructure.Services.A1111ParameterParser.ParsedParameters parsed)
+    {
+        _positivePrompt = parsed.PositivePrompt;
+        _negativePrompt = parsed.NegativePrompt;
+        if (parsed.Steps.HasValue) _steps = parsed.Steps.Value;
+        if (parsed.CfgScale.HasValue) _cfgScale = parsed.CfgScale.Value;
+        if (parsed.Seed.HasValue) _seed = parsed.Seed.Value;
+        if (parsed.Width.HasValue) _width = parsed.Width.Value;
+        if (parsed.Height.HasValue) _height = parsed.Height.Value;
+        if (parsed.ClipSkip.HasValue) _clipSkip = parsed.ClipSkip.Value;
+        RecalculateTokenCounts();
+        Snackbar.Add("Parameters loaded from PNG metadata", Severity.Success);
         StateHasChanged();
     }
 
