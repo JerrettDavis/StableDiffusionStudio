@@ -219,4 +219,53 @@ public class GenerationJobTests
         var job = GenerationJob.Create(Guid.NewGuid(), parameters);
         job.Should().NotBeNull();
     }
+
+    [Fact]
+    public void Create_ImageToImage_WithDenoisingLessThanOne_Succeeds()
+    {
+        var parameters = ValidParameters with
+        {
+            Mode = GenerationMode.ImageToImage,
+            DenoisingStrength = 0.75,
+            InitImagePath = "/path/to/init.png"
+        };
+
+        var job = GenerationJob.Create(Guid.NewGuid(), parameters);
+        job.Should().NotBeNull();
+        job.Parameters.Mode.Should().Be(GenerationMode.ImageToImage);
+        job.Parameters.DenoisingStrength.Should().Be(0.75);
+    }
+
+    [Fact]
+    public void Create_ImageToImage_WithDenoisingOne_ThrowsArgumentException()
+    {
+        var parameters = ValidParameters with
+        {
+            Mode = GenerationMode.ImageToImage,
+            DenoisingStrength = 1.0
+        };
+
+        var act = () => GenerationJob.Create(Guid.NewGuid(), parameters);
+        act.Should().Throw<ArgumentException>().WithMessage("*Denoising*");
+    }
+
+    [Fact]
+    public void Create_TextToImage_WithDenoisingOne_Succeeds()
+    {
+        var parameters = ValidParameters with
+        {
+            Mode = GenerationMode.TextToImage,
+            DenoisingStrength = 1.0
+        };
+
+        var job = GenerationJob.Create(Guid.NewGuid(), parameters);
+        job.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Create_TextToImage_DefaultMode_IsTextToImage()
+    {
+        var job = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        job.Parameters.Mode.Should().Be(GenerationMode.TextToImage);
+    }
 }

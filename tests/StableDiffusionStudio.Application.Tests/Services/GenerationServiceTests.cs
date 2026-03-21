@@ -14,6 +14,7 @@ public class GenerationServiceTests
     private readonly IGenerationJobRepository _jobRepo = Substitute.For<IGenerationJobRepository>();
     private readonly IModelCatalogRepository _modelCatalog = Substitute.For<IModelCatalogRepository>();
     private readonly IJobQueue _jobQueue = Substitute.For<IJobQueue>();
+    private readonly IAppPaths _appPaths = Substitute.For<IAppPaths>();
     private readonly GenerationService _service;
 
     private static readonly Guid CheckpointId = Guid.NewGuid();
@@ -21,7 +22,7 @@ public class GenerationServiceTests
 
     public GenerationServiceTests()
     {
-        _service = new GenerationService(_jobRepo, _modelCatalog, _jobQueue);
+        _service = new GenerationService(_jobRepo, _modelCatalog, _jobQueue, _appPaths);
     }
 
     private GenerationParameters ValidParameters => new()

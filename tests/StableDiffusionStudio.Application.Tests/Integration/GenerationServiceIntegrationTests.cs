@@ -31,7 +31,9 @@ public class GenerationServiceIntegrationTests : IDisposable
         _jobQueue.EnqueueAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
 
-        _service = new GenerationService(genRepo, modelRepo, _jobQueue);
+        var appPaths = Substitute.For<IAppPaths>();
+        appPaths.GetProjectAssetsDirectory(Arg.Any<Guid>()).Returns("/tmp/assets");
+        _service = new GenerationService(genRepo, modelRepo, _jobQueue, appPaths);
 
         // Seed a model and a project
         var model = ModelRecord.Create("Test Checkpoint", "/models/test.safetensors",

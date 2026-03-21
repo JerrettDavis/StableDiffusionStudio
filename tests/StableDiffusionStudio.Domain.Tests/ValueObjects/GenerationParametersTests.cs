@@ -220,4 +220,76 @@ public class GenerationParametersTests
         parameters.DenoisingStrength.Should().Be(0.75);
     }
 
+    [Fact]
+    public void DefaultValues_Mode_IsTextToImage()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.Mode.Should().Be(GenerationMode.TextToImage);
+    }
+
+    [Fact]
+    public void DefaultValues_InitImagePath_IsNull()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.InitImagePath.Should().BeNull();
+    }
+
+    [Fact]
+    public void Mode_CanBeSetToImageToImage()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            Mode = GenerationMode.ImageToImage
+        };
+
+        parameters.Mode.Should().Be(GenerationMode.ImageToImage);
+    }
+
+    [Fact]
+    public void InitImagePath_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            InitImagePath = "/path/to/init.png"
+        };
+
+        parameters.InitImagePath.Should().Be("/path/to/init.png");
+    }
+
+    [Fact]
+    public void With_CanCreateImg2ImgFromTxt2Img()
+    {
+        var original = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            Mode = GenerationMode.TextToImage
+        };
+
+        var img2img = original with
+        {
+            Mode = GenerationMode.ImageToImage,
+            InitImagePath = "/path/to/init.png",
+            DenoisingStrength = 0.75
+        };
+
+        img2img.Mode.Should().Be(GenerationMode.ImageToImage);
+        img2img.InitImagePath.Should().Be("/path/to/init.png");
+        img2img.DenoisingStrength.Should().Be(0.75);
+        original.Mode.Should().Be(GenerationMode.TextToImage);
+    }
 }

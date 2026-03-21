@@ -46,7 +46,9 @@ public class EndToEndGenerationTests : IDisposable
         _appPaths.GetJobAssetsDirectory(Arg.Any<Guid>(), Arg.Any<Guid>())
             .Returns(ci => Path.Combine(_tempAssetsDir, ci.ArgAt<Guid>(0).ToString(), ci.ArgAt<Guid>(1).ToString()));
 
-        _generationService = new GenerationService(_genJobRepo, _modelCatalogRepo, _jobQueue);
+        _appPaths.GetProjectAssetsDirectory(Arg.Any<Guid>())
+            .Returns(ci => Path.Combine(_tempAssetsDir, ci.ArgAt<Guid>(0).ToString()));
+        _generationService = new GenerationService(_genJobRepo, _modelCatalogRepo, _jobQueue, _appPaths);
         _projectService = new ProjectService(_projectRepo);
     }
 
