@@ -2,14 +2,16 @@
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
+@using Microsoft.AspNetCore.SignalR.Client
 @inject IGenerationService GenerationService
-
 @inject IDataManagementService DataManagement
 @inject IAppPaths AppPaths
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@implements IAsyncDisposable
 
-@if (_jobs is not null && _jobs.Any(j => j.Images.Count > 0))
+@if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null))
 {
     <div class="d-flex align-center mb-2">
         <MudToggleIconButton @bind-Toggled="_showFavoritesOnly"
@@ -27,7 +29,7 @@
 {
     <MudProgressLinear Indeterminate="true" />
 }
-else if (_jobs.All(j => j.Images.Count == 0))
+else if (_jobs.All(j => j.Images.Count == 0) && _previewImageSrc is null)
 {
     <EmptyState Title="No images yet" Subtitle="Generate your first image to see it here"
                 Icon="@Icons.Material.Filled.Image" />
@@ -35,6 +37,33 @@ else if (_jobs.All(j => j.Images.Count == 0))
 else
 {
     <MudGrid>
+        @* Live preview card — appears as the first item while generating *@
+        @if (_previewImageSrc is not null)
+        {
+            <MudItem xs="6" sm="4" md="3">
+                <div class="gallery-card position-relative">
+                    <MudCard Elevation="0" Style="overflow:hidden; border: 2px solid var(--mud-palette-primary); border-radius: var(--studio-radius-lg)">
+                        <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
+                            <img src="@_previewImageSrc"
+                                 style="width:100%; height:100%; object-fit:cover; display:block;"
+                                 alt="Generation preview" />
+                            <div style="position:absolute; bottom:0; left:0; right:0; padding:8px; background:linear-gradient(transparent, rgba(0,0,0,0.8))">
+                                <MudText Typo="Typo.caption" Style="color:#fff">
+                                    Step <span class="param-value" style="color:var(--mud-palette-primary)">@_previewStep</span>/@_previewTotalSteps
+                                </MudText>
+                                <MudProgressLinear Value="_previewStep" Max="_previewTotalSteps" Color="Color.Primary"
+                                                   Size="Size.Small" Class="mt-1" Style="border-radius:2px" />
+                            </div>
+                            <div style="position:absolute; top:4px; left:4px">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="generating-pulse">
+                                    Generating
+                                </MudChip>
+                            </div>
+                        </div>
+                    </MudCard>
+                </div>
+            </MudItem>
+        }
         @foreach (var job in _jobs.Where(j => j.Images.Count > 0))
         {
             @foreach (var image in GetFilteredImages(job))
@@ -113,16 +142,77 @@ else
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
+    private HubConnection? _hubConnection;
+    private string? _previewImageSrc;
+    private int _previewStep;
+    private int _previewTotalSteps;
 
     protected override async Task OnInitializedAsync()
     {
         await Refresh();
+
+        // Connect to SignalR for live previews
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<string, int, int, string>("GenerationPreview",
+                (projectId, step, totalSteps, imageDataUrl) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = imageDataUrl;
+                        _previewStep = step;
+                        _previewTotalSteps = totalSteps;
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            _hubConnection.On<string>("GenerationComplete",
+                (projectId) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = null;
+                        InvokeAsync(async () =>
+                        {
+                            await Refresh();
+                            StateHasChanged();
+                        });
+                    }
+                });
+
+            _hubConnection.On<string, string>("GenerationFailed",
+                (projectId, _) =>
+                {
+                    if (projectId == ProjectId.ToString())
+                    {
+                        _previewImageSrc = null;
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception)
+        {
+            // SignalR connection failed — previews won't work but gallery still functions
+        }
     }
 
     public async Task Refresh()
     {
         _jobs = await GenerationService.ListJobsForProjectAsync(ProjectId);
         StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
     }
 
     private string GetImageUrl(GeneratedImageDto image)
