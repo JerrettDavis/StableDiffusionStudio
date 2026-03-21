@@ -15,8 +15,12 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Settings> Logger
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
 @using Microsoft.EntityFrameworkCore
 @inject StableDiffusionStudio.Infrastructure.Persistence.AppDbContext DbContext
+@inject ISettingsExportService SettingsExportService
 
 @if (_loadError is not null)
 {
@@ -321,6 +325,42 @@
                 Re-check
             </MudButton>
         }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Export / Import" Icon="@Icons.Material.Filled.ImportExport">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Export all settings to a JSON file or import settings from a previously exported file.
+        </MudText>
+
+        <div class="d-flex gap-3 mb-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="ExportSettings" Disabled="_exporting">
+                @if (_exporting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Exporting...</span>
+                }
+                else
+                {
+                    <span>Export Settings</span>
+                }
+            </MudButton>
+
+            <MudFileUpload T="IBrowserFile" Accept=".json" FilesChanged="ImportSettings" MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Upload">
+                        Import Settings
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+        </div>
+
+        <MudAlert Severity="Severity.Info" Dense="true">
+            Exported settings include all configuration stored in the database (storage roots, inference settings,
+            content safety, output settings, provider credentials). Importing will overwrite existing values.
+        </MudAlert>
     </MudTabPanel>
 
     <MudTabPanel Text="Data Management" Icon="@Icons.Material.Filled.DeleteSweep">
@@ -815,6 +855,57 @@
         if (bytes >= mb) return $"{bytes / (double)mb:F1} MB";
         if (bytes >= kb) return $"{bytes / (double)kb:F1} KB";
         return $"{bytes} B";
+    }
+
+    // Export/import state
+    private bool _exporting;
+
+    private async Task ExportSettings()
+    {
+        _exporting = true;
+        StateHasChanged();
+        try
+        {
+            var json = await SettingsExportService.ExportAllAsync();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("downloadFile", "sds-settings.json", "application/json", base64);
+            Snackbar.Add("Settings exported", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to export settings");
+            Snackbar.Add($"Export failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private async Task ImportSettings(IBrowserFile file)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var json = await reader.ReadToEndAsync();
+            await SettingsExportService.ImportAllAsync(json);
+
+            // Reload all settings sections
+            await LoadRoots();
+            await LoadContentSafety();
+            await LoadInferenceSettings();
+            await LoadOutputSettings();
+
+            Snackbar.Add("Settings imported successfully", MudBlazor.Severity.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to import settings");
+            Snackbar.Add($"Import failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
     }
 
     // Database health check

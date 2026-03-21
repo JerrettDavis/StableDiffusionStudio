@@ -53,6 +53,7 @@ builder.Services.AddScoped<IDataManagementService, DataManagementService>();
 
 // Settings
 builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
+builder.Services.AddScoped<ISettingsExportService, StableDiffusionStudio.Infrastructure.Settings.SettingsExportService>();
 builder.Services.AddScoped<IInferenceSettingsProvider, DbInferenceSettingsProvider>();
 builder.Services.AddScoped<IOutputSettingsProvider, DbOutputSettingsProvider>();
 
