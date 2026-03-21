@@ -14,6 +14,7 @@ public class GenerationJobHandler : IJobHandler
     private readonly IModelCatalogRepository _modelCatalogRepository;
     private readonly IInferenceBackend _inferenceBackend;
     private readonly IAppPaths _appPaths;
+    private readonly IContentSafetyService _contentSafetyService;
     private readonly ILogger<GenerationJobHandler> _logger;
 
     public GenerationJobHandler(
@@ -21,12 +22,14 @@ public class GenerationJobHandler : IJobHandler
         IModelCatalogRepository modelCatalogRepository,
         IInferenceBackend inferenceBackend,
         IAppPaths appPaths,
+        IContentSafetyService contentSafetyService,
         ILogger<GenerationJobHandler> logger)
     {
         _generationJobRepository = generationJobRepository;
         _modelCatalogRepository = modelCatalogRepository;
         _inferenceBackend = inferenceBackend;
         _appPaths = appPaths;
+        _contentSafetyService = contentSafetyService;
         _logger = logger;
     }
 
@@ -156,6 +159,8 @@ public class GenerationJobHandler : IJobHandler
             }
             catch { /* Non-critical — proceed without model name */ }
 
+            var filterMode = await _contentSafetyService.GetFilterModeAsync(ct);
+
             foreach (var imageData in allImages)
             {
                 var fileName = $"{imageData.Seed}.png";
@@ -186,6 +191,9 @@ public class GenerationJobHandler : IJobHandler
 
                 await File.WriteAllBytesAsync(filePath, bytesToSave, ct);
 
+                // Classify content safety
+                var classification = await _contentSafetyService.ClassifyAsync(imageData.ImageBytes, ct);
+
                 var generatedImage = GeneratedImage.Create(
                     generationJob.Id,
                     filePath,
@@ -194,6 +202,17 @@ public class GenerationJobHandler : IJobHandler
                     parameters.Height,
                     imageData.GenerationTimeSeconds,
                     parametersJson);
+
+                generatedImage.SetContentRating(classification.Rating, classification.NsfwScore);
+
+                // If BlockAndDelete mode and NSFW detected, delete the file and skip
+                if (filterMode == NsfwFilterMode.BlockAndDelete && classification.Rating == ContentRating.Nsfw)
+                {
+                    try { File.Delete(filePath); } catch { /* Best effort */ }
+                    _logger.LogWarning("NSFW content detected and deleted: {Seed}", imageData.Seed);
+                    continue;
+                }
+
                 generationJob.AddImage(generatedImage);
             }
 
