@@ -51,13 +51,23 @@
                 <LoraSelector SelectedLoras="_loras" SelectedLorasChanged="v => _loras = v" />
             </div>
 
-            <MudTextField T="string" Label="Prompt" Lines="4" @bind-Value="_positivePrompt"
+            <MudTextField T="string" Label="Prompt" Lines="4" Value="_positivePrompt"
+                          ValueChanged="OnPositivePromptChanged"
                           Variant="Variant.Outlined" Class="mt-3"
                           Placeholder="Describe what you want to generate..." />
+            <MudText Typo="Typo.caption" Class="mt-1"
+                     Color="@(_positiveTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
+                <span class="param-value">@_positiveTokenCount</span>/@_tokenLimit tokens
+            </MudText>
 
-            <MudTextField T="string" Label="Negative Prompt" Lines="2" @bind-Value="_negativePrompt"
+            <MudTextField T="string" Label="Negative Prompt" Lines="2" Value="_negativePrompt"
+                          ValueChanged="OnNegativePromptChanged"
                           Variant="Variant.Outlined" Class="mt-3"
                           Placeholder="What to avoid..." />
+            <MudText Typo="Typo.caption" Class="mt-1"
+                     Color="@(_negativeTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
+                <span class="param-value">@_negativeTokenCount</span>/@_tokenLimit tokens
+            </MudText>
 
             <NegativePromptHelper NegativePrompt="_negativePrompt"
                                   NegativePromptChanged="v => { _negativePrompt = v; StateHasChanged(); }" />
@@ -167,6 +177,9 @@
     private RecentModelsBar? _recentModelsBar;
     private CancellationTokenSource? _generationCts;
     private Guid? _currentJobId;
+    private int _positiveTokenCount;
+    private int _negativeTokenCount;
+    private int _tokenLimit = 77;
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,6 +231,7 @@
             if (model is not null)
             {
                 _currentModelFamily = model.ModelFamily;
+                _tokenLimit = PromptTokenEstimator.GetTokenLimit(model.ModelFamily.ToString());
                 var preset = ModelFamilyPresets.GetPreset(model.ModelFamily);
                 ApplyPreset(preset);
                 Snackbar.Add($"Applied {preset.Name} preset", Severity.Info);
@@ -257,6 +271,7 @@
             _negativePrompt = preset.NegativePrompt;
         if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
             _positivePrompt = preset.PositivePromptTemplate;
+        RecalculateTokenCounts();
         Snackbar.Add($"Applied preset: {preset.Name}", Severity.Success);
         StateHasChanged();
     }
@@ -422,6 +437,7 @@
         _batchSize = job.Parameters.BatchSize;
         _clipSkip = job.Parameters.ClipSkip;
         _batchCount = job.Parameters.BatchCount;
+        RecalculateTokenCounts();
         Snackbar.Add("Settings loaded from previous generation", Severity.Success);
         StateHasChanged();
     }
@@ -430,7 +446,27 @@
     {
         _positivePrompt = prompts.Positive;
         _negativePrompt = prompts.Negative;
+        RecalculateTokenCounts();
         StateHasChanged();
+    }
+
+    private void OnPositivePromptChanged(string value)
+    {
+        _positivePrompt = value;
+        _positiveTokenCount = PromptTokenEstimator.EstimateTokens(value);
+    }
+
+    private void OnNegativePromptChanged(string value)
+    {
+        _negativePrompt = value;
+        _negativeTokenCount = PromptTokenEstimator.EstimateTokens(value);
+    }
+
+    private void RecalculateTokenCounts()
+    {
+        _positiveTokenCount = PromptTokenEstimator.EstimateTokens(_positivePrompt);
+        _negativeTokenCount = PromptTokenEstimator.EstimateTokens(_negativePrompt);
+        _tokenLimit = PromptTokenEstimator.GetTokenLimit(_currentModelFamily?.ToString());
     }
 
     private static string FormatElapsed(double totalSeconds)
