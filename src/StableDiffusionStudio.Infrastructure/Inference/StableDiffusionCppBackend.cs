@@ -246,12 +246,31 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         var images = new List<GeneratedImageData>();
 
-        // Hook into progress events
-        void OnProgress(object? sender, StableDiffusionProgressEventArgs args)
+        // Enable TAE preview — fast decoded preview every 2 steps
+        StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.TAE, 2, true, false);
+
+        byte[]? latestPreviewBytes = null;
+
+        void OnPreview(object? sender, StableDiffusionPreviewEventArgs args)
         {
-            progress.Report(new InferenceProgress(args.Step, args.Steps, $"Step {args.Step}/{args.Steps}"));
+            try
+            {
+#pragma warning disable CA1416
+                latestPreviewBytes = args.Image.ToPng();
+#pragma warning restore CA1416
+            }
+            catch { /* Preview conversion failed — skip this frame */ }
         }
 
+        // Hook into progress and preview events
+        void OnProgress(object? sender, StableDiffusionProgressEventArgs args)
+        {
+            var preview = latestPreviewBytes;
+            latestPreviewBytes = null; // Consume the preview
+            progress.Report(new InferenceProgress(args.Step, args.Steps, $"Step {args.Step}/{args.Steps}", preview));
+        }
+
+        StableDiffusionCpp.Preview += OnPreview;
         StableDiffusionCpp.Progress += OnProgress;
 
         try
@@ -320,6 +339,8 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         finally
         {
             StableDiffusionCpp.Progress -= OnProgress;
+            StableDiffusionCpp.Preview -= OnPreview;
+            StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.None, 0, false, false);
         }
     }
 
