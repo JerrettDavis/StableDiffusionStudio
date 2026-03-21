@@ -94,6 +94,26 @@
             </MudItem>
         </MudGrid>
 
+        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3 mb-2">Advanced Sampling</MudText>
+        <MudGrid>
+            <MudItem xs="6">
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">Eta (DDIM)</MudText>
+                    <span class="param-value">@Params_Eta.ToString("F2")</span>
+                </div>
+                <MudSlider T="double" Value="Params_Eta" ValueChanged="OnEtaChanged" Min="0" Max="1" Step="0.01"
+                           Color="Color.Primary" Size="Size.Small" />
+            </MudItem>
+            <MudItem xs="6">
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">Denoising</MudText>
+                    <span class="param-value">@Params_DenoisingStrength.ToString("F2")</span>
+                </div>
+                <MudSlider T="double" Value="Params_DenoisingStrength" ValueChanged="OnDenoisingStrengthChanged" Min="0" Max="1" Step="0.01"
+                           Color="Color.Primary" Size="Size.Small" />
+            </MudItem>
+        </MudGrid>
+
         <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3 mb-2">Quick Resolution</MudText>
         <MudChipSet T="string" Class="mb-2">
             <MudChip T="string" OnClick="() => SetResolution(512, 512)" Class="quick-chip">512x512</MudChip>
@@ -128,6 +148,10 @@
     [Parameter] public EventCallback<int> Params_ClipSkipChanged { get; set; }
     [Parameter] public int Params_BatchCount { get; set; } = 1;
     [Parameter] public EventCallback<int> Params_BatchCountChanged { get; set; }
+    [Parameter] public double Params_Eta { get; set; } = 0.0;
+    [Parameter] public EventCallback<double> Params_EtaChanged { get; set; }
+    [Parameter] public double Params_DenoisingStrength { get; set; } = 1.0;
+    [Parameter] public EventCallback<double> Params_DenoisingStrengthChanged { get; set; }
 
     private async Task OnSamplerChanged(Sampler v) { Params_Sampler = v; await Params_SamplerChanged.InvokeAsync(v); }
     private async Task OnSchedulerChanged(Scheduler v) { Params_Scheduler = v; await Params_SchedulerChanged.InvokeAsync(v); }
@@ -139,6 +163,8 @@
     private async Task OnBatchSizeChanged(int v) { Params_BatchSize = v; await Params_BatchSizeChanged.InvokeAsync(v); }
     private async Task OnClipSkipChanged(int v) { Params_ClipSkip = v; await Params_ClipSkipChanged.InvokeAsync(v); }
     private async Task OnBatchCountChanged(int v) { Params_BatchCount = v; await Params_BatchCountChanged.InvokeAsync(v); }
+    private async Task OnEtaChanged(double v) { Params_Eta = v; await Params_EtaChanged.InvokeAsync(v); }
+    private async Task OnDenoisingStrengthChanged(double v) { Params_DenoisingStrength = v; await Params_DenoisingStrengthChanged.InvokeAsync(v); }
 
     private async Task SwapDimensions()
     {

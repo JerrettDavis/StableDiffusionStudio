@@ -142,7 +142,8 @@ public class GenerationJobHandler : IJobHandler
                     parameters.Width,
                     parameters.Height,
                     parameters.BatchSize,
-                    parameters.ClipSkip
+                    parameters.ClipSkip,
+                    parameters.Eta
                 );
 
                 var projectIdStr = generationJob.ProjectId.ToString();
