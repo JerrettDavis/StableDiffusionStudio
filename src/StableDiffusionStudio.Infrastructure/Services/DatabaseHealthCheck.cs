@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using StableDiffusionStudio.Infrastructure.Persistence;
 
@@ -15,49 +14,15 @@ public class DatabaseHealthCheck : IHealthCheck
     {
         try
         {
-            // Verify each table is accessible
-            var tables = new Dictionary<string, Func<Task<int>>>
-            {
-                ["Projects"] = () => _context.Projects.CountAsync(ct),
-                ["ModelRecords"] = () => _context.ModelRecords.CountAsync(ct),
-                ["JobRecords"] = () => _context.JobRecords.CountAsync(ct),
-                ["Settings"] = () => _context.Settings.CountAsync(ct),
-                ["GenerationJobs"] = () => _context.GenerationJobs.CountAsync(ct),
-                ["GeneratedImages"] = () => _context.GeneratedImages.CountAsync(ct),
-                ["GenerationPresets"] = () => _context.GenerationPresets.CountAsync(ct),
-                ["PromptHistories"] = () => _context.PromptHistories.CountAsync(ct),
-            };
-
-            var errors = new List<string>();
-            var data = new Dictionary<string, object>();
-
-            foreach (var (table, countFn) in tables)
-            {
-                try
-                {
-                    var count = await countFn();
-                    data[table] = count;
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"{table}: {ex.Message}");
-                }
-            }
-
-            if (errors.Count > 0)
-            {
-                return HealthCheckResult.Unhealthy(
-                    $"Database schema issues: {string.Join("; ", errors)}",
-                    data: data.ToDictionary(kv => kv.Key, kv => kv.Value));
-            }
-
-            return HealthCheckResult.Healthy(
-                $"All {tables.Count} tables accessible",
-                data: data.ToDictionary(kv => kv.Key, kv => kv.Value));
+            // Lightweight probe — just test the connection works
+            var canConnect = await _context.Database.CanConnectAsync(ct);
+            return canConnect
+                ? HealthCheckResult.Healthy("Database connected")
+                : HealthCheckResult.Unhealthy("Cannot connect to database");
         }
         catch (Exception ex)
         {
-            return HealthCheckResult.Unhealthy("Database unreachable", ex);
+            return HealthCheckResult.Unhealthy("Database error", ex);
         }
     }
 }
