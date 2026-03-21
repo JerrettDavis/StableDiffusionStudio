@@ -9,6 +9,7 @@
 <MudDialogProvider />
 <MudSnackbarProvider />
 
+<CascadingValue Value="_nsfwShieldEnabled" Name="NsfwShieldEnabled">
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Style="border-bottom: 1px solid var(--mud-palette-lines-default)">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
@@ -41,6 +42,7 @@
         </ErrorBoundaryHandler>
     </MudMainContent>
 </MudLayout>
+</CascadingValue>
 
 @code {
     private MudTheme _theme = StudioTheme.Create();

@@ -3,7 +3,7 @@
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Domain.Enums
 @inject IGenerationService GenerationService
-@inject IContentSafetyService ContentSafety
+
 @inject IDataManagementService DataManagement
 @inject IAppPaths AppPaths
 @inject IDialogService DialogService
@@ -109,14 +109,13 @@ else
 @code {
     [Parameter] public Guid ProjectId { get; set; }
     [Parameter] public EventCallback<GenerationJobDto> OnReuseSettings { get; set; }
+    [CascadingParameter(Name = "NsfwShieldEnabled")] public bool NsfwShieldEnabled { get; set; }
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
-    private bool _nsfwShieldEnabled;
 
     protected override async Task OnInitializedAsync()
     {
-        _nsfwShieldEnabled = await ContentSafety.GetNsfwShieldEnabledAsync();
         await Refresh();
     }
 
@@ -156,7 +155,7 @@ else
 
     private bool ShouldBlurImage(GeneratedImageDto image)
     {
-        return _nsfwShieldEnabled && !image.IsRevealed &&
+        return NsfwShieldEnabled && !image.IsRevealed &&
                image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable;
     }
 

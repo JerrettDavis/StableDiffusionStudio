@@ -231,7 +231,9 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         await _semaphore.WaitAsync(ct);
         try
         {
-            return GenerateCore(request, progress, ct);
+            // Run on a background thread so Progress<T> callbacks can execute
+            // on the captured SynchronizationContext while generation runs
+            return await Task.Run(() => GenerateCore(request, progress, ct), ct);
         }
         finally
         {
