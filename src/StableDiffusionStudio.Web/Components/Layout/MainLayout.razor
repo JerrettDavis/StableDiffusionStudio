@@ -29,7 +29,9 @@
     </MudDrawer>
 
     <MudMainContent Class="pa-4" Style="min-height: 100vh; padding-top: 64px !important;">
-        @Body
+        <ErrorBoundaryHandler>
+            @Body
+        </ErrorBoundaryHandler>
     </MudMainContent>
 </MudLayout>
 

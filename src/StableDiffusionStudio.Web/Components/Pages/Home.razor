@@ -6,6 +6,15 @@
 @inject IModelCatalogService ModelCatalogService
 @inject IInferenceBackend InferenceBackend
 @inject NavigationManager Nav
+@inject ILogger<Home> Logger
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <div class="d-flex align-center justify-space-between mb-6">
     <div>
@@ -83,17 +92,26 @@ else
     private int _projectCount;
     private int _modelCount;
     private bool _backendAvailable;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync()
     {
-        var projects = await ProjectService.ListAsync(new ProjectFilter());
-        _projectCount = projects.Count;
-        _recentProjects = projects.Take(5).ToList();
+        try
+        {
+            var projects = await ProjectService.ListAsync(new ProjectFilter());
+            _projectCount = projects.Count;
+            _recentProjects = projects.Take(5).ToList();
 
-        var models = await ModelCatalogService.ListAsync(new ModelFilter());
-        _modelCount = models.Count;
+            var models = await ModelCatalogService.ListAsync(new ModelFilter());
+            _modelCount = models.Count;
 
-        _backendAvailable = await InferenceBackend.IsAvailableAsync();
+            _backendAvailable = await InferenceBackend.IsAvailableAsync();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load dashboard: {ex.Message}";
+            Logger.LogError(ex, "Failed to load dashboard");
+        }
     }
 
     private void NavigateToProject(Guid id) => Nav.NavigateTo($"/projects/{id}");

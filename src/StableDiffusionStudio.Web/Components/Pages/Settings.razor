@@ -13,6 +13,15 @@
 @inject IContentSafetyService ContentSafety
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject ILogger<Settings> Logger
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">Settings</MudText>
 
@@ -333,6 +342,7 @@
     private readonly Dictionary<string, string> _tokenValues = new();
     private readonly HashSet<string> _configuredProviders = new();
     private bool _validating;
+    private string? _loadError;
 
     // Data management fields
     private DataUsageSummary? _usageSummary;
@@ -358,11 +368,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadRoots();
-        await LoadProviders();
-        await LoadContentSafety();
-        await LoadInferenceSettings();
-        await LoadDataManagement();
+        try
+        {
+            await LoadRoots();
+            await LoadProviders();
+            await LoadContentSafety();
+            await LoadInferenceSettings();
+            await LoadDataManagement();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load settings: {ex.Message}";
+            Logger.LogError(ex, "Failed to load settings");
+        }
     }
 
     private async Task LoadRoots()

@@ -6,6 +6,15 @@
 @inject IPresetService PresetService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject ILogger<Presets> Logger
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">Generation Presets</MudText>
 
@@ -103,8 +112,20 @@ else
 @code {
     private IReadOnlyList<GenerationPresetDto>? _presets;
     private ModelFamily? _familyFilter;
+    private string? _loadError;
 
-    protected override async Task OnInitializedAsync() => await LoadPresets();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadPresets();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load presets: {ex.Message}";
+            Logger.LogError(ex, "Failed to load presets");
+        }
+    }
 
     private async Task OnFamilyFilterChanged(ModelFamily? family)
     {

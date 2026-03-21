@@ -6,6 +6,15 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject ILogger<Projects> Logger
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">Projects</MudText>
 
@@ -46,12 +55,21 @@ else
 @code {
     private IReadOnlyList<ProjectDto>? _projects;
     private string? _searchTerm;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync() => await LoadProjects();
 
     private async Task LoadProjects()
     {
-        _projects = await ProjectService.ListAsync(new ProjectFilter(SearchTerm: _searchTerm));
+        try
+        {
+            _projects = await ProjectService.ListAsync(new ProjectFilter(SearchTerm: _searchTerm));
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load projects: {ex.Message}";
+            Logger.LogError(ex, "Failed to load projects");
+        }
     }
 
     private async Task CreateProject()

@@ -7,6 +7,15 @@
 @inject IModelCatalogService ModelCatalogService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject ILogger<Models> Logger
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">Models</MudText>
 
@@ -174,6 +183,7 @@
     private ModelFamily? _familyFilter;
     private ModelType? _typeFilter;
     private bool _scanning;
+    private string? _loadError;
 
     // Tab state
     private int _activeTabIndex;
@@ -189,9 +199,17 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var providers = ModelCatalogService.GetProviders();
-        _remoteProviders = providers.Where(p => p.Capabilities.CanSearch).ToList();
-        await LoadModels();
+        try
+        {
+            var providers = ModelCatalogService.GetProviders();
+            _remoteProviders = providers.Where(p => p.Capabilities.CanSearch).ToList();
+            await LoadModels();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load models: {ex.Message}";
+            Logger.LogError(ex, "Failed to load models");
+        }
     }
 
     private async Task LoadModels()
