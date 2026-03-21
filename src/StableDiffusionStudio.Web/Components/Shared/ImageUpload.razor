@@ -1,36 +1,115 @@
 @using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
 
-<MudFileUpload T="IBrowserFile" Accept=".png,.jpg,.jpeg,.webp" FilesChanged="OnFileSelected"
-               MaximumFileCount="1">
-    <ActivatorContent>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                   StartIcon="@Icons.Material.Filled.Upload">
-            Upload Init Image
-        </MudButton>
-    </ActivatorContent>
-</MudFileUpload>
+<div @ref="_dropZoneRef"
+     class="image-dropzone @(_isDragOver ? "drag-over" : "") @(_previewUrl is not null ? "has-image" : "")"
+     @ondragover="OnDragOver"
+     @ondragover:preventDefault="true"
+     @ondragleave="OnDragLeave"
+     @ondrop="OnDrop"
+     @ondrop:preventDefault="true"
+     tabindex="0">
 
-@if (_previewUrl is not null)
-{
-    <MudPaper Class="mt-2 pa-2" Elevation="0" Style="border:1px solid var(--mud-palette-lines-default); border-radius:4px">
-        <img src="@_previewUrl" style="max-width:100%; max-height:300px; display:block; margin:auto" alt="Init image preview" />
-        <div class="d-flex justify-space-between align-center mt-2">
-            <MudText Typo="Typo.caption" Color="Color.Secondary">@_fileName</MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="Clear" />
+    @if (_previewUrl is not null)
+    {
+        <div class="image-preview-wrapper">
+            <img src="@_previewUrl" alt="Init image" />
+            <div class="image-overlay">
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               Color="Color.Error" OnClick="Clear"
+                               Style="background:rgba(0,0,0,0.6); color:white" />
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1" Align="Align.Center">
+                @_fileName
+            </MudText>
         </div>
-    </MudPaper>
-}
+    }
+    else
+    {
+        <InputFile OnChange="OnFileSelected" accept=".png,.jpg,.jpeg,.webp"
+                   style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1" />
+        <div class="dropzone-content">
+            <MudIcon Icon="@Icons.Material.Outlined.AddPhotoAlternate" Size="Size.Large"
+                     Color="Color.Secondary" />
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                Drag, paste, or click to add image
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                Ctrl+V to paste from clipboard
+            </MudText>
+        </div>
+    }
+</div>
+
+<style>
+    .image-dropzone {
+        position: relative;
+        border: 2px dashed var(--mud-palette-lines-default);
+        border-radius: var(--mud-default-borderradius);
+        padding: 16px;
+        text-align: center;
+        transition: border-color 0.15s, background 0.15s;
+        min-height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 8px;
+    }
+
+    .image-dropzone:hover,
+    .image-dropzone:focus-within {
+        border-color: var(--mud-palette-primary);
+    }
+
+    .image-dropzone.drag-over {
+        border-color: var(--mud-palette-primary);
+        background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+    }
+
+    .image-dropzone.has-image {
+        border-style: solid;
+        padding: 8px;
+    }
+
+    .dropzone-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none;
+    }
+
+    .image-preview-wrapper {
+        width: 100%;
+        position: relative;
+    }
+
+    .image-preview-wrapper img {
+        max-width: 100%;
+        max-height: 300px;
+        display: block;
+        margin: 0 auto;
+        border-radius: 4px;
+    }
+
+    .image-overlay {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+    }
+</style>
 
 @code {
     [Parameter] public byte[]? ImageBytes { get; set; }
     [Parameter] public EventCallback<byte[]?> ImageBytesChanged { get; set; }
 
+    private ElementReference _dropZoneRef;
     private string? _previewUrl;
     private string? _fileName;
+    private bool _isDragOver;
 
     protected override void OnParametersSet()
     {
-        // If external code sets ImageBytes (e.g. "Send to img2img"), generate preview
         if (ImageBytes is not null && _previewUrl is null)
         {
             _previewUrl = $"data:image/png;base64,{Convert.ToBase64String(ImageBytes)}";
@@ -43,8 +122,27 @@
         }
     }
 
-    private async Task OnFileSelected(IBrowserFile file)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("imageDropZone.init", _dropZoneRef, DotNetObjectReference.Create(this));
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnImagePasted(string base64, string fileName)
+    {
+        var bytes = Convert.FromBase64String(base64);
+        _previewUrl = $"data:image/png;base64,{base64}";
+        _fileName = fileName;
+        await ImageBytesChanged.InvokeAsync(bytes);
+        StateHasChanged();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
         using var ms = new MemoryStream();
         await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(ms);
         var bytes = ms.ToArray();
@@ -53,10 +151,29 @@
         await ImageBytesChanged.InvokeAsync(bytes);
     }
 
+    private async Task OnDrop(DragEventArgs e)
+    {
+        _isDragOver = false;
+        // File drops are handled by the InputFile overlay when no image is loaded.
+        // When an image is already loaded, we handle the drop via JS paste interop.
+    }
+
+    private void OnDragOver(DragEventArgs e) => _isDragOver = true;
+    private void OnDragLeave(DragEventArgs e) => _isDragOver = false;
+
     private async Task Clear()
     {
         _previewUrl = null;
         _fileName = null;
         await ImageBytesChanged.InvokeAsync(null);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("imageDropZone.dispose", _dropZoneRef);
+        }
+        catch (JSDisconnectedException) { }
     }
 }
