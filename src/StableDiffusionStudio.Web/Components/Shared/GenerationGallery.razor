@@ -150,6 +150,7 @@ else
 @code {
     [Parameter] public Guid ProjectId { get; set; }
     [Parameter] public EventCallback<GenerationJobDto> OnReuseSettings { get; set; }
+    [Parameter] public EventCallback<byte[]> OnSendToImg2Img { get; set; }
     [CascadingParameter(Name = "NsfwShieldEnabled")] public bool NsfwShieldEnabled { get; set; }
     [CascadingParameter(Name = "NsfwThreshold")] public double NsfwThreshold { get; set; } = 0.5;
 
@@ -250,6 +251,15 @@ else
             var action = result.Data as string;
             if (action == "reuse")
                 await OnReuseSettings.InvokeAsync(job);
+            else if (action == "img2img")
+            {
+                // Read the image file from disk and send to img2img
+                if (File.Exists(image.FilePath))
+                {
+                    var imageBytes = await File.ReadAllBytesAsync(image.FilePath);
+                    await OnSendToImg2Img.InvokeAsync(imageBytes);
+                }
+            }
             else if (action == "deleted")
                 await Refresh();
         }

@@ -1,0 +1,62 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<MudFileUpload T="IBrowserFile" Accept=".png,.jpg,.jpeg,.webp" FilesChanged="OnFileSelected"
+               MaximumFileCount="1">
+    <ActivatorContent>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Upload">
+            Upload Init Image
+        </MudButton>
+    </ActivatorContent>
+</MudFileUpload>
+
+@if (_previewUrl is not null)
+{
+    <MudPaper Class="mt-2 pa-2" Elevation="0" Style="border:1px solid var(--mud-palette-lines-default); border-radius:4px">
+        <img src="@_previewUrl" style="max-width:100%; max-height:300px; display:block; margin:auto" alt="Init image preview" />
+        <div class="d-flex justify-space-between align-center mt-2">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@_fileName</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="Clear" />
+        </div>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public byte[]? ImageBytes { get; set; }
+    [Parameter] public EventCallback<byte[]?> ImageBytesChanged { get; set; }
+
+    private string? _previewUrl;
+    private string? _fileName;
+
+    protected override void OnParametersSet()
+    {
+        // If external code sets ImageBytes (e.g. "Send to img2img"), generate preview
+        if (ImageBytes is not null && _previewUrl is null)
+        {
+            _previewUrl = $"data:image/png;base64,{Convert.ToBase64String(ImageBytes)}";
+            _fileName = "init image";
+        }
+        else if (ImageBytes is null && _previewUrl is not null)
+        {
+            _previewUrl = null;
+            _fileName = null;
+        }
+    }
+
+    private async Task OnFileSelected(IBrowserFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(ms);
+        var bytes = ms.ToArray();
+        _previewUrl = $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+        _fileName = file.Name;
+        await ImageBytesChanged.InvokeAsync(bytes);
+    }
+
+    private async Task Clear()
+    {
+        _previewUrl = null;
+        _fileName = null;
+        await ImageBytesChanged.InvokeAsync(null);
+    }
+}
