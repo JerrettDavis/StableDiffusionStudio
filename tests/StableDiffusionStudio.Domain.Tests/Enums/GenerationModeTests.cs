@@ -24,8 +24,14 @@ public class GenerationModeTests
     }
 
     [Fact]
-    public void GenerationMode_HasExactlyTwoValues()
+    public void GenerationMode_HasInpainting()
     {
-        Enum.GetValues<GenerationMode>().Should().HaveCount(2);
+        GenerationMode.Inpainting.Should().BeDefined();
+    }
+
+    [Fact]
+    public void GenerationMode_HasExactlyThreeValues()
+    {
+        Enum.GetValues<GenerationMode>().Should().HaveCount(3);
     }
 }
