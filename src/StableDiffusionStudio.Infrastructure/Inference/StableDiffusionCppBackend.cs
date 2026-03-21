@@ -210,14 +210,16 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         {
             modelParams.ModelPath = request.CheckpointPath;
 
-            // For SDXL/SD1.5 with CUDA: only offload to CPU if safe
-            // Hybrid Intel CPUs (12th-14th gen) crash with AVX512 false detection
-            if (_loadedFromCuda && IsHybridCpu())
+            if (_loadedFromCuda)
             {
-                _logger.LogInformation("Hybrid CPU detected — disabling CPU offloading to avoid AVX512 crash");
+                // CUDA + CPU offloading crashes on hybrid Intel CPUs due to AVX512 false
+                // detection in stable-diffusion.cpp (issue #1343). Disable all CPU offloading
+                // when using CUDA — the GPU handles everything.
+                _logger.LogInformation("CUDA backend active — keeping all computation on GPU");
                 modelParams.OffloadParamsToCPU = false;
                 modelParams.KeepClipOnCPU = false;
                 modelParams.KeepVaeOnCPU = false;
+                modelParams.KeepControlNetOnCPU = false;
             }
             else
             {
