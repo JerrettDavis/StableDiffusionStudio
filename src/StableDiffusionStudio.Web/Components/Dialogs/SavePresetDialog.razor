@@ -13,6 +13,11 @@
         <MudSwitch T="bool" @bind-Value="_associateWithModel" Label="Associate with current model" Color="Color.Primary" Class="mb-2" />
         <MudSwitch T="bool" @bind-Value="_filterByFamily" Label="Filter by model family" Color="Color.Primary" Class="mb-2" />
         <MudSwitch T="bool" @bind-Value="_includePromptTemplate" Label="Include positive prompt as template" Color="Color.Primary" Class="mb-2" />
+        <MudSelect T="PresetApplyMode" Label="Apply Mode" @bind-Value="_applyMode" Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem T="PresetApplyMode" Value="PresetApplyMode.Replace">Replace (overwrite current prompt)</MudSelectItem>
+            <MudSelectItem T="PresetApplyMode" Value="PresetApplyMode.AppendToPrompt">Append to current prompt</MudSelectItem>
+            <MudSelectItem T="PresetApplyMode" Value="PresetApplyMode.PrependToPrompt">Prepend to current prompt</MudSelectItem>
+        </MudSelect>
         <MudSwitch T="bool" @bind-Value="_isDefault" Label="Set as default for this model/family" Color="Color.Primary" />
     </DialogContent>
     <DialogActions>
@@ -45,6 +50,7 @@
     private bool _filterByFamily;
     private bool _includePromptTemplate;
     private bool _isDefault;
+    private PresetApplyMode _applyMode = PresetApplyMode.Replace;
 
     protected override async Task OnInitializedAsync()
     {
@@ -59,6 +65,7 @@
                 _filterByFamily = preset.ModelFamilyFilter.HasValue;
                 _includePromptTemplate = !string.IsNullOrWhiteSpace(preset.PositivePromptTemplate);
                 _isDefault = preset.IsDefault;
+                _applyMode = preset.ApplyMode;
             }
         }
     }
@@ -81,7 +88,8 @@
             Width: Width,
             Height: Height,
             BatchSize: BatchSize,
-            ClipSkip: ClipSkip);
+            ClipSkip: ClipSkip,
+            ApplyMode: _applyMode);
 
         var result = await PresetService.SavePresetAsync(command);
         Snackbar.Add($"Preset '{result.Name}' saved", Severity.Success);

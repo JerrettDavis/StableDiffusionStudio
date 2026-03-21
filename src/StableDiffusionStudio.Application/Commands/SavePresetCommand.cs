@@ -18,4 +18,5 @@ public record SavePresetCommand(
     int Width,
     int Height,
     int BatchSize,
-    int ClipSkip);
+    int ClipSkip,
+    PresetApplyMode ApplyMode = PresetApplyMode.Replace);

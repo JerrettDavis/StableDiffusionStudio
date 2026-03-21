@@ -24,6 +24,7 @@ public class GenerationPresetEntity
     public int Height { get; private set; } = 512;
     public int BatchSize { get; private set; } = 1;
     public int ClipSkip { get; private set; } = 1;
+    public PresetApplyMode ApplyMode { get; private set; } = PresetApplyMode.Replace;
 
     private GenerationPresetEntity() { } // EF Core
 
@@ -33,7 +34,8 @@ public class GenerationPresetEntity
         string? positivePromptTemplate, string negativePrompt,
         Sampler sampler, Scheduler scheduler,
         int steps, double cfgScale, int width, int height,
-        int batchSize, int clipSkip)
+        int batchSize, int clipSkip,
+        PresetApplyMode applyMode = PresetApplyMode.Replace)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Preset name is required.", nameof(name));
@@ -56,6 +58,7 @@ public class GenerationPresetEntity
             Height = height,
             BatchSize = batchSize,
             ClipSkip = clipSkip,
+            ApplyMode = applyMode,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -67,7 +70,8 @@ public class GenerationPresetEntity
         string? positivePromptTemplate, string negativePrompt,
         Sampler sampler, Scheduler scheduler,
         int steps, double cfgScale, int width, int height,
-        int batchSize, int clipSkip)
+        int batchSize, int clipSkip,
+        PresetApplyMode applyMode = PresetApplyMode.Replace)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Preset name is required.", nameof(name));
@@ -86,6 +90,7 @@ public class GenerationPresetEntity
         Height = height;
         BatchSize = batchSize;
         ClipSkip = clipSkip;
+        ApplyMode = applyMode;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

@@ -19,5 +19,6 @@ public record GenerationPresetDto(
     int Height,
     int BatchSize,
     int ClipSkip,
+    PresetApplyMode ApplyMode,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);

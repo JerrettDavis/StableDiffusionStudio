@@ -311,6 +311,7 @@ public partial class Program
             ("GeneratedImages", "ContentRating", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""ContentRating"" TEXT NOT NULL DEFAULT 'Unknown'"),
             ("GeneratedImages", "NsfwScore", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""NsfwScore"" REAL NOT NULL DEFAULT 0"),
             ("GeneratedImages", "IsRevealed", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""IsRevealed"" INTEGER NOT NULL DEFAULT 0"),
+            ("GenerationPresets", "ApplyMode", @"ALTER TABLE ""GenerationPresets"" ADD COLUMN ""ApplyMode"" TEXT NOT NULL DEFAULT 'Replace'"),
         };
 
         foreach (var (table, column, alterSql) in columns)

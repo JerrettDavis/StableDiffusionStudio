@@ -19,6 +19,7 @@ public class GenerationPresetEntityConfiguration : IEntityTypeConfiguration<Gene
 
         builder.Property(p => p.Sampler).HasConversion<string>().IsRequired();
         builder.Property(p => p.Scheduler).HasConversion<string>().IsRequired();
+        builder.Property(p => p.ApplyMode).HasConversion<string>().HasDefaultValue(PresetApplyMode.Replace);
 
         builder.Property(p => p.ModelFamilyFilter).HasConversion(
             v => v.HasValue ? v.Value.ToString() : null,
