@@ -99,7 +99,11 @@
                                 Params_ClipSkip="_clipSkip" Params_ClipSkipChanged="v => _clipSkip = v"
                                 Params_BatchCount="_batchCount" Params_BatchCountChanged="v => _batchCount = v"
                                 Params_Eta="_eta" Params_EtaChanged="v => _eta = v"
-                                Params_DenoisingStrength="_denoisingStrength" Params_DenoisingStrengthChanged="v => _denoisingStrength = v" />
+                                Params_DenoisingStrength="_denoisingStrength" Params_DenoisingStrengthChanged="v => _denoisingStrength = v"
+                                Params_HiresFixEnabled="_hiresFixEnabled" Params_HiresFixEnabledChanged="v => _hiresFixEnabled = v"
+                                Params_HiresUpscaleFactor="_hiresUpscaleFactor" Params_HiresUpscaleFactorChanged="v => _hiresUpscaleFactor = v"
+                                Params_HiresSteps="_hiresSteps" Params_HiresStepsChanged="v => _hiresSteps = v"
+                                Params_HiresDenoisingStrength="_hiresDenoisingStrength" Params_HiresDenoisingStrengthChanged="v => _hiresDenoisingStrength = v" />
             </div>
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4"
@@ -183,6 +187,10 @@
     private int _batchCount = 1;
     private double _eta = 0.0;
     private double _denoisingStrength = 1.0;
+    private bool _hiresFixEnabled;
+    private double _hiresUpscaleFactor = 2.0;
+    private int _hiresSteps;
+    private double _hiresDenoisingStrength = 0.55;
     private Domain.Enums.GenerationMode _generationMode = Domain.Enums.GenerationMode.TextToImage;
     private byte[]? _initImageBytes;
     private bool _isGenerating;
@@ -395,7 +403,11 @@
                 BatchCount = _batchCount,
                 Eta = _eta,
                 DenoisingStrength = _denoisingStrength,
-                Mode = _generationMode
+                Mode = _generationMode,
+                HiresFixEnabled = _hiresFixEnabled,
+                HiresUpscaleFactor = _hiresUpscaleFactor,
+                HiresSteps = _hiresSteps,
+                HiresDenoisingStrength = _hiresDenoisingStrength
             };
 
             var command = new CreateGenerationCommand(ProjectId, parameters, _initImageBytes);
@@ -490,6 +502,10 @@
         _batchCount = job.Parameters.BatchCount;
         _eta = job.Parameters.Eta;
         _denoisingStrength = job.Parameters.DenoisingStrength;
+        _hiresFixEnabled = job.Parameters.HiresFixEnabled;
+        _hiresUpscaleFactor = job.Parameters.HiresUpscaleFactor;
+        _hiresSteps = job.Parameters.HiresSteps;
+        _hiresDenoisingStrength = job.Parameters.HiresDenoisingStrength;
         _generationMode = job.Parameters.Mode;
         // Clear init image when reusing — the user must re-upload or use Send to img2img
         _initImageBytes = null;

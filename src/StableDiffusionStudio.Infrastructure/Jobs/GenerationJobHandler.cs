@@ -206,6 +206,45 @@ public class GenerationJobHandler : IJobHandler
                 allImages.AddRange(result.Images);
             }
 
+            // Hires Fix — two-pass upscaling
+            if (parameters.HiresFixEnabled && allImages.Count > 0)
+            {
+                job.UpdateProgress(70, "Hires fix — upscaling");
+                var hiresImages = new List<GeneratedImageData>();
+
+                foreach (var img in allImages)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var hiresRequest = new InferenceRequest(
+                        parameters.PositivePrompt,
+                        parameters.NegativePrompt,
+                        parameters.Sampler,
+                        parameters.Scheduler,
+                        parameters.HiresSteps > 0 ? parameters.HiresSteps : parameters.Steps,
+                        parameters.CfgScale,
+                        img.Seed,
+                        (int)(parameters.Width * parameters.HiresUpscaleFactor),
+                        (int)(parameters.Height * parameters.HiresUpscaleFactor),
+                        1, // batch size 1 per hires pass
+                        parameters.ClipSkip,
+                        parameters.Eta,
+                        img.ImageBytes, // use first-pass as init image
+                        parameters.HiresDenoisingStrength
+                    );
+
+                    var hiresResult = await _inferenceBackend.GenerateAsync(hiresRequest,
+                        new DirectProgress<InferenceProgress>(_ => { }), ct);
+
+                    if (hiresResult.Success && hiresResult.Images.Count > 0)
+                        hiresImages.Add(hiresResult.Images[0]);
+                    else
+                        hiresImages.Add(img); // Keep original if hires fails
+                }
+
+                allImages = hiresImages;
+            }
+
             job.UpdateProgress(85, "Saving images");
 
             // Save images to disk

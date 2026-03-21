@@ -125,6 +125,40 @@
             <MudChip T="string" OnClick="() => SetResolution(1536, 1024)" Class="quick-chip">1536x1024</MudChip>
         </MudChipSet>
     </MudExpansionPanel>
+
+    <MudExpansionPanel Text="Hires Fix">
+        <MudSwitch T="bool" Value="Params_HiresFixEnabled" ValueChanged="OnHiresFixEnabledChanged"
+                   Label="Enable Hires Fix" Color="Color.Primary" />
+        @if (Params_HiresFixEnabled)
+        {
+            <MudGrid Class="mt-2">
+                <MudItem xs="12">
+                    <div class="d-flex align-center justify-space-between mb-1">
+                        <MudText Typo="Typo.body2">Upscale Factor</MudText>
+                        <span class="param-value">@Params_HiresUpscaleFactor.ToString("F2")x</span>
+                    </div>
+                    <MudSlider T="double" Value="Params_HiresUpscaleFactor" ValueChanged="OnHiresUpscaleFactorChanged"
+                               Min="1.5" Max="4" Step="0.25" Color="Color.Primary" Size="Size.Small" />
+                </MudItem>
+                <MudItem xs="6">
+                    <div class="d-flex align-center justify-space-between mb-1">
+                        <MudText Typo="Typo.body2">Steps (0 = same)</MudText>
+                        <span class="param-value">@Params_HiresSteps</span>
+                    </div>
+                    <MudSlider T="int" Value="Params_HiresSteps" ValueChanged="OnHiresStepsChanged"
+                               Min="0" Max="150" Step="1" Color="Color.Primary" Size="Size.Small" />
+                </MudItem>
+                <MudItem xs="6">
+                    <div class="d-flex align-center justify-space-between mb-1">
+                        <MudText Typo="Typo.body2">Denoising</MudText>
+                        <span class="param-value">@Params_HiresDenoisingStrength.ToString("F2")</span>
+                    </div>
+                    <MudSlider T="double" Value="Params_HiresDenoisingStrength" ValueChanged="OnHiresDenoisingStrengthChanged"
+                               Min="0.1" Max="0.9" Step="0.05" Color="Color.Primary" Size="Size.Small" />
+                </MudItem>
+            </MudGrid>
+        }
+    </MudExpansionPanel>
 </MudExpansionPanels>
 
 @code {
@@ -152,6 +186,14 @@
     [Parameter] public EventCallback<double> Params_EtaChanged { get; set; }
     [Parameter] public double Params_DenoisingStrength { get; set; } = 1.0;
     [Parameter] public EventCallback<double> Params_DenoisingStrengthChanged { get; set; }
+    [Parameter] public bool Params_HiresFixEnabled { get; set; }
+    [Parameter] public EventCallback<bool> Params_HiresFixEnabledChanged { get; set; }
+    [Parameter] public double Params_HiresUpscaleFactor { get; set; } = 2.0;
+    [Parameter] public EventCallback<double> Params_HiresUpscaleFactorChanged { get; set; }
+    [Parameter] public int Params_HiresSteps { get; set; }
+    [Parameter] public EventCallback<int> Params_HiresStepsChanged { get; set; }
+    [Parameter] public double Params_HiresDenoisingStrength { get; set; } = 0.55;
+    [Parameter] public EventCallback<double> Params_HiresDenoisingStrengthChanged { get; set; }
 
     private async Task OnSamplerChanged(Sampler v) { Params_Sampler = v; await Params_SamplerChanged.InvokeAsync(v); }
     private async Task OnSchedulerChanged(Scheduler v) { Params_Scheduler = v; await Params_SchedulerChanged.InvokeAsync(v); }
@@ -165,6 +207,10 @@
     private async Task OnBatchCountChanged(int v) { Params_BatchCount = v; await Params_BatchCountChanged.InvokeAsync(v); }
     private async Task OnEtaChanged(double v) { Params_Eta = v; await Params_EtaChanged.InvokeAsync(v); }
     private async Task OnDenoisingStrengthChanged(double v) { Params_DenoisingStrength = v; await Params_DenoisingStrengthChanged.InvokeAsync(v); }
+    private async Task OnHiresFixEnabledChanged(bool v) { Params_HiresFixEnabled = v; await Params_HiresFixEnabledChanged.InvokeAsync(v); }
+    private async Task OnHiresUpscaleFactorChanged(double v) { Params_HiresUpscaleFactor = v; await Params_HiresUpscaleFactorChanged.InvokeAsync(v); }
+    private async Task OnHiresStepsChanged(int v) { Params_HiresSteps = v; await Params_HiresStepsChanged.InvokeAsync(v); }
+    private async Task OnHiresDenoisingStrengthChanged(double v) { Params_HiresDenoisingStrength = v; await Params_HiresDenoisingStrengthChanged.InvokeAsync(v); }
 
     private async Task SwapDimensions()
     {

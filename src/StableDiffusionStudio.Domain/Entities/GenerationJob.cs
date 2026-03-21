@@ -32,6 +32,15 @@ public class GenerationJob
             throw new ArgumentException("Batch size must be between 1 and 16.");
         if (parameters.Mode == GenerationMode.ImageToImage && parameters.DenoisingStrength >= 1.0)
             throw new ArgumentException("Denoising strength must be less than 1.0 for img2img mode.");
+        if (parameters.HiresFixEnabled)
+        {
+            if (parameters.HiresUpscaleFactor < 1.0 || parameters.HiresUpscaleFactor > 4.0)
+                throw new ArgumentException("Hires upscale factor must be between 1.0 and 4.0.");
+            if (parameters.HiresSteps < 0 || parameters.HiresSteps > 150)
+                throw new ArgumentException("Hires steps must be between 0 and 150.");
+            if (parameters.HiresDenoisingStrength <= 0 || parameters.HiresDenoisingStrength >= 1.0)
+                throw new ArgumentException("Hires denoising strength must be between 0 and 1.0 (exclusive).");
+        }
 
         return new GenerationJob
         {
