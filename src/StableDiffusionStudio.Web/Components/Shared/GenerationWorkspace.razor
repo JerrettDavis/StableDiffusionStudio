@@ -15,6 +15,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IPromptHistoryService PromptHistoryService
+@inject IImageInterrogator ImageInterrogator
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -34,6 +35,24 @@
             @if (_generationMode == Domain.Enums.GenerationMode.ImageToImage)
             {
                 <ImageUpload @bind-ImageBytes="_initImageBytes" />
+                @if (_initImageBytes is not null)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               Size="Size.Small" Class="mb-2"
+                               StartIcon="@Icons.Material.Filled.ImageSearch"
+                               Disabled="_isInterrogating"
+                               OnClick="() => InterrogateImage(_initImageBytes)">
+                        @if (_isInterrogating)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            @:Interrogating...
+                        }
+                        else
+                        {
+                            @:Interrogate — generate prompt from image
+                        }
+                    </MudButton>
+                }
             }
 
             @if (_generationMode == Domain.Enums.GenerationMode.Inpainting)
@@ -41,8 +60,28 @@
                 <ImageUpload @bind-ImageBytes="_initImageBytes" />
                 @if (_initImageBytes is not null)
                 {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
+                               Size="Size.Small" Class="mb-2"
+                               StartIcon="@Icons.Material.Filled.ImageSearch"
+                               Disabled="_isInterrogating"
+                               OnClick="() => InterrogateImage(_initImageBytes)">
+                        @if (_isInterrogating)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                            @:Interrogating...
+                        }
+                        else
+                        {
+                            @:Interrogate — generate prompt from image
+                        }
+                    </MudButton>
                     <InpaintCanvas @ref="_inpaintCanvas" InitImageBytes="_initImageBytes" />
                 }
+            }
+
+            @if (_generationMode == Domain.Enums.GenerationMode.TextToImage)
+            {
+                <InterrogateDropZone OnPromptGenerated="OnInterrogateResult" />
             }
 
             <RecentModelsBar @ref="_recentModelsBar" SelectedModelId="_checkpointId"
@@ -223,6 +262,7 @@
     private int _tokenLimit = 77;
     private HubConnection? _hubConnection;
     private Timer? _progressTimer;
+    private bool _isInterrogating;
 
     protected override async Task OnInitializedAsync()
     {
@@ -671,6 +711,36 @@
         _positiveTokenCount = PromptTokenEstimator.EstimateTokens(_positivePrompt);
         _negativeTokenCount = PromptTokenEstimator.EstimateTokens(_negativePrompt);
         _tokenLimit = PromptTokenEstimator.GetTokenLimit(_currentModelFamily?.ToString());
+    }
+
+    private async Task InterrogateImage(byte[]? imageBytes)
+    {
+        if (imageBytes is null) return;
+        _isInterrogating = true;
+        StateHasChanged();
+        try
+        {
+            var prompt = await ImageInterrogator.InterrogateAsync(imageBytes);
+            OnInterrogateResult(prompt);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Interrogation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isInterrogating = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnInterrogateResult(string prompt)
+    {
+        if (string.IsNullOrWhiteSpace(prompt)) return;
+        _positivePrompt = prompt;
+        RecalculateTokenCounts();
+        Snackbar.Add("Prompt generated from image", Severity.Success);
+        StateHasChanged();
     }
 
     private static string FormatElapsed(double totalSeconds)

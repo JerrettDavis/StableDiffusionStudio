@@ -85,6 +85,9 @@ builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-dow
 // Content safety
 builder.Services.AddScoped<IContentSafetyService, NsfwSpyContentSafetyService>();
 
+// Image interrogation (Ollama vision models)
+builder.Services.AddHttpClient<IImageInterrogator, OllamaImageInterrogator>();
+
 // Generation services
 builder.Services.AddScoped<IGenerationService, GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();
