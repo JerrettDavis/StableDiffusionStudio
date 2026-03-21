@@ -271,6 +271,73 @@ public class GenerationParametersTests
     }
 
     [Fact]
+    public void DefaultValues_HiresFixEnabled_IsFalse()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.HiresFixEnabled.Should().BeFalse();
+    }
+
+    [Fact]
+    public void DefaultValues_HiresUpscaleFactor_IsTwo()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.HiresUpscaleFactor.Should().Be(2.0);
+    }
+
+    [Fact]
+    public void DefaultValues_HiresSteps_IsZero()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.HiresSteps.Should().Be(0);
+    }
+
+    [Fact]
+    public void DefaultValues_HiresDenoisingStrength_Is055()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid()
+        };
+
+        parameters.HiresDenoisingStrength.Should().Be(0.55);
+    }
+
+    [Fact]
+    public void HiresFix_AllProperties_CanBeSet()
+    {
+        var parameters = new GenerationParameters
+        {
+            PositivePrompt = "test",
+            CheckpointModelId = Guid.NewGuid(),
+            HiresFixEnabled = true,
+            HiresUpscaleFactor = 3.0,
+            HiresSteps = 30,
+            HiresDenoisingStrength = 0.7
+        };
+
+        parameters.HiresFixEnabled.Should().BeTrue();
+        parameters.HiresUpscaleFactor.Should().Be(3.0);
+        parameters.HiresSteps.Should().Be(30);
+        parameters.HiresDenoisingStrength.Should().Be(0.7);
+    }
+
+    [Fact]
     public void With_CanCreateImg2ImgFromTxt2Img()
     {
         var original = new GenerationParameters

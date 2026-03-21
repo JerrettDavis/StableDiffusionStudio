@@ -160,4 +160,75 @@ public class GenerationJobValidationTests
         var job = GenerationJob.Create(ProjectId, p);
         job.Parameters.BatchSize.Should().Be(16);
     }
+
+    [Fact]
+    public void HiresFix_ValidSettings_CreatesJob()
+    {
+        var p = ValidParams() with
+        {
+            HiresFixEnabled = true,
+            HiresUpscaleFactor = 2.0,
+            HiresSteps = 20,
+            HiresDenoisingStrength = 0.55
+        };
+        var job = GenerationJob.Create(ProjectId, p);
+        job.Parameters.HiresFixEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void HiresFix_UpscaleFactorTooHigh_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresUpscaleFactor = 5.0, HiresDenoisingStrength = 0.5 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*upscale*");
+    }
+
+    [Fact]
+    public void HiresFix_UpscaleFactorTooLow_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresUpscaleFactor = 0.5, HiresDenoisingStrength = 0.5 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*upscale*");
+    }
+
+    [Fact]
+    public void HiresFix_DenoisingStrengthAtOne_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresDenoisingStrength = 1.0 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*Hires denoising*");
+    }
+
+    [Fact]
+    public void HiresFix_DenoisingStrengthAtZero_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresDenoisingStrength = 0.0 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*Hires denoising*");
+    }
+
+    [Fact]
+    public void HiresFix_StepsNegative_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresSteps = -1, HiresDenoisingStrength = 0.5 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*Hires steps*");
+    }
+
+    [Fact]
+    public void HiresFix_StepsTooHigh_Throws()
+    {
+        var p = ValidParams() with { HiresFixEnabled = true, HiresSteps = 151, HiresDenoisingStrength = 0.5 };
+        var act = () => GenerationJob.Create(ProjectId, p);
+        act.Should().Throw<ArgumentException>().WithMessage("*Hires steps*");
+    }
+
+    [Fact]
+    public void HiresFix_Disabled_NoValidation()
+    {
+        // When hires fix is disabled, invalid hires values should be ignored
+        var p = ValidParams() with { HiresFixEnabled = false, HiresUpscaleFactor = 99.0 };
+        var job = GenerationJob.Create(ProjectId, p);
+        job.Should().NotBeNull();
+    }
 }

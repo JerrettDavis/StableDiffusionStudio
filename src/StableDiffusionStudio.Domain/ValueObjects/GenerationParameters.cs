@@ -23,4 +23,8 @@ public sealed record GenerationParameters
     public double DenoisingStrength { get; init; } = 1.0;
     public GenerationMode Mode { get; init; } = GenerationMode.TextToImage;
     public string? InitImagePath { get; init; }
+    public bool HiresFixEnabled { get; init; }
+    public double HiresUpscaleFactor { get; init; } = 2.0;
+    public int HiresSteps { get; init; } = 0; // 0 = use main steps
+    public double HiresDenoisingStrength { get; init; } = 0.55;
 }
