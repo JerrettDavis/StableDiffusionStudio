@@ -165,6 +165,120 @@ public class BackgroundJobProcessorTests : IDisposable
         _connection.Dispose();
     }
 
+    [Fact]
+    public async Task ProcessJob_ContinuesProcessingAfterFailure()
+    {
+        var executionOrder = new List<string>();
+        await using var sp = BuildServiceProvider(services =>
+        {
+            services.AddKeyedSingleton<IJobHandler>("failing-job",
+                new TestJobHandler(() =>
+                {
+                    executionOrder.Add("failing");
+                    throw new InvalidOperationException("Boom");
+                }));
+            services.AddKeyedSingleton<IJobHandler>("good-job",
+                new TestJobHandler(() => executionOrder.Add("good")));
+        });
+
+        var channel = sp.GetRequiredService<JobChannel>();
+        var failJob = JobRecord.Create("failing-job", "data");
+        var goodJob = JobRecord.Create("good-job", "data");
+        _context.JobRecords.Add(failJob);
+        _context.JobRecords.Add(goodJob);
+        await _context.SaveChangesAsync();
+
+        var processor = new BackgroundJobProcessor(
+            channel,
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<BackgroundJobProcessor>>());
+
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        await channel.Writer.WriteAsync(failJob.Id);
+        await channel.Writer.WriteAsync(goodJob.Id);
+        await Task.Delay(500);
+        cts.Cancel();
+        try { await processor.StopAsync(CancellationToken.None); } catch (OperationCanceledException) { }
+
+        executionOrder.Should().Contain("failing");
+        executionOrder.Should().Contain("good");
+    }
+
+    [Fact]
+    public async Task ProcessJob_SetsStartedAtTimestamp()
+    {
+        await using var sp = BuildServiceProvider(services =>
+        {
+            services.AddKeyedSingleton<IJobHandler>("timed-job",
+                new TestJobHandler(() => { }));
+        });
+
+        var channel = sp.GetRequiredService<JobChannel>();
+        var job = JobRecord.Create("timed-job", "data");
+        _context.JobRecords.Add(job);
+        await _context.SaveChangesAsync();
+
+        var processor = new BackgroundJobProcessor(
+            channel,
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<BackgroundJobProcessor>>());
+
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        await channel.Writer.WriteAsync(job.Id);
+        await Task.Delay(300);
+        cts.Cancel();
+        try { await processor.StopAsync(CancellationToken.None); } catch (OperationCanceledException) { }
+
+        await using var verifyCtx = new AppDbContext(_dbOptions);
+        var completed = await verifyCtx.JobRecords.FindAsync(job.Id);
+        completed!.StartedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ProcessJob_MultipleJobs_AllComplete()
+    {
+        var count = 0;
+        await using var sp = BuildServiceProvider(services =>
+        {
+            services.AddKeyedSingleton<IJobHandler>("counter-job",
+                new TestJobHandler(() => Interlocked.Increment(ref count)));
+        });
+
+        var channel = sp.GetRequiredService<JobChannel>();
+        var jobs = new List<JobRecord>();
+        for (int i = 0; i < 3; i++)
+        {
+            var job = JobRecord.Create("counter-job", $"data-{i}");
+            _context.JobRecords.Add(job);
+            jobs.Add(job);
+        }
+        await _context.SaveChangesAsync();
+
+        var processor = new BackgroundJobProcessor(
+            channel,
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            sp.GetRequiredService<ILogger<BackgroundJobProcessor>>());
+
+        using var cts = new CancellationTokenSource();
+        await processor.StartAsync(cts.Token);
+        foreach (var job in jobs)
+            await channel.Writer.WriteAsync(job.Id);
+        await Task.Delay(500);
+        cts.Cancel();
+        try { await processor.StopAsync(CancellationToken.None); } catch (OperationCanceledException) { }
+
+        count.Should().Be(3);
+
+        await using var verifyCtx = new AppDbContext(_dbOptions);
+        foreach (var job in jobs)
+        {
+            var completed = await verifyCtx.JobRecords.FindAsync(job.Id);
+            completed!.Status.Should().Be(JobStatus.Completed);
+        }
+    }
+
     private class TestJobHandler : IJobHandler
     {
         private readonly Action _action;

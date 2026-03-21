@@ -192,4 +192,161 @@ public class GenerationJobHandlerTests
             Arg.Any<IProgress<InferenceProgress>>(),
             Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task HandleAsync_WithBatchCountGreaterThanOne_RunsMultipleBatches()
+    {
+        var parameters = ValidParameters with { BatchCount = 3 };
+        var genJob = GenerationJob.Create(Guid.NewGuid(), parameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+        SetupSuccessfulGeneration();
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        genJob.Status.Should().Be(GenerationJobStatus.Completed);
+        await _backend.Received(3).GenerateAsync(
+            Arg.Any<InferenceRequest>(),
+            Arg.Any<IProgress<InferenceProgress>>(),
+            Arg.Any<CancellationToken>());
+        genJob.Images.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithVaeModelId_ResolvesVaePath()
+    {
+        var vaeId = Guid.NewGuid();
+        var parameters = ValidParameters with { VaeModelId = vaeId };
+        var genJob = GenerationJob.Create(Guid.NewGuid(), parameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+        SetupSuccessfulGeneration();
+
+        var vaeModel = ModelRecord.Create("Test VAE", "/models/vae.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 500, "local", ModelType.VAE);
+        _modelCatalog.GetByIdAsync(vaeId, Arg.Any<CancellationToken>()).Returns(vaeModel);
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        await _backend.Received(1).LoadModelAsync(
+            Arg.Is<ModelLoadRequest>(r => r.VaePath == "/models/vae.safetensors"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithLoRAs_ResolvesLoraPaths()
+    {
+        var loraId = Guid.NewGuid();
+        var parameters = ValidParameters with { Loras = [new LoraReference(loraId, 0.8)] };
+        var genJob = GenerationJob.Create(Guid.NewGuid(), parameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+        SetupSuccessfulGeneration();
+
+        var loraModel = ModelRecord.Create("Test LoRA", "/models/lora.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 100, "local", ModelType.LoRA);
+        _modelCatalog.GetByIdAsync(loraId, Arg.Any<CancellationToken>()).Returns(loraModel);
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        await _backend.Received(1).LoadModelAsync(
+            Arg.Is<ModelLoadRequest>(r =>
+                r.Loras.Count == 1 &&
+                r.Loras[0].Path == "/models/lora.safetensors" &&
+                r.Loras[0].Weight == 0.8),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_BackendThrowsException_FailsJob()
+    {
+        var genJob = GenerationJob.Create(Guid.NewGuid(), ValidParameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+        _backend.GenerateAsync(Arg.Any<InferenceRequest>(), Arg.Any<IProgress<InferenceProgress>>(), Arg.Any<CancellationToken>())
+            .Returns<InferenceResult>(_ => throw new InvalidOperationException("Native crash"));
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        genJob.Status.Should().Be(GenerationJobStatus.Failed);
+        genJob.ErrorMessage.Should().Contain("Native crash");
+        jobRecord.Status.Should().Be(JobStatus.Failed);
+    }
+
+    [Fact]
+    public async Task HandleAsync_EmptyGuidInData_FailsJob()
+    {
+        var data = JsonSerializer.Serialize(new { GenerationJobId = Guid.Empty });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        jobRecord.Status.Should().Be(JobStatus.Failed);
+    }
+
+    [Fact]
+    public async Task HandleAsync_WithDefaultSeed_PassesSeedToBackend()
+    {
+        var parameters = ValidParameters with { Seed = -1 };
+        var genJob = GenerationJob.Create(Guid.NewGuid(), parameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+        SetupSuccessfulGeneration();
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        await _backend.Received(1).GenerateAsync(
+            Arg.Is<InferenceRequest>(r => r.Seed == -1),
+            Arg.Any<IProgress<InferenceProgress>>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task HandleAsync_SecondBatchFails_FailsEntireJob()
+    {
+        var parameters = ValidParameters with { BatchCount = 2 };
+        var genJob = GenerationJob.Create(Guid.NewGuid(), parameters);
+        var data = JsonSerializer.Serialize(new { GenerationJobId = genJob.Id });
+        var jobRecord = JobRecord.Create("generation", data);
+        jobRecord.Start();
+
+        _genJobRepo.GetByIdAsync(genJob.Id, Arg.Any<CancellationToken>()).Returns(genJob);
+        SetupCheckpoint();
+
+        var callCount = 0;
+        _backend.GenerateAsync(Arg.Any<InferenceRequest>(), Arg.Any<IProgress<InferenceProgress>>(), Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                callCount++;
+                if (callCount == 1)
+                    return new InferenceResult(true, [new GeneratedImageData([0x89, 0x50, 0x4E, 0x47], 42, 1.0)], null);
+                return new InferenceResult(false, [], "Out of VRAM on batch 2");
+            });
+
+        await _handler.HandleAsync(jobRecord, CancellationToken.None);
+
+        genJob.Status.Should().Be(GenerationJobStatus.Failed);
+        genJob.ErrorMessage.Should().Contain("Out of VRAM on batch 2");
+    }
 }

@@ -369,4 +369,129 @@ public class HuggingFaceProviderTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public async Task SearchAsync_MapsPipelineTagToModelType()
+    {
+        var json = """[{"id": "user/checkpoint-model", "tags": ["diffusers", "text-to-image"]}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].Type.Should().Be(ModelType.Checkpoint);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HttpException_ReturnsEmptyResult()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithHandler("huggingface.co/api/models", _ => throw new HttpRequestException("Connection refused"));
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExtractsProviderUrl()
+    {
+        var json = """[{"id": "stabilityai/sd-turbo", "tags": []}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].ProviderUrl.Should().Be("https://huggingface.co/stabilityai/sd-turbo");
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithNoTags_FamilyIsUnknown()
+    {
+        var json = """[{"id": "user/some-model", "tags": []}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].Family.Should().Be(ModelFamily.Unknown);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ModelIdContainsSDXL_InfersSDXLFamily()
+    {
+        var json = """[{"id": "user/my-sdxl-model", "tags": []}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].Family.Should().Be(ModelFamily.SDXL);
+    }
+
+    [Fact]
+    public async Task SearchAsync_NoDescription_ReturnsNull()
+    {
+        var json = """[{"id": "user/model", "tags": []}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].Description.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_HttpException_ReturnsFalse()
+    {
+        _credentialStore.GetTokenAsync("huggingface", Arg.Any<CancellationToken>())
+            .Returns("hf_some_token");
+
+        var handler = new MockHttpMessageHandler()
+            .WithHandler("whoami", _ => throw new HttpRequestException("Network error"));
+
+        var provider = CreateProvider(handler);
+        var result = await provider.ValidateCredentialsAsync();
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WithCustomVariant_UsesVariantFileName()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"hf_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("huggingface", "user/model", "fp16.safetensors",
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests[0].RequestUri!.ToString().Should().Contain("fp16.safetensors");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Capabilities_SupportedModelTypes_IncludesEmbeddingAndControlNet()
+    {
+        var handler = new MockHttpMessageHandler();
+        var provider = CreateProvider(handler);
+
+        provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.Embedding);
+        provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.ControlNet);
+    }
 }
