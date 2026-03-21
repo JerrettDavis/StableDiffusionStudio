@@ -1,0 +1,151 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
+@inject IJobQueue JobQueue
+@inject IDataManagementService DataManagement
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudText Typo="Typo.h6">@Job.Type</MudText>
+            <MudChip T="string" Size="Size.Small" Color="StatusColor">@Job.Status.ToString()</MudChip>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (Job.Status is JobStatus.Running or JobStatus.Pending)
+        {
+            <MudProgressLinear Value="Job.Progress" Max="100" Color="Color.Primary" Striped="true" Class="mb-2" />
+            @if (Job.Phase is not null)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">@Job.Phase</MudText>
+            }
+        }
+
+        <MudSimpleTable Dense="true" Striped="true" Class="mb-3">
+            <tbody>
+                <tr>
+                    <td><strong>Job ID</strong></td>
+                    <td style="font-family:'JetBrains Mono',monospace; font-size:0.8rem">@Job.Id</td>
+                </tr>
+                <tr>
+                    <td><strong>Correlation ID</strong></td>
+                    <td style="font-family:'JetBrains Mono',monospace; font-size:0.8rem">@Job.CorrelationId</td>
+                </tr>
+                <tr>
+                    <td><strong>Type</strong></td>
+                    <td>@Job.Type</td>
+                </tr>
+                <tr>
+                    <td><strong>Status</strong></td>
+                    <td>@Job.Status</td>
+                </tr>
+                <tr>
+                    <td><strong>Progress</strong></td>
+                    <td><span class="param-value">@Job.Progress%</span></td>
+                </tr>
+                @if (Job.Phase is not null)
+                {
+                    <tr>
+                        <td><strong>Phase</strong></td>
+                        <td>@Job.Phase</td>
+                    </tr>
+                }
+                <tr>
+                    <td><strong>Created</strong></td>
+                    <td>@Job.CreatedAt.ToString("g")</td>
+                </tr>
+                @if (Job.StartedAt.HasValue)
+                {
+                    <tr>
+                        <td><strong>Started</strong></td>
+                        <td>@Job.StartedAt.Value.ToString("g")</td>
+                    </tr>
+                }
+                @if (Job.CompletedAt.HasValue)
+                {
+                    <tr>
+                        <td><strong>Completed</strong></td>
+                        <td>@Job.CompletedAt.Value.ToString("g")</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Duration</strong></td>
+                        <td>@FormatDuration(Job.StartedAt, Job.CompletedAt)</td>
+                    </tr>
+                }
+                @if (Job.ResultData is not null)
+                {
+                    <tr>
+                        <td><strong>Result</strong></td>
+                        <td>@Job.ResultData</td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+
+        @if (Job.ErrorMessage is not null)
+        {
+            <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mb-1">Error</MudText>
+            <MudPaper Class="pa-3 mb-3" Style="background:rgba(214,92,92,0.1); border:1px solid var(--mud-palette-error); border-radius:8px; max-height:200px; overflow-y:auto">
+                <MudText Typo="Typo.caption" Style="font-family:'JetBrains Mono',monospace; white-space:pre-wrap; word-break:break-all">
+                    @Job.ErrorMessage
+                </MudText>
+            </MudPaper>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (Job.Status is JobStatus.Pending or JobStatus.Running)
+        {
+            <MudButton Color="Color.Warning" Variant="Variant.Text" OnClick="CancelJob"
+                       StartIcon="@Icons.Material.Filled.Cancel">Cancel</MudButton>
+        }
+        <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="DeleteJob"
+                   StartIcon="@Icons.Material.Filled.Delete">Delete</MudButton>
+        <MudSpacer />
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public required JobRecordDto Job { get; set; }
+
+    private Color StatusColor => Job.Status switch
+    {
+        JobStatus.Pending => Color.Default,
+        JobStatus.Running => Color.Primary,
+        JobStatus.Completed => Color.Success,
+        JobStatus.Failed => Color.Error,
+        JobStatus.Cancelled => Color.Warning,
+        _ => Color.Default
+    };
+
+    private string FormatDuration(DateTimeOffset? start, DateTimeOffset? end)
+    {
+        if (start is null || end is null) return "-";
+        var d = end.Value - start.Value;
+        return d.TotalMinutes >= 1 ? $"{(int)d.TotalMinutes}m {d.Seconds}s" : $"{d.TotalSeconds:F1}s";
+    }
+
+    private async Task CancelJob()
+    {
+        await JobQueue.CancelAsync(Job.Id);
+        Snackbar.Add("Job cancelled", Severity.Warning);
+        MudDialog.Close(DialogResult.Ok("refresh"));
+    }
+
+    private async Task DeleteJob()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync("Delete Job",
+            "Delete this job record?", yesText: "Delete", cancelText: "Cancel");
+        if (confirmed == true)
+        {
+            await DataManagement.DeleteJobRecordAsync(Job.Id);
+            Snackbar.Add("Job deleted", Severity.Info);
+            MudDialog.Close(DialogResult.Ok("refresh"));
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}

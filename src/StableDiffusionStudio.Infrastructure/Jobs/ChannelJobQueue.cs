@@ -43,6 +43,14 @@ public class ChannelJobQueue : IJobQueue
         return job is null ? null : ToDto(job);
     }
 
+    public async Task CancelAsync(Guid id, CancellationToken ct = default)
+    {
+        var job = await _context.JobRecords.FindAsync([id], ct);
+        if (job is null) return;
+        job.Cancel();
+        await _context.SaveChangesAsync(ct);
+    }
+
     private static JobRecordDto ToDto(JobRecord j) =>
         new(j.Id, j.Type, j.Status, j.Progress, j.Phase,
             j.CorrelationId, j.CreatedAt, j.StartedAt, j.CompletedAt,
