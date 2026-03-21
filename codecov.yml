@@ -8,14 +8,25 @@ coverage:
       default:
         target: 60%
 
+flags:
+  unittests:
+    paths:
+      - src/StableDiffusionStudio.Domain/
+      - src/StableDiffusionStudio.Application/
+      - src/StableDiffusionStudio.Infrastructure/
+    carryforward: true
+  e2e:
+    paths:
+      - src/
+    carryforward: true
+
 ignore:
   - "**/*.Tests/**"
   - "**/*Tests*/**"
-  - "**/E2E.Tests/**"
   - "**/StableDiffusionStudio.AppHost/**"
   - "**/StableDiffusionStudio.ServiceDefaults/**"
-  - "**/StableDiffusionStudio.Web/**"  # UI layer — tested via E2E/Playwright
   - "**/Migrations/**"
-  - "**/DTOs/**"  # Data transfer records — no logic to test
-  - "**/Commands/**"  # Command records — no logic
-  - "**/Interfaces/**"  # Interface definitions — no implementation
+  - "**/DTOs/**"
+  - "**/Commands/**"
+  - "**/Interfaces/**"
+  - "**/wwwroot/**"

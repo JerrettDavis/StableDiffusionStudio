@@ -1,0 +1,68 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Aspire workload
+        run: dotnet workload install aspire
+
+      - name: Install dotnet-coverage tool
+        run: dotnet tool install --global dotnet-coverage
+
+      - name: Restore
+        run: dotnet restore StableDiffusionStudio.slnx
+
+      - name: Build
+        run: dotnet build StableDiffusionStudio.slnx --configuration Release --no-restore
+
+      - name: Install Playwright browsers
+        run: pwsh tests/StableDiffusionStudio.E2E.Tests/bin/Release/net10.0/playwright.ps1 install chromium --with-deps
+
+      - name: Run E2E tests with server coverage
+        env:
+          COLLECT_E2E_COVERAGE: "true"
+        run: |
+          dotnet-coverage collect \
+            --output e2e-coverage.cobertura.xml \
+            --output-format cobertura \
+            -- dotnet test tests/StableDiffusionStudio.E2E.Tests \
+              --configuration Release \
+              --no-build \
+              --verbosity normal
+
+      - name: Upload E2E coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: |
+            e2e-coverage.cobertura.xml
+            **/e2e-server-coverage.cobertura.xml
+          flags: e2e
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
