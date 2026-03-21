@@ -4,94 +4,85 @@
 @using StableDiffusionStudio.Application.Services
 @inject IProjectService ProjectService
 @inject IModelCatalogService ModelCatalogService
-@inject IJobQueue JobQueue
+@inject IInferenceBackend InferenceBackend
 @inject NavigationManager Nav
 
-<MudText Typo="Typo.h4" Class="mb-4">Dashboard</MudText>
+<div class="d-flex align-center justify-space-between mb-6">
+    <div>
+        <MudText Typo="Typo.h4">Welcome back</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            @_modelCount models · @_projectCount projects · @InferenceBackend.DisplayName
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/generate"
+               StartIcon="@Icons.Material.Filled.AutoAwesome" Size="Size.Large">
+        Generate
+    </MudButton>
+</div>
 
-<MudGrid Class="mb-6">
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Large" Color="Color.Primary" Class="mr-3" />
-            <div>
-                <MudText Typo="Typo.h5">@_projectCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Projects</MudText>
-            </div>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-            <MudIcon Icon="@Icons.Material.Filled.ViewInAr" Size="Size.Large" Color="Color.Secondary" Class="mr-3" />
-            <div>
-                <MudText Typo="Typo.h5">@_modelCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Models</MudText>
-            </div>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" sm="4">
-        <MudPaper Class="pa-4 d-flex align-center" Elevation="1">
-            <MudIcon Icon="@Icons.Material.Filled.WorkHistory" Size="Size.Large" Color="Color.Tertiary" Class="mr-3" />
-            <div>
-                <MudText Typo="Typo.h5">@_activeJobCount</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Secondary">Active Jobs</MudText>
-            </div>
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+<!-- Quick Actions -->
+<MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">Quick Actions</MudText>
+<div class="d-flex gap-3 mb-6">
+    <MudButton Variant="Variant.Outlined" Href="/projects" StartIcon="@Icons.Material.Filled.Add">
+        New Project
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Href="/models" StartIcon="@Icons.Material.Filled.Search">
+        Browse Models
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" Href="/settings" StartIcon="@Icons.Material.Filled.Tune">
+        Settings
+    </MudButton>
+</div>
 
-<MudGrid>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6" Class="mb-2">Quick Start</MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Add"
-                       Href="/projects" Class="mb-2" FullWidth="true">
-                New Project
-            </MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
-                       StartIcon="@Icons.Material.Filled.AutoAwesome"
-                       Href="/generate" Class="mb-2" FullWidth="true">
-                Quick Generate
-            </MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                       StartIcon="@Icons.Material.Filled.ViewInAr"
-                       Href="/models" Class="mb-2" FullWidth="true">
-                Browse Models
-            </MudButton>
-        </MudPaper>
-    </MudItem>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4" Elevation="1">
-            <MudText Typo="Typo.h6" Class="mb-2">Recent Projects</MudText>
-            @if (_recentProjects is null || _recentProjects.Count == 0)
-            {
-                <EmptyState Title="No projects yet"
-                            Subtitle="Create your first project to get started"
-                            Icon="@Icons.Material.Filled.Folder" />
-            }
-            else
-            {
-                <MudList T="ProjectDto" Dense="true">
-                    @foreach (var project in _recentProjects)
-                    {
-                        <MudListItem T="ProjectDto" OnClick="() => NavigateToProject(project.Id)">
-                            <div class="d-flex align-center justify-space-between" style="width: 100%;">
-                                <MudText Typo="Typo.body1">@project.Name</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">@project.UpdatedAt.ToString("g")</MudText>
-                            </div>
-                        </MudListItem>
-                    }
-                </MudList>
-            }
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+<!-- Recent Projects — horizontal scroll -->
+@if (_recentProjects is not null && _recentProjects.Count > 0)
+{
+    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">Recent Projects</MudText>
+    <div class="d-flex gap-3 mb-6" style="overflow-x:auto; padding-bottom:8px">
+        @foreach (var project in _recentProjects)
+        {
+            <MudCard Elevation="0" Style="min-width:200px; border:1px solid var(--mud-palette-lines-default); cursor:pointer"
+                     @onclick="() => NavigateToProject(project.Id)">
+                <MudCardContent Class="pa-3">
+                    <MudText Typo="Typo.subtitle1">@project.Name</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Updated @project.UpdatedAt.ToString("MMM d")
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+        }
+    </div>
+}
+else
+{
+    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">Recent Projects</MudText>
+    <EmptyState Title="No projects yet"
+                Subtitle="Create your first project to get started"
+                Icon="@Icons.Material.Filled.Folder" />
+    <div class="mb-6"></div>
+}
+
+<!-- Backend Status -->
+<MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">System</MudText>
+<MudPaper Elevation="0" Style="border:1px solid var(--mud-palette-lines-default)" Class="pa-4">
+    <div class="d-flex align-center gap-3">
+        <span class="status-dot @(_backendAvailable ? "online" : "offline")"></span>
+        <div>
+            <MudText Typo="Typo.body2">@InferenceBackend.DisplayName</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                @(InferenceBackend.Capabilities.SupportsLoRA ? "LoRA" : "")
+                @(InferenceBackend.Capabilities.SupportsVAE ? "· VAE" : "")
+                · Max @(InferenceBackend.Capabilities.MaxWidth)x@(InferenceBackend.Capabilities.MaxHeight)
+            </MudText>
+        </div>
+    </div>
+</MudPaper>
 
 @code {
     private IReadOnlyList<ProjectDto>? _recentProjects;
     private int _projectCount;
     private int _modelCount;
-    private int _activeJobCount;
+    private bool _backendAvailable;
 
     protected override async Task OnInitializedAsync()
     {
@@ -102,8 +93,7 @@
         var models = await ModelCatalogService.ListAsync(new ModelFilter());
         _modelCount = models.Count;
 
-        var activeJobs = await JobQueue.ListAsync(activeOnly: true);
-        _activeJobCount = activeJobs.Count;
+        _backendAvailable = await InferenceBackend.IsAvailableAsync();
     }
 
     private void NavigateToProject(Guid id) => Nav.NavigateTo($"/projects/{id}");
