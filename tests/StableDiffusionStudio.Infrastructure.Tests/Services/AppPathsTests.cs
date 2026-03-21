@@ -73,4 +73,70 @@ public class AppPathsTests
         result.Should().NotContain("\\");
         result.Should().Contain("/");
     }
+
+    [Fact]
+    public void GetImageUrl_WithBackslashOnly_ConvertsCorrectly()
+    {
+        // Manually construct a path with backslashes inside the assets directory
+        var filePath = _appPaths.AssetsDirectory + "\\project\\job\\output.png";
+        var result = _appPaths.GetImageUrl(filePath);
+
+        result.Should().StartWith("/assets/");
+        result.Should().NotContain("\\");
+        result.Should().Contain("project/job/output.png");
+    }
+
+    [Fact]
+    public void GetImageUrl_WithPathOutsideAssets_ReturnsFilenameOnly()
+    {
+        var result = _appPaths.GetImageUrl("D:\\somewhere\\else\\photo.png");
+        result.Should().Be("/assets/photo.png");
+    }
+
+    [Fact]
+    public void GetProjectAssetsDirectory_Format()
+    {
+        var projectId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+        var result = _appPaths.GetProjectAssetsDirectory(projectId);
+
+        result.Should().Contain("12345678-1234-1234-1234-123456789abc");
+        result.Should().StartWith(_appPaths.AssetsDirectory);
+    }
+
+    [Fact]
+    public void GetJobAssetsDirectory_Format()
+    {
+        var projectId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var jobId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var result = _appPaths.GetJobAssetsDirectory(projectId, jobId);
+
+        result.Should().Contain("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        result.Should().Contain("11111111-2222-3333-4444-555555555555");
+    }
+
+    [Fact]
+    public void GetJobAssetsDirectory_IsSubdirectoryOfProjectAssets()
+    {
+        var projectId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+
+        var projectDir = _appPaths.GetProjectAssetsDirectory(projectId);
+        var jobDir = _appPaths.GetJobAssetsDirectory(projectId, jobId);
+
+        jobDir.Should().StartWith(projectDir);
+    }
+
+    [Fact]
+    public void AssetsDirectory_IsDeterministic()
+    {
+        var appPaths2 = new AppPaths();
+        _appPaths.AssetsDirectory.Should().Be(appPaths2.AssetsDirectory);
+    }
+
+    [Fact]
+    public void DatabaseDirectory_IsDeterministic()
+    {
+        var appPaths2 = new AppPaths();
+        _appPaths.DatabaseDirectory.Should().Be(appPaths2.DatabaseDirectory);
+    }
 }

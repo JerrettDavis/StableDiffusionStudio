@@ -313,4 +313,66 @@ public class PngMetadataServiceTests
         var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
         readBack.Should().NotBeNull();
     }
+
+    [Fact]
+    public void EmbedMetadata_WithSpecialCharacters_RoundTrips()
+    {
+        var png = CreateMinimalPng();
+        var parameters = "prompt with (parentheses:1.5), <lora:test:0.8>, [brackets]";
+
+        var result = PngMetadataService.EmbedMetadata(png, parameters);
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+
+        readBack.Should().Be(parameters);
+    }
+
+    [Fact]
+    public void EmbedMetadata_WithNewlines_RoundTrips()
+    {
+        var png = CreateMinimalPng();
+        var parameters = "line1\nline2\nline3";
+
+        var result = PngMetadataService.EmbedMetadata(png, parameters);
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+
+        readBack.Should().Be(parameters);
+    }
+
+    [Fact]
+    public void ReadTextChunk_ExactlyEightBytes_ReturnsNull()
+    {
+        // Just the PNG signature, no chunks
+        var signature = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+        var result = PngMetadataService.ReadTextChunk(signature, "parameters");
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithDecimalCfg_FormatsCorrectly()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "test", "", 20, "Euler", 3.5, 1, 512, 512, null, 1);
+
+        result.Should().Contain("CFG scale: 3.5");
+    }
+
+    [Fact]
+    public void FormatA1111Parameters_WithLargeSeed_FormatsCorrectly()
+    {
+        var result = PngMetadataService.FormatA1111Parameters(
+            "test", "", 20, "Euler", 7.0, 9999999999L, 512, 512, null, 1);
+
+        result.Should().Contain("Seed: 9999999999");
+    }
+
+    [Fact]
+    public void EmbedMetadata_EmptyParameters_StillEmbeds()
+    {
+        var png = CreateMinimalPng();
+        var result = PngMetadataService.EmbedMetadata(png, "");
+
+        result.Length.Should().BeGreaterThan(png.Length);
+        var readBack = PngMetadataService.ReadTextChunk(result, "parameters");
+        readBack.Should().Be("");
+    }
 }
