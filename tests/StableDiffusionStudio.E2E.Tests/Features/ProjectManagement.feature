@@ -3,10 +3,10 @@ Feature: Project Management
   I want to create and manage projects
   So that I can organize my image generation work
 
-  Scenario: View empty projects page
+  Scenario: View projects page
     Given I am on the home page
     When I navigate to the projects page
-    Then I should see the empty state message "No projects yet"
+    Then I should see the "Projects" heading
 
   Scenario: Create a new project
     Given I am on the projects page

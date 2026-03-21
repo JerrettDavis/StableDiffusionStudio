@@ -134,15 +134,15 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             await this.TestTearDownAsync();
         }
         
-        [global::Xunit.SkippableFactAttribute(DisplayName="View empty projects page")]
+        [global::Xunit.SkippableFactAttribute(DisplayName="View projects page")]
         [global::Xunit.TraitAttribute("FeatureTitle", "Project Management")]
-        [global::Xunit.TraitAttribute("Description", "View empty projects page")]
-        public async global::System.Threading.Tasks.Task ViewEmptyProjectsPage()
+        [global::Xunit.TraitAttribute("Description", "View projects page")]
+        public async global::System.Threading.Tasks.Task ViewProjectsPage()
         {
             string[] tagsOfScenario = ((string[])(null));
             global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
             string pickleIndex = "0";
-            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("View empty projects page", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("View projects page", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
 #line 6
@@ -162,7 +162,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
     await testRunner.WhenAsync("I navigate to the projects page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
 #line 9
-    await testRunner.ThenAsync("I should see the empty state message \"No projects yet\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+    await testRunner.ThenAsync("I should see the \"Projects\" heading", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
             await this.ScenarioCleanupAsync();

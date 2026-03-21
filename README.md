@@ -16,17 +16,30 @@ Stable Diffusion Studio is a local-first, web-based image generation application
 
 ### Key Features
 
-- **Project-based workflow** — Organize your work into projects, not scattered folders
-- **Model discovery** — Scan local directories, detect model families (SD 1.5, SDXL, Flux), parse metadata
-- **Modern dark UI** — MudBlazor-powered interface with a creative-tool aesthetic
-- **Background jobs** — Non-blocking model scanning with real-time progress
+- **Image generation** — txt2img with SD 1.5, SDXL, and Flux models via StableDiffusion.NET (CUDA + Vulkan GPU acceleration)
+- **Model management** — Browse and download from HuggingFace and CivitAI, scan local folders, auto-detect model types (Checkpoint, VAE, LoRA, Embedding, ControlNet)
+- **A1111-style workspace** — Model/VAE/LoRA selection, sampler/scheduler/steps/CFG/seed controls, CLIP skip, batch generation, resolution presets
+- **Project-based workflow** — Organize work into projects with persistent generation history
+- **Presets system** — Save/load generation parameter presets, filtered by model and family
+- **Prompt tools** — Prompt history with search, negative prompt quick-insert tags, Ctrl+Enter to generate
+- **Image gallery** — Favorites, NSFW shield with configurable threshold, per-image actions (copy seed/prompt, delete)
+- **Content safety** — Fully-local NSFW detection via NsfwSpy ML.NET, blur/reveal/block modes, A1111-compatible PNG metadata embedding
+- **Live preview** — Skeleton progress card with step counter during generation, SignalR real-time updates
+- **Background jobs** — Non-blocking generation/downloads with progress tracking, cancellation, interactive job detail view
+- **Performance settings** — VRAM presets, thread count, flash attention, VAE tiling, CPU/GPU offloading controls
+- **Warm industrial design** — Custom dark/light theme with Inter + JetBrains Mono typography
 - **Local-first privacy** — All data stays on your machine, no cloud accounts required
-- **Aspire-powered** — Full observability dashboard with OpenTelemetry from day one
-- **.NET native** — Built entirely in C# with clean architecture and TDD
+- **Aspire-powered** — Full observability dashboard with OpenTelemetry
 
-### Screenshots
+### GPU Support
 
-*Coming soon — the app is in active development (Milestone 1+)*
+| Backend | Status | Models |
+|---------|--------|--------|
+| **CUDA 12** (NVIDIA) | Bundled via NuGet | SD 1.5, SDXL |
+| **Vulkan** (NVIDIA/AMD) | Bundled via NuGet | SD 1.5, SDXL, Flux |
+| **CPU** (AVX2) | Bundled via NuGet | All (slow) |
+
+CUDA is auto-selected for NVIDIA GPUs. Vulkan is the fallback for universal GPU support. CPU offloading is automatically disabled on CUDA to prevent AVX512 crashes on hybrid Intel CPUs.
 
 ---
 
@@ -35,7 +48,8 @@ Stable Diffusion Studio is a local-first, web-based image generation application
 ### Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- [.NET Aspire workload](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/setup-tooling)
+- [.NET Aspire workload](https://learn.microsoft.com/en-us/dotnet/aspire/fundamentals/setup-tooling): `dotnet workload install aspire`
+- NVIDIA GPU recommended (RTX 3000+ for best performance)
 
 ### Run the app
 
@@ -47,13 +61,20 @@ dotnet run --project src/StableDiffusionStudio.AppHost
 
 This launches the Aspire dashboard. Click the **web** endpoint to open Stable Diffusion Studio.
 
+### First steps
+
+1. Go to **Settings → Storage Roots** and add your model directory (e.g., `G:\sd.webui\webui\models\Stable-diffusion`)
+2. Tag additional folders for LoRA, VAE, etc.
+3. Go to **Models** and click **Scan Now**
+4. Go to **Generate** or create a **Project**, select a model, enter a prompt, and generate
+
 ### Run the tests
 
 ```bash
-# Unit and integration tests
+# Unit and integration tests (707+)
 dotnet test --filter "FullyQualifiedName!~E2E"
 
-# E2E BDD tests (requires Playwright browsers)
+# E2E BDD tests (Playwright + Reqnroll)
 pwsh tests/StableDiffusionStudio.E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
 dotnet test tests/StableDiffusionStudio.E2E.Tests
 ```
@@ -65,13 +86,13 @@ dotnet test tests/StableDiffusionStudio.E2E.Tests
 Built as a **modular monolith** with strict layer boundaries:
 
 ```
-Presentation (Blazor Server + MudBlazor)
-    |
+Presentation (Blazor Server + MudBlazor + SignalR)
+    ↓
 Application (Services, Commands, DTOs, Validation)
-    |
+    ↓
 Domain (Entities, Value Objects, Domain Services)
-    ^
-Infrastructure (EF Core, File I/O, Model Scanning, Jobs)
+    ↑
+Infrastructure (EF Core + SQLite, StableDiffusion.NET, NsfwSpy, File I/O)
 ```
 
 See [docs/architecture/README.md](docs/architecture/README.md) for the full architecture overview.
@@ -82,20 +103,34 @@ See [docs/architecture/README.md](docs/architecture/README.md) for the full arch
 |---------|---------|
 | `StableDiffusionStudio.Domain` | Entities, value objects, enums, domain services |
 | `StableDiffusionStudio.Application` | Use-case orchestration, interfaces, validation |
-| `StableDiffusionStudio.Infrastructure` | EF Core, model scanning, background jobs |
-| `StableDiffusionStudio.Web` | Blazor Server UI with MudBlazor |
+| `StableDiffusionStudio.Infrastructure` | EF Core, inference backends, model providers, background jobs |
+| `StableDiffusionStudio.Web` | Blazor Server UI with MudBlazor, SignalR hubs |
 | `StableDiffusionStudio.AppHost` | .NET Aspire orchestration |
 | `StableDiffusionStudio.ServiceDefaults` | OpenTelemetry, health checks |
 
 ---
 
-## Roadmap
+## Milestones
 
-- [x] **Milestone 1+** — App shell, project CRUD, model scanning, background jobs, settings
-- [ ] **Milestone 2** — Hugging Face browsing, model downloads, Forge-local scanning
-- [ ] **Milestone 3** — txt2img generation pipeline, inference backends, gallery
-- [ ] **Milestone 4** — Presets, generation cloning, advanced search, diagnostics
-- [ ] **Milestone 5** — img2img, LoRA support, plugin architecture
+- [x] **Milestone 1+** — App shell, project CRUD, model scanning, background jobs, settings, dark theme
+- [x] **Milestone 2** — Unified model provider system (HuggingFace, CivitAI), model downloads, tagged model folders, model type classification
+- [x] **Milestone 3** — Generation pipeline (txt2img), StableDiffusion.NET inference backend (CUDA + Vulkan), generation workspace with A1111-style controls, gallery with metadata
+- [x] **Milestone 4** — Presets, prompt history, image favorites, PNG metadata embedding, negative prompt helpers, advanced parameters (CLIP skip, batch count), data management
+- [ ] **Milestone 5** — img2img, inpainting, ControlNet workflows, plugin architecture
+
+### Additional features built
+
+- Content safety (NSFW detection + shield toggle)
+- Live generation preview (skeleton card with step progress)
+- Backend performance settings (VRAM presets, offloading controls)
+- Custom design system (warm industrial palette, Inter + JetBrains Mono)
+- Flux model support (auto-detect VAE, CLIP-L, T5-XXL components)
+- Background generation (survives page navigation)
+- Interactive Jobs page with detail view
+- Keyboard shortcuts (Ctrl+Enter)
+- Recent models quick-switch
+- Database health check and diagnostics
+- Robust schema migration and repair
 
 ---
 
@@ -127,4 +162,4 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## Acknowledgments
 
-Built with [.NET](https://dotnet.microsoft.com/), [MudBlazor](https://mudblazor.com/), and [.NET Aspire](https://learn.microsoft.com/en-us/dotnet/aspire/).
+Built with [.NET](https://dotnet.microsoft.com/), [MudBlazor](https://mudblazor.com/), [.NET Aspire](https://learn.microsoft.com/en-us/dotnet/aspire/), [StableDiffusion.NET](https://github.com/DarthAffe/StableDiffusion.NET), and [NsfwSpy](https://github.com/d00ML0rDz/NsfwSpy).
