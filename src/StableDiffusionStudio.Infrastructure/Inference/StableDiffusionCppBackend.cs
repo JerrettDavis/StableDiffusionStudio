@@ -352,15 +352,17 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 ImageGenerationParameter genParams;
                 if (request.InitImage is not null && request.DenoisingStrength < 1.0)
                 {
-                    // img2img or inpainting: create from init image
-                    var initImage = LoadImageFromBytes(request.InitImage);
+                    // img2img or inpainting: resize init image to match target dimensions.
+                    // stable-diffusion.cpp asserts image.width == tensor->ne[0] — the init image
+                    // must exactly match the generation width/height.
+                    var initImage = LoadAndResizeImage(request.InitImage, request.Width, request.Height);
                     genParams = ImageGenerationParameter.ImageToImage(request.PositivePrompt, initImage);
                     genParams.Strength = (float)request.DenoisingStrength;
 
                     // If a mask is provided, set it for inpainting (white = regenerate, black = keep)
                     if (request.MaskImage is not null)
                     {
-                        genParams.MaskImage = LoadImageFromBytes(request.MaskImage);
+                        genParams.MaskImage = LoadAndResizeImage(request.MaskImage, request.Width, request.Height);
                         _logger.LogInformation("Using inpainting pipeline with mask and denoising strength {Strength}", request.DenoisingStrength);
                     }
                     else
@@ -456,11 +458,28 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     /// Uses System.Drawing.Bitmap (Windows-only) and the HPPH.System.Drawing ToImage() extension.
     /// </summary>
 #pragma warning disable CA1416 // Platform compatibility — this application targets Windows
-    private static HPPH.IImage LoadImageFromBytes(byte[] pngBytes)
+    private static HPPH.IImage LoadImageFromBytes(byte[] imageBytes)
     {
-        using var ms = new MemoryStream(pngBytes);
+        using var ms = new MemoryStream(imageBytes);
         using var bitmap = new System.Drawing.Bitmap(ms);
         return bitmap.ToImage();
+    }
+
+    /// <summary>
+    /// Loads an image from bytes and resizes it to the target dimensions.
+    /// stable-diffusion.cpp requires the init image to exactly match the generation
+    /// width/height (asserts image.width == tensor->ne[0]).
+    /// </summary>
+    private static HPPH.IImage LoadAndResizeImage(byte[] imageBytes, int targetWidth, int targetHeight)
+    {
+        using var ms = new MemoryStream(imageBytes);
+        using var original = new System.Drawing.Bitmap(ms);
+
+        if (original.Width == targetWidth && original.Height == targetHeight)
+            return original.ToImage();
+
+        using var resized = new System.Drawing.Bitmap(original, targetWidth, targetHeight);
+        return resized.ToImage();
     }
 #pragma warning restore CA1416
 
