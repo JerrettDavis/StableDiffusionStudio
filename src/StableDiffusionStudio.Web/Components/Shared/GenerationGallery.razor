@@ -11,7 +11,7 @@
 @inject NavigationManager Nav
 @implements IAsyncDisposable
 
-@if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null || _previewStep > 0))
+@if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null || _previewTotalSteps > 0))
 {
     <div class="d-flex align-center gap-3 mb-2">
         <div class="d-flex align-center">
@@ -48,7 +48,7 @@
 {
     <MudProgressLinear Indeterminate="true" />
 }
-else if (_jobs.All(j => j.Images.Count == 0) && _previewImageSrc is null && _previewStep <= 0)
+else if (_jobs.All(j => j.Images.Count == 0) && _previewImageSrc is null && _previewTotalSteps <= 0)
 {
     <EmptyState Title="No images yet" Subtitle="Generate your first image to see it here"
                 Icon="@Icons.Material.Filled.Image" />
@@ -57,7 +57,7 @@ else
 {
     <MudGrid>
         @* Live preview card — appears as the first item while generating *@
-        @if (_previewStep > 0 || _previewImageSrc is not null)
+        @if (_previewTotalSteps > 0 || _previewImageSrc is not null)
         {
             <MudItem xs="6" sm="4" md="3">
                 <div class="gallery-card position-relative">

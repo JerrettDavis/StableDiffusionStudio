@@ -5,6 +5,7 @@
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @using StableDiffusionStudio.Domain.Services
+@using Microsoft.AspNetCore.SignalR.Client
 @using Microsoft.JSInterop
 
 @inject NavigationManager Nav
@@ -220,15 +221,78 @@
     private int _positiveTokenCount;
     private int _negativeTokenCount;
     private int _tokenLimit = 77;
+    private HubConnection? _hubConnection;
+    private Timer? _progressTimer;
 
     protected override async Task OnInitializedAsync()
     {
+        // Connect to SignalR for live generation status updates
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<string, int, int, string>("GenerationPreview",
+                (projectId, step, totalSteps, _) =>
+                {
+                    if (projectId == ProjectId.ToString() && _isGenerating)
+                    {
+                        _generationProgress = totalSteps > 0 ? (int)(step * 100.0 / totalSteps) : 0;
+                        _generationStatus = $"Step {step}/{totalSteps}...";
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            _hubConnection.On<string>("GenerationComplete",
+                projectId =>
+                {
+                    if (projectId == ProjectId.ToString() && _isGenerating)
+                    {
+                        _isGenerating = false;
+                        _generationStatus = null;
+                        _generationProgress = 100;
+                        _currentJobId = null;
+                        StopProgressTimer();
+                        InvokeAsync(async () =>
+                        {
+                            if (_gallery is not null)
+                                await _gallery.Refresh();
+                            Snackbar.Add("Generation complete", Severity.Success);
+                            StateHasChanged();
+                        });
+                    }
+                });
+
+            _hubConnection.On<string, string>("GenerationFailed",
+                (projectId, error) =>
+                {
+                    if (projectId == ProjectId.ToString() && _isGenerating)
+                    {
+                        _isGenerating = false;
+                        _generationError = error;
+                        _generationStatus = null;
+                        _currentJobId = null;
+                        StopProgressTimer();
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception)
+        {
+            // SignalR connection failed — fall back to polling only
+        }
+
         // Check if there's already a running generation for this project
         var jobs = await GenerationService.ListJobsForProjectAsync(ProjectId, take: 1);
         if (jobs.Any(j => j.Status is GenerationJobStatus.Pending or GenerationJobStatus.Running))
         {
             _isGenerating = true;
             _generationStatus = "Generation in progress...";
+            StartProgressTimer();
         }
     }
 
@@ -253,9 +317,12 @@
     public async ValueTask DisposeAsync()
     {
         _dotNetRef?.Dispose();
+        StopProgressTimer();
         // DON'T cancel generation — it continues in the background
         // _generationCts?.Cancel();
         _generationCts?.Dispose();
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
     }
 
     private async Task OnCheckpointChanged(Guid? modelId)
@@ -438,68 +505,90 @@
             if (_promptHistoryPanel is not null)
                 await _promptHistoryPanel.RefreshAsync();
 
-            // Instead of a long polling loop, let the gallery's SignalR subscription handle real-time updates
-            Snackbar.Add("Generation started — you can navigate away, it will continue in the background", Severity.Info);
+            // SignalR handles real-time updates (GenerationPreview/Complete/Failed)
+            // Start a fallback polling timer for progress in case SignalR events are delayed
             _generationStatus = "Generating...";
+            StartProgressTimer();
             StateHasChanged();
-
-            // Short poll to check for quick completion/failure
-            var timeout = TimeSpan.FromSeconds(5);
-            var started = System.Diagnostics.Stopwatch.StartNew();
-
-            while (started.Elapsed < timeout)
-            {
-                await Task.Delay(1000, ct);
-
-                var status = await GenerationService.GetJobAsync(genJob.Id, ct);
-                if (status is null) break;
-
-                _generationElapsed = started.Elapsed.TotalSeconds;
-
-                if (status.Status is GenerationJobStatus.Completed)
-                {
-                    _generationStatus = null;
-                    _generationProgress = 100;
-                    if (_gallery is not null)
-                        await _gallery.Refresh();
-                    Snackbar.Add($"Generated {status.Images.Count} image(s)", Severity.Success);
-                    return;
-                }
-                if (status.Status is GenerationJobStatus.Failed)
-                {
-                    _generationError = status.ErrorMessage ?? "Generation failed";
-                    _generationStatus = null;
-                    return;
-                }
-                if (status.Status is GenerationJobStatus.Cancelled)
-                {
-                    _generationStatus = null;
-                    Snackbar.Add("Generation cancelled", Severity.Warning);
-                    return;
-                }
-
-                await InvokeAsync(StateHasChanged);
-            }
-
-            // If not done in 5s, let the user know it's still running
-            _generationStatus = "Generating in background...";
         }
         catch (OperationCanceledException)
-        {
-            _generationStatus = null;
-            Snackbar.Add("Generation cancelled", Severity.Warning);
-        }
-        catch (Exception ex)
-        {
-            _generationError = ex.Message;
-        }
-        finally
         {
             _isGenerating = false;
             _generationStatus = null;
             _currentJobId = null;
+            StopProgressTimer();
+            Snackbar.Add("Generation cancelled", Severity.Warning);
             StateHasChanged();
         }
+        catch (Exception ex)
+        {
+            _isGenerating = false;
+            _generationError = ex.Message;
+            _generationStatus = null;
+            _currentJobId = null;
+            StopProgressTimer();
+            StateHasChanged();
+        }
+    }
+
+    private void StartProgressTimer()
+    {
+        StopProgressTimer();
+        var startTime = System.Diagnostics.Stopwatch.StartNew();
+        _progressTimer = new Timer(async _ =>
+        {
+            try
+            {
+                if (!_isGenerating || _currentJobId is null) return;
+
+                var status = await GenerationService.GetJobAsync(_currentJobId.Value, CancellationToken.None);
+                if (status is null) return;
+
+                await InvokeAsync(() =>
+                {
+                    _generationElapsed = startTime.Elapsed.TotalSeconds;
+
+                    if (status.Status is GenerationJobStatus.Completed)
+                    {
+                        _isGenerating = false;
+                        _generationStatus = null;
+                        _generationProgress = 100;
+                        _currentJobId = null;
+                        StopProgressTimer();
+                        _ = _gallery?.Refresh();
+                        Snackbar.Add($"Generated {status.Images.Count} image(s)", Severity.Success);
+                    }
+                    else if (status.Status is GenerationJobStatus.Failed)
+                    {
+                        _isGenerating = false;
+                        _generationError = status.ErrorMessage ?? "Generation failed";
+                        _generationStatus = null;
+                        _currentJobId = null;
+                        StopProgressTimer();
+                    }
+                    else if (status.Status is GenerationJobStatus.Cancelled)
+                    {
+                        _isGenerating = false;
+                        _generationStatus = null;
+                        _currentJobId = null;
+                        StopProgressTimer();
+                        Snackbar.Add("Generation cancelled", Severity.Warning);
+                    }
+
+                    StateHasChanged();
+                });
+            }
+            catch (Exception)
+            {
+                // Swallow polling errors — SignalR is the primary update mechanism
+            }
+        }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+    }
+
+    private void StopProgressTimer()
+    {
+        _progressTimer?.Dispose();
+        _progressTimer = null;
     }
 
     private void ReuseSettings(GenerationJobDto job)
