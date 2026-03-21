@@ -107,6 +107,16 @@ public class DataManagementService : IDataManagementService
         return records.Count;
     }
 
+    public async Task DeleteJobRecordAsync(Guid jobId, CancellationToken ct = default)
+    {
+        var record = await _context.JobRecords.FindAsync([jobId], ct);
+        if (record is not null)
+        {
+            _context.JobRecords.Remove(record);
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+
     public async Task<int> DeleteAllModelRecordsAsync(CancellationToken ct = default)
     {
         var records = await _context.ModelRecords.ToListAsync(ct);

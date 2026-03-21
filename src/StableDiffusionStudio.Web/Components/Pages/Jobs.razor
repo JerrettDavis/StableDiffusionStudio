@@ -1,84 +1,222 @@
 @page "/jobs"
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
+@using StableDiffusionStudio.Web.Components.Dialogs
+@using Microsoft.AspNetCore.SignalR.Client
 @inject IJobQueue JobQueue
+@inject IDataManagementService DataManagement
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
 @inject ILogger<Jobs> Logger
-@implements IDisposable
-
-@if (_loadError is not null)
-{
-    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
-              CloseIconClicked="() => _loadError = null">
-        @_loadError
-    </MudAlert>
-}
+@implements IAsyncDisposable
 
 <MudText Typo="Typo.h4" Class="mb-4">Jobs</MudText>
 
-<MudToolBar Dense="true" Class="mb-4 px-0">
-    <MudToggleGroup T="bool" Value="_activeOnly" ValueChanged="OnFilterChanged" Color="Color.Primary">
-        <MudToggleItem T="bool" Value="true" Text="Active" />
-        <MudToggleItem T="bool" Value="false" Text="All" />
-    </MudToggleGroup>
-    <MudSpacer />
-    <MudText Typo="Typo.caption" Color="Color.Secondary">Auto-refreshes every 5 seconds</MudText>
-</MudToolBar>
+<div class="d-flex align-center justify-space-between flex-wrap mb-4 gap-2">
+    <MudChipSet T="string" @bind-SelectedValue="_filter" SelectionMode="SelectionMode.SingleSelection">
+        <MudChip T="string" Value="@("all")" Color="Color.Default">All @(_allCount)</MudChip>
+        <MudChip T="string" Value="@("active")" Color="Color.Primary">Active @(_activeCount)</MudChip>
+        <MudChip T="string" Value="@("completed")" Color="Color.Success">Completed @(_completedCount)</MudChip>
+        <MudChip T="string" Value="@("failed")" Color="Color.Error">Failed @(_failedCount)</MudChip>
+    </MudChipSet>
+    <div class="d-flex gap-2">
+        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Default"
+                   OnClick="ClearCompleted" Disabled="_completedCount == 0">Clear Completed</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error"
+                   OnClick="ClearFailed" Disabled="_failedCount == 0">Clear Failed</MudButton>
+    </div>
+</div>
 
 @if (_jobs is null)
 {
     <MudProgressLinear Indeterminate="true" />
 }
-else if (_jobs.Count == 0)
+else if (GetFilteredJobs().Count == 0)
 {
-    <EmptyState Title="No jobs found"
-                Subtitle="@(_activeOnly ? "No active jobs running" : "No jobs have been created yet")"
+    <EmptyState Title="No jobs"
+                Subtitle="Jobs appear when you generate images, scan models, or download files"
                 Icon="@Icons.Material.Filled.WorkHistory" />
 }
 else
 {
-    @foreach (var job in _jobs)
-    {
-        <JobProgressCard Job="job" />
-    }
+    <MudTable Items="GetFilteredJobs()" Dense="true" Hover="true" Striped="true"
+              RowClass="cursor-pointer" OnRowClick="OnRowClick" T="JobRecordDto">
+        <HeaderContent>
+            <MudTh>Type</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh Style="width:200px">Progress</MudTh>
+            <MudTh>Phase</MudTh>
+            <MudTh>Started</MudTh>
+            <MudTh>Duration</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.Type</MudText>
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Color="GetStatusColor(context.Status)">
+                    @context.Status
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                @if (context.Status is JobStatus.Running)
+                {
+                    <MudProgressLinear Value="context.Progress" Max="100" Color="Color.Primary"
+                                       Size="Size.Small" Striped="true" />
+                }
+                else if (context.Status is JobStatus.Completed)
+                {
+                    <MudProgressLinear Value="100" Max="100" Color="Color.Success" Size="Size.Small" />
+                }
+                else if (context.Status is JobStatus.Failed)
+                {
+                    <MudProgressLinear Value="context.Progress" Max="100" Color="Color.Error" Size="Size.Small" />
+                }
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(context.Phase ?? "-")
+                </MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.caption">
+                    @(context.StartedAt?.ToString("HH:mm:ss") ?? "-")
+                </MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.caption" Class="param-value">
+                    @FormatDuration(context.StartedAt, context.CompletedAt ?? (context.Status == JobStatus.Running ? DateTimeOffset.UtcNow : null))
+                </MudText>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
 }
 
 @code {
     private IReadOnlyList<JobRecordDto>? _jobs;
-    private bool _activeOnly = true;
-    private Timer? _timer;
-    private string? _loadError;
+    private string _filter = "all";
+    private int _allCount, _activeCount, _completedCount, _failedCount;
+    private HubConnection? _hubConnection;
+    private Timer? _refreshTimer;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadJobs();
+
+        // Live updates via SignalR for generation jobs
         try
         {
-            await LoadJobs();
-            _timer = new Timer(async _ =>
-            {
-                await LoadJobs();
-                await InvokeAsync(StateHasChanged);
-            }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<string, int, int, string>("GenerationPreview",
+                (_, _, _, _) => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+
+            _hubConnection.On<string>("GenerationComplete",
+                _ => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+
+            _hubConnection.On<string, string>("GenerationFailed",
+                (_, _) => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+
+            await _hubConnection.StartAsync();
         }
         catch (Exception ex)
         {
-            _loadError = $"Failed to load jobs: {ex.Message}";
-            Logger.LogError(ex, "Failed to load jobs");
+            Logger.LogWarning(ex, "Failed to connect to SignalR hub for live job updates");
         }
+
+        // Also poll every 3 seconds for non-generation job updates
+        _refreshTimer = new Timer(async _ =>
+        {
+            try
+            {
+                await LoadJobs();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to refresh jobs");
+            }
+        }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
     }
 
     private async Task LoadJobs()
     {
-        _jobs = await JobQueue.ListAsync(activeOnly: _activeOnly);
+        _jobs = await JobQueue.ListAsync(activeOnly: false);
+        _allCount = _jobs?.Count ?? 0;
+        _activeCount = _jobs?.Count(j => j.Status is JobStatus.Pending or JobStatus.Running) ?? 0;
+        _completedCount = _jobs?.Count(j => j.Status is JobStatus.Completed) ?? 0;
+        _failedCount = _jobs?.Count(j => j.Status is JobStatus.Failed) ?? 0;
     }
 
-    private async Task OnFilterChanged(bool activeOnly)
+    private List<JobRecordDto> GetFilteredJobs()
     {
-        _activeOnly = activeOnly;
+        if (_jobs is null) return [];
+        return _filter switch
+        {
+            "active" => _jobs.Where(j => j.Status is JobStatus.Pending or JobStatus.Running).ToList(),
+            "completed" => _jobs.Where(j => j.Status is JobStatus.Completed).ToList(),
+            "failed" => _jobs.Where(j => j.Status is JobStatus.Failed).ToList(),
+            _ => _jobs.ToList()
+        };
+    }
+
+    private async Task OnRowClick(TableRowClickEventArgs<JobRecordDto> args)
+    {
+        if (args.Item is null) return;
+
+        var parameters = new DialogParameters<JobDetailDialog>
+        {
+            { x => x.Job, args.Item }
+        };
+        var dialog = await DialogService.ShowAsync<JobDetailDialog>("Job Details", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+            await LoadJobs();
+    }
+
+    private static Color GetStatusColor(JobStatus status) => status switch
+    {
+        JobStatus.Pending => Color.Default,
+        JobStatus.Running => Color.Primary,
+        JobStatus.Completed => Color.Success,
+        JobStatus.Failed => Color.Error,
+        JobStatus.Cancelled => Color.Warning,
+        _ => Color.Default
+    };
+
+    private static string FormatDuration(DateTimeOffset? start, DateTimeOffset? end)
+    {
+        if (start is null || end is null) return "-";
+        var d = end.Value - start.Value;
+        if (d.TotalMinutes >= 1) return $"{(int)d.TotalMinutes}m {d.Seconds}s";
+        return $"{d.TotalSeconds:F1}s";
+    }
+
+    private async Task ClearCompleted()
+    {
+        var count = await DataManagement.DeleteCompletedJobRecordsAsync();
+        Snackbar.Add($"Cleared {count} completed job(s)", Severity.Info);
         await LoadJobs();
     }
 
-    public void Dispose()
+    private async Task ClearFailed()
     {
-        _timer?.Dispose();
+        var count = await DataManagement.DeleteFailedJobRecordsAsync();
+        Snackbar.Add($"Cleared {count} failed job(s)", Severity.Info);
+        await LoadJobs();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshTimer is not null)
+            await _refreshTimer.DisposeAsync();
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
     }
 }

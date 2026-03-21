@@ -13,6 +13,7 @@ public interface IDataManagementService
     Task<int> DeleteAllJobRecordsAsync(CancellationToken ct = default);
     Task<int> DeleteCompletedJobRecordsAsync(CancellationToken ct = default);
     Task<int> DeleteFailedJobRecordsAsync(CancellationToken ct = default);
+    Task DeleteJobRecordAsync(Guid jobId, CancellationToken ct = default);
     Task<int> DeleteAllModelRecordsAsync(CancellationToken ct = default);
     Task<int> DeleteAllProjectsAsync(CancellationToken ct = default);
     Task<int> DeleteProjectAsync(Guid projectId, CancellationToken ct = default);
