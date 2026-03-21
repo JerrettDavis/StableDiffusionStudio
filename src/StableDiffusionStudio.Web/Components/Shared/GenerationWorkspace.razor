@@ -168,6 +168,17 @@
     private CancellationTokenSource? _generationCts;
     private Guid? _currentJobId;
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if there's already a running generation for this project
+        var jobs = await GenerationService.ListJobsForProjectAsync(ProjectId, take: 1);
+        if (jobs.Any(j => j.Status is GenerationJobStatus.Pending or GenerationJobStatus.Running))
+        {
+            _isGenerating = true;
+            _generationStatus = "Generation in progress...";
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -189,7 +200,8 @@
     public async ValueTask DisposeAsync()
     {
         _dotNetRef?.Dispose();
-        _generationCts?.Cancel();
+        // DON'T cancel generation — it continues in the background
+        // _generationCts?.Cancel();
         _generationCts?.Dispose();
     }
 
@@ -329,11 +341,13 @@
             if (_promptHistoryPanel is not null)
                 await _promptHistoryPanel.RefreshAsync();
 
-            _generationStatus = "Job queued, waiting for backend...";
+            // Instead of a long polling loop, let the gallery's SignalR subscription handle real-time updates
+            Snackbar.Add("Generation started — you can navigate away, it will continue in the background", Severity.Info);
+            _generationStatus = "Generating...";
             StateHasChanged();
 
-            // Poll until complete or failed (max 10 minutes)
-            var timeout = TimeSpan.FromMinutes(10);
+            // Short poll to check for quick completion/failure
+            var timeout = TimeSpan.FromSeconds(5);
             var started = System.Diagnostics.Stopwatch.StartNew();
 
             while (started.Elapsed < timeout)
@@ -345,39 +359,33 @@
 
                 _generationElapsed = started.Elapsed.TotalSeconds;
 
-                switch (status.Status)
+                if (status.Status is GenerationJobStatus.Completed)
                 {
-                    case GenerationJobStatus.Pending:
-                        _generationStatus = "Waiting in queue...";
-                        break;
-                    case GenerationJobStatus.Running:
-                        _generationStatus = "Generating...";
-                        _generationProgress = Math.Min(90, (int)(started.Elapsed.TotalSeconds * 2));
-                        break;
-                    case GenerationJobStatus.Completed:
-                        _generationStatus = null;
-                        _generationProgress = 100;
-                        if (_gallery is not null)
-                            await _gallery.Refresh();
-                        Snackbar.Add($"Generated {status.Images.Count} image(s)", Severity.Success);
-                        return;
-                    case GenerationJobStatus.Failed:
-                        _generationError = status.ErrorMessage ?? "Generation failed";
-                        _generationStatus = null;
-                        return;
-                    case GenerationJobStatus.Cancelled:
-                        _generationStatus = null;
-                        Snackbar.Add("Generation cancelled", Severity.Warning);
-                        return;
+                    _generationStatus = null;
+                    _generationProgress = 100;
+                    if (_gallery is not null)
+                        await _gallery.Refresh();
+                    Snackbar.Add($"Generated {status.Images.Count} image(s)", Severity.Success);
+                    return;
+                }
+                if (status.Status is GenerationJobStatus.Failed)
+                {
+                    _generationError = status.ErrorMessage ?? "Generation failed";
+                    _generationStatus = null;
+                    return;
+                }
+                if (status.Status is GenerationJobStatus.Cancelled)
+                {
+                    _generationStatus = null;
+                    Snackbar.Add("Generation cancelled", Severity.Warning);
+                    return;
                 }
 
                 await InvokeAsync(StateHasChanged);
             }
 
-            if (started.Elapsed >= timeout)
-            {
-                _generationError = "Generation timed out after 10 minutes";
-            }
+            // If not done in 5s, let the user know it's still running
+            _generationStatus = "Generating in background...";
         }
         catch (OperationCanceledException)
         {
