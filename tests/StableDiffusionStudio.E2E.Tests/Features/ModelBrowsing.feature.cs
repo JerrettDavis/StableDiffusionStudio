@@ -236,13 +236,13 @@ namespace StableDiffusionStudio.E2E.Tests.Features
     await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 21
-    await testRunner.ThenAsync("I should see the \"Dashboard\" heading", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+    await testRunner.ThenAsync("I should see the \"Welcome back\" heading", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
 #line 22
-    await testRunner.AndAsync("I should see the \"Quick Start\" section", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.AndAsync("I should see the \"Quick Actions\" section", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
 #line 23
-    await testRunner.AndAsync("I should see a \"New Project\" link", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.AndAsync("I should see a \"Generate\" button", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
             await this.ScenarioCleanupAsync();
