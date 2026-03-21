@@ -161,25 +161,37 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         // Detect model type from filename
         var isFlux = fileNameLower.Contains("flux");
-        var isDiffusionModel = fileNameLower.Contains("-dev") || fileNameLower.Contains("_dev")
-                            || fileNameLower.Contains("-schnell") || fileNameLower.Contains("_schnell");
         _isFluxModel = isFlux;
 
-        modelParams.ModelPath = request.CheckpointPath;
-
-        // For Flux models, always offload params regardless of setting
         if (isFlux)
         {
+            // Flux requires DiffusionModelPath (not ModelPath) + CLIP-L + T5-XXL + VAE
+            modelParams.ModelPath = string.Empty;
+            modelParams.DiffusionModelPath = request.CheckpointPath;
+
+            if (request.ClipLPath is not null)
+                modelParams.ClipLPath = request.ClipLPath;
+            if (request.T5xxlPath is not null)
+                modelParams.T5xxlPath = request.T5xxlPath;
+            if (!string.IsNullOrWhiteSpace(request.VaePath))
+                modelParams.VaePath = request.VaePath;
+
             modelParams.OffloadParamsToCPU = true;
-            _logger.LogInformation("Configured Flux-specific settings (OffloadParamsToCPU)");
+
+            _logger.LogInformation("Flux model configured: DiffusionModel={Model}, CLIP-L={ClipL}, T5-XXL={T5xxl}, VAE={Vae}",
+                Path.GetFileName(request.CheckpointPath),
+                request.ClipLPath != null ? Path.GetFileName(request.ClipLPath) : "NONE",
+                request.T5xxlPath != null ? Path.GetFileName(request.T5xxlPath) : "NONE",
+                request.VaePath != null ? Path.GetFileName(request.VaePath) : "NONE");
         }
         else
         {
+            modelParams.ModelPath = request.CheckpointPath;
             modelParams.OffloadParamsToCPU = settings.OffloadParamsToCPU;
-        }
 
-        if (!string.IsNullOrWhiteSpace(request.VaePath))
-            modelParams.VaePath = request.VaePath;
+            if (!string.IsNullOrWhiteSpace(request.VaePath))
+                modelParams.VaePath = request.VaePath;
+        }
 
         _logger.LogInformation("Model params: FlashAttn={FA}, DiffFlashAttn={DFA}, VaeTiling={VT}, ClipOnCPU={CC}, VaeOnCPU={VC}",
             modelParams.FlashAttention, modelParams.DiffusionFlashAttention,
@@ -195,29 +207,19 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         {
             _logger.LogError(ex, "Failed to load model: {FileName}", fileName);
 
-            // For Flux, try DiffusionModelPath as fallback (for split-component models)
             if (isFlux)
             {
-                _logger.LogInformation("Retrying Flux model with DiffusionModelPath");
-                try
-                {
-                    var retryParams = DiffusionModelParameter.Create();
-                    retryParams.DiffusionModelPath = request.CheckpointPath;
-                    retryParams.FlashAttention = true;
-                    retryParams.ThreadCount = settings.EffectiveThreadCount;
-                    retryParams.VaeTiling = true;
-                    if (!string.IsNullOrWhiteSpace(request.VaePath))
-                        retryParams.VaePath = request.VaePath;
+                var missing = new List<string>();
+                if (request.ClipLPath == null) missing.Add("CLIP-L text encoder (clip_l.safetensors)");
+                if (request.T5xxlPath == null) missing.Add("T5-XXL text encoder (t5xxl*.gguf or *.safetensors)");
+                if (string.IsNullOrWhiteSpace(request.VaePath)) missing.Add("Flux VAE (ae.safetensors)");
 
-                    _model = new DiffusionModel(retryParams);
-                    _loadedModelPath = request.CheckpointPath;
-                    _logger.LogInformation("Model loaded successfully via DiffusionModelPath: {FileName}", fileName);
-                    return;
-                }
-                catch (Exception retryEx)
-                {
-                    _logger.LogError(retryEx, "DiffusionModelPath retry also failed for {FileName}", fileName);
-                }
+                var missingMsg = missing.Count > 0
+                    ? $" Missing components: {string.Join(", ", missing)}. Add VAE and text_encoder folders to your storage roots in Settings."
+                    : "";
+
+                throw new InvalidOperationException(
+                    $"Failed to load Flux model: {fileName}.{missingMsg} Error: {ex.Message}", ex);
             }
 
             throw new InvalidOperationException(
