@@ -1,31 +1,53 @@
 @inherits LayoutComponentBase
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Web.Theme
+@inject IInferenceBackend InferenceBackend
 
-<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudThemeProvider Theme="_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1" Dense="true">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit"
-                       Edge="Edge.Start" OnClick="ToggleDrawer" />
-        <MudText Typo="Typo.h6" Class="ml-2">Stable Diffusion Studio</MudText>
+    <MudAppBar Elevation="0" Dense="true" Style="border-bottom: 1px solid var(--mud-palette-lines-default)">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
+        <MudIcon Icon="@Icons.Material.Filled.AutoAwesome" Size="Size.Small" Color="Color.Primary" Class="mr-2" />
+        <MudText Typo="Typo.subtitle1" Style="font-weight:600">Stable Diffusion Studio</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.DarkMode" Color="Color.Inherit" />
-        <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" />
+
+        <MudTooltip Text="@_backendStatus">
+            <span class="status-dot @(_backendOnline ? "online" : "offline")" style="margin-right:8px"></span>
+        </MudTooltip>
+
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="ToggleTheme" />
     </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always">
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="0" ClipMode="DrawerClipMode.Always"
+               Style="border-right: 1px solid var(--mud-palette-lines-default)">
         <NavMenu />
     </MudDrawer>
 
-    <MudMainContent Class="pa-4">
+    <MudMainContent Class="pa-4" Style="min-height: 100vh">
         @Body
     </MudMainContent>
 </MudLayout>
 
 @code {
-    private MudTheme _theme = StableDiffusionStudio.Web.Theme.StudioTheme.Create();
+    private MudTheme _theme = StudioTheme.Create();
     private bool _drawerOpen = true;
+    private bool _isDarkMode = true;
+    private bool _backendOnline;
+    private string _backendStatus = "Checking backend...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _backendOnline = await InferenceBackend.IsAvailableAsync();
+        _backendStatus = _backendOnline
+            ? $"Backend: {InferenceBackend.DisplayName}"
+            : "Backend: Mock (no GPU)";
+    }
+
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleTheme() => _isDarkMode = !_isDarkMode;
 }
