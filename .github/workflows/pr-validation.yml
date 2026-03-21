@@ -77,7 +77,9 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio.Domain]*,[StableDiffusionStudio.Application]*,[StableDiffusionStudio.Infrastructure]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*,[StableDiffusionStudio.Web]*,[StableDiffusionStudio.AppHost]*,[StableDiffusionStudio.ServiceDefaults]*"
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2

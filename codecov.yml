@@ -1,4 +1,21 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 60%
+        threshold: 5%
+    patch:
+      default:
+        target: 60%
+
 ignore:
   - "**/*.Tests/**"
   - "**/*Tests*/**"
   - "**/E2E.Tests/**"
+  - "**/StableDiffusionStudio.AppHost/**"
+  - "**/StableDiffusionStudio.ServiceDefaults/**"
+  - "**/StableDiffusionStudio.Web/**"  # UI layer — tested via E2E/Playwright
+  - "**/Migrations/**"
+  - "**/DTOs/**"  # Data transfer records — no logic to test
+  - "**/Commands/**"  # Command records — no logic
+  - "**/Interfaces/**"  # Interface definitions — no implementation

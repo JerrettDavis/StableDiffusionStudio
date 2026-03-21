@@ -37,6 +37,9 @@ jobs:
       - name: Build (Release)
         run: dotnet build StableDiffusionStudio.slnx --configuration Release --no-restore /p:ContinuousIntegrationBuild=true
 
+      - name: Clean stale test results
+        run: find . -path "*/TestResults" -type d -exec rm -rf {} + 2>/dev/null || true
+
       - name: Test with coverage
         timeout-minutes: 10
         run: |
@@ -46,8 +49,8 @@ jobs:
             --filter "FullyQualifiedName!~E2E" \
             --collect:"XPlat Code Coverage" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio*]*" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*"
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio.Domain]*,[StableDiffusionStudio.Application]*,[StableDiffusionStudio.Infrastructure]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*,[StableDiffusionStudio.Web]*,[StableDiffusionStudio.AppHost]*,[StableDiffusionStudio.ServiceDefaults]*"
 
       - name: Install ReportGenerator
         run: dotnet tool update -g dotnet-reportgenerator-globaltool
@@ -60,8 +63,8 @@ jobs:
             -reports:"$REPORTS" \
             -targetdir:"coverage-report" \
             -reporttypes:"HtmlInline;Cobertura;TextSummary;lcov;Badges" \
-            -assemblyfilters:"+StableDiffusionStudio*;-*Tests*" \
-            -filefilters:"-**/*.Tests/*;-**/*Tests*/**"
+            -assemblyfilters:"+StableDiffusionStudio.Domain;+StableDiffusionStudio.Application;+StableDiffusionStudio.Infrastructure;-*Tests*;-StableDiffusionStudio.Web;-StableDiffusionStudio.AppHost;-StableDiffusionStudio.ServiceDefaults" \
+            -filefilters:"-**/Migrations/**"
           echo "COVERAGE_SUMMARY<<EOF" >> $GITHUB_ENV
           cat coverage-report/Summary.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -144,6 +147,9 @@ jobs:
           /p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }}
           /p:FileVersion=${{ env.FILE_VERSION }}
 
+      - name: Clean stale test results
+        run: find . -path "*/TestResults" -type d -exec rm -rf {} + 2>/dev/null || true
+
       - name: Test with coverage (Release)
         timeout-minutes: 10
         run: |
@@ -153,8 +159,8 @@ jobs:
             --filter "FullyQualifiedName!~E2E" \
             --collect:"XPlat Code Coverage" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio*]*" \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Include="[StableDiffusionStudio.Domain]*,[StableDiffusionStudio.Application]*,[StableDiffusionStudio.Infrastructure]*" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*,[StableDiffusionStudio.Web]*,[StableDiffusionStudio.AppHost]*,[StableDiffusionStudio.ServiceDefaults]*" \
             -- RunConfiguration.TestSessionTimeout=300000
 
       - name: Upload coverage to Codecov (Release)
