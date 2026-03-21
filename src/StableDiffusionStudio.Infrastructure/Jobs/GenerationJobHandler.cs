@@ -140,6 +140,8 @@ public class GenerationJobHandler : IJobHandler
                     {
                         try
                         {
+                            _logger.LogInformation("PREVIEW: Sending preview for step {Step}/{Total}, {Bytes} bytes",
+                                p.Step, p.TotalSteps, p.PreviewImageBytes.Length);
                             var base64 = Convert.ToBase64String(p.PreviewImageBytes);
                             _generationNotifier.SendPreviewAsync(
                                 projectIdStr, p.Step, p.TotalSteps,

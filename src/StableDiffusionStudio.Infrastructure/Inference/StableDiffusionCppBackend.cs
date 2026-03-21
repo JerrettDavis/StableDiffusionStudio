@@ -248,11 +248,13 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         var images = new List<GeneratedImageData>();
 
-        // Enable TAE preview — fast decoded preview every 2 steps
-        StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.TAE, 2, true, false);
+        // Enable preview — Proj mode works without extra model files, shows every step
+        // TAE requires a separate TAESD model; VAE is too slow for previews
+        StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.Proj, 1, true, false);
 
         byte[]? latestPreviewBytes = null;
 
+        int previewCount = 0;
         void OnPreview(object? sender, StableDiffusionPreviewEventArgs args)
         {
             try
@@ -260,15 +262,25 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 #pragma warning disable CA1416
                 latestPreviewBytes = args.Image.ToPng();
 #pragma warning restore CA1416
+                previewCount++;
+                _logger.LogInformation("Preview received: step {Step}, {Bytes} bytes (total previews: {Count})",
+                    args.Step, latestPreviewBytes?.Length ?? 0, previewCount);
             }
-            catch { /* Preview conversion failed — skip this frame */ }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Preview conversion failed at step {Step}", args.Step);
+            }
         }
 
         // Hook into progress and preview events
+        int progressCount = 0;
         void OnProgress(object? sender, StableDiffusionProgressEventArgs args)
         {
             var preview = latestPreviewBytes;
             latestPreviewBytes = null; // Consume the preview
+            progressCount++;
+            _logger.LogInformation("Progress: step {Step}/{Total}, hasPreview={HasPreview} (progress #{Count})",
+                args.Step, args.Steps, preview is not null, progressCount);
             progress.Report(new InferenceProgress(args.Step, args.Steps, $"Step {args.Step}/{args.Steps}", preview));
         }
 
