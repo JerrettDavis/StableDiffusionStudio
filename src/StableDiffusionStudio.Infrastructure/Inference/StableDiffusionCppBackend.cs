@@ -190,6 +190,10 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 modelParams.VaePath = request.VaePath;
 
             modelParams.OffloadParamsToCPU = true;
+            // Flux architecture doesn't support DiffusionFlashAttention on all backends
+            // (causes illegal instruction / ExecutionEngineException on CUDA)
+            modelParams.DiffusionFlashAttention = false;
+            modelParams.FlashAttention = false;
 
             _logger.LogInformation("Flux model configured: DiffusionModel={Model}, CLIP-L={ClipL}, T5-XXL={T5xxl}, VAE={Vae}",
                 Path.GetFileName(request.CheckpointPath),
