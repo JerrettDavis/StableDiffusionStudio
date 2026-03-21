@@ -20,6 +20,11 @@ public class SignalRGenerationNotifier : IGenerationNotifier
         await _hubContext.Clients.All.SendAsync("GenerationPreview", projectId, step, totalSteps, previewDataUrl);
     }
 
+    public async Task SendStatusAsync(string projectId, string phase, int progressPercent)
+    {
+        await _hubContext.Clients.All.SendAsync("GenerationStatus", projectId, phase, progressPercent);
+    }
+
     public async Task SendCompletedAsync(string projectId)
     {
         await _hubContext.Clients.All.SendAsync("GenerationComplete", projectId);

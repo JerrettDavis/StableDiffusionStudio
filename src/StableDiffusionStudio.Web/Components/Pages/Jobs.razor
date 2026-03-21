@@ -113,6 +113,13 @@ else
                 .WithAutomaticReconnect()
                 .Build();
 
+            _hubConnection.On<string, string, int>("GenerationStatus",
+                (_, _, _) => InvokeAsync(async () =>
+                {
+                    await LoadJobs();
+                    StateHasChanged();
+                }));
+
             _hubConnection.On<string, int, int, string>("GenerationPreview",
                 (_, step, totalSteps, _) => InvokeAsync(async () =>
                 {

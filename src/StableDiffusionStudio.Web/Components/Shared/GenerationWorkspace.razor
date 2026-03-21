@@ -274,12 +274,23 @@
                 .WithAutomaticReconnect()
                 .Build();
 
+            _hubConnection.On<string, string, int>("GenerationStatus",
+                (projectId, phase, progressPercent) =>
+                {
+                    if (projectId == ProjectId.ToString() && _isGenerating)
+                    {
+                        _generationStatus = phase;
+                        _generationProgress = progressPercent;
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
             _hubConnection.On<string, int, int, string>("GenerationPreview",
                 (projectId, step, totalSteps, _) =>
                 {
                     if (projectId == ProjectId.ToString() && _isGenerating)
                     {
-                        _generationProgress = totalSteps > 0 ? (int)(step * 100.0 / totalSteps) : 0;
+                        _generationProgress = totalSteps > 0 ? (int)((20 + step * 60.0 / totalSteps)) : 0;
                         _generationStatus = $"Step {step}/{totalSteps}...";
                         InvokeAsync(StateHasChanged);
                     }
