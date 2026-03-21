@@ -69,18 +69,31 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
     private void TryLoadNativeLibrary()
     {
-        // Search for the native library in known locations relative to the app base directory
         var baseDir = AppContext.BaseDirectory;
+        var nativeDir = Path.Combine(baseDir, "runtimes", "win-x64", "native");
+
+        // Add the native directory to PATH so CUDA runtime DLLs (cudart64_12.dll, cublas64_12.dll)
+        // can be found when loading the CUDA build of stable-diffusion.dll from the cuda12/ subfolder
+        if (Directory.Exists(nativeDir))
+        {
+            var currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            if (!currentPath.Contains(nativeDir, StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.SetEnvironmentVariable("PATH", $"{nativeDir};{currentPath}");
+                _logger.LogInformation("Added {Dir} to PATH for CUDA runtime DLL resolution", nativeDir);
+            }
+        }
+
         // Priority: CUDA (fastest) → Vulkan (GPU, no toolkit needed) → CPU (fallback)
         var candidates = new[]
         {
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cuda12", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "vulkan", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx512", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx2", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "avx", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "cpu", "stable-diffusion.dll"),
-            Path.Combine(baseDir, "runtimes", "win-x64", "native", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "cuda12", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "vulkan", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "avx512", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "avx2", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "avx", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "cpu", "stable-diffusion.dll"),
+            Path.Combine(nativeDir, "stable-diffusion.dll"),
             Path.Combine(baseDir, "stable-diffusion.dll"),
         };
 
@@ -88,13 +101,13 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         {
             if (File.Exists(path))
             {
-                _logger.LogInformation("Found native library at: {Path}", path);
+                _logger.LogInformation("Trying native library: {Path}", path);
                 if (StableDiffusionCpp.LoadNativeLibrary(path))
                 {
                     _logger.LogInformation("Loaded native library from: {Path}", path);
                     return;
                 }
-                _logger.LogWarning("Found but failed to load native library from: {Path}", path);
+                _logger.LogWarning("Found but failed to load: {Path}", path);
             }
         }
 
