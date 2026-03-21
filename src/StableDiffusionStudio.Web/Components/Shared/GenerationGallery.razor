@@ -13,15 +13,34 @@
 
 @if (_jobs is not null && (_jobs.Any(j => j.Images.Count > 0) || _previewImageSrc is not null || _previewStep > 0))
 {
-    <div class="d-flex align-center mb-2">
-        <MudToggleIconButton @bind-Toggled="_showFavoritesOnly"
-                             Icon="@Icons.Material.Outlined.FavoriteBorder"
-                             ToggledIcon="@Icons.Material.Filled.Favorite"
-                             Color="Color.Default" ToggledColor="Color.Error"
-                             Size="Size.Small" />
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
-            @(_showFavoritesOnly ? "Favorites only" : "All images")
-        </MudText>
+    <div class="d-flex align-center gap-3 mb-2">
+        <div class="d-flex align-center">
+            <MudToggleIconButton @bind-Toggled="_showFavoritesOnly"
+                                 Icon="@Icons.Material.Outlined.FavoriteBorder"
+                                 ToggledIcon="@Icons.Material.Filled.Favorite"
+                                 Color="Color.Default" ToggledColor="Color.Error"
+                                 Size="Size.Small" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+                @(_showFavoritesOnly ? "Favorites only" : "All images")
+            </MudText>
+        </div>
+        <div class="d-flex align-center">
+            <MudToggleIconButton @bind-Toggled="_compareMode"
+                                 Icon="@Icons.Material.Outlined.Compare"
+                                 ToggledIcon="@Icons.Material.Filled.Compare"
+                                 Color="Color.Default" ToggledColor="Color.Primary"
+                                 Size="Size.Small" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-1">
+                @if (_compareMode)
+                {
+                    @($"Compare ({_compareSelection.Count}/2 selected)")
+                }
+                else
+                {
+                    @("Compare")
+                }
+            </MudText>
+        </div>
     </div>
 }
 
@@ -81,9 +100,10 @@ else
             @foreach (var image in GetFilteredImages(job))
             {
                 var shouldBlur = ShouldBlurImage(image);
+                var cardBorder = IsSelectedForCompare(image) ? "2px solid var(--mud-palette-primary)" : "1px solid var(--mud-palette-lines-default)";
                 <MudItem xs="6" sm="4" md="3">
-                    <div class="gallery-card position-relative" style="cursor:pointer" @onclick="() => ShowDetail(image, job)">
-                        <MudCard Elevation="0" Style="overflow:hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: var(--studio-radius-lg)">
+                    <div class="gallery-card position-relative" style="cursor:pointer" @onclick="() => OnImageClicked(image, job)">
+                        <MudCard Elevation="0" Style="@($"overflow:hidden; border-radius: var(--studio-radius-lg); border: {cardBorder}")">
                             <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
                                 @{
                                     var blurAmount = image.ContentRating == ContentRating.Nsfw ? 20 : 10;
@@ -156,6 +176,8 @@ else
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
+    private bool _compareMode;
+    private readonly List<(GeneratedImageDto Image, GenerationJobDto Job)> _compareSelection = [];
     private HubConnection? _hubConnection;
     private string? _previewImageSrc;
     private int _previewStep;
@@ -235,6 +257,52 @@ else
 
     private string GetImageUrl(GeneratedImageDto image)
         => AppPaths.GetImageUrl(image.FilePath);
+
+    private bool IsSelectedForCompare(GeneratedImageDto image)
+        => _compareMode && _compareSelection.Any(s => s.Image.Id == image.Id);
+
+    private async Task OnImageClicked(GeneratedImageDto image, GenerationJobDto job)
+    {
+        if (_compareMode)
+        {
+            // Toggle selection
+            var existing = _compareSelection.FindIndex(s => s.Image.Id == image.Id);
+            if (existing >= 0)
+            {
+                _compareSelection.RemoveAt(existing);
+                return;
+            }
+
+            _compareSelection.Add((image, job));
+
+            if (_compareSelection.Count == 2)
+            {
+                await ShowComparison();
+                _compareSelection.Clear();
+            }
+        }
+        else
+        {
+            await ShowDetail(image, job);
+        }
+    }
+
+    private async Task ShowComparison()
+    {
+        var a = _compareSelection[0];
+        var b = _compareSelection[1];
+
+        var parameters = new DialogParameters<Dialogs.ImageComparisonDialog>
+        {
+            { x => x.ImageAUrl, GetImageUrl(a.Image) },
+            { x => x.ImageBUrl, GetImageUrl(b.Image) },
+            { x => x.ImageALabel, $"Seed: {a.Image.Seed}" },
+            { x => x.ImageBLabel, $"Seed: {b.Image.Seed}" }
+        };
+
+        await DialogService.ShowAsync<Dialogs.ImageComparisonDialog>("Compare Images", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+    }
 
     private async Task ShowDetail(GeneratedImageDto image, GenerationJobDto job)
     {
