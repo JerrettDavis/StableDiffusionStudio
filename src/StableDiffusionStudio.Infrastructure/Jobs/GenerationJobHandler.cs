@@ -124,6 +124,17 @@ public class GenerationJobHandler : IJobHandler
             var batchCount = Math.Max(1, parameters.BatchCount);
             var allImages = new List<GeneratedImageData>();
 
+            // Load init image bytes for img2img if applicable
+            byte[]? initImageBytes = null;
+            if (parameters.Mode == Domain.Enums.GenerationMode.ImageToImage
+                && !string.IsNullOrWhiteSpace(parameters.InitImagePath)
+                && File.Exists(parameters.InitImagePath))
+            {
+                initImageBytes = await File.ReadAllBytesAsync(parameters.InitImagePath, ct);
+                _logger.LogInformation("Loaded init image for img2img: {Path} ({Size} bytes)",
+                    parameters.InitImagePath, initImageBytes.Length);
+            }
+
             for (int batchIndex = 0; batchIndex < batchCount; batchIndex++)
             {
                 ct.ThrowIfCancellationRequested();
@@ -143,7 +154,9 @@ public class GenerationJobHandler : IJobHandler
                     parameters.Height,
                     parameters.BatchSize,
                     parameters.ClipSkip,
-                    parameters.Eta
+                    parameters.Eta,
+                    initImageBytes,
+                    parameters.DenoisingStrength
                 );
 
                 var projectIdStr = generationJob.ProjectId.ToString();

@@ -240,4 +240,57 @@ public class StableDiffusionCppBackendTests
         results[0].Success.Should().BeFalse();
         results[1].Success.Should().BeFalse();
     }
+
+    [Fact]
+    public async Task GenerateAsync_WithInitImage_WithoutModel_ReturnsNoModelError()
+    {
+        // img2img request should still fail gracefully when no model is loaded
+        var fakeImage = new byte[] { 0x89, 0x50, 0x4E, 0x47 }; // PNG header bytes
+        var request = new InferenceRequest("test prompt", "", Sampler.EulerA, Scheduler.Normal,
+            Steps: 20, CfgScale: 7.0, Seed: 42, Width: 512, Height: 512, BatchSize: 1,
+            InitImage: fakeImage, DenoisingStrength: 0.75);
+        var progress = new Progress<InferenceProgress>();
+
+        var result = await _backend.GenerateAsync(request, progress);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("No model loaded");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithNullInitImage_WithoutModel_ReturnsNoModelError()
+    {
+        // txt2img request (null init image) should still work the same way
+        var request = new InferenceRequest("test prompt", "", Sampler.EulerA, Scheduler.Normal,
+            Steps: 20, CfgScale: 7.0, Seed: 42, Width: 512, Height: 512, BatchSize: 1,
+            InitImage: null, DenoisingStrength: 1.0);
+        var progress = new Progress<InferenceProgress>();
+
+        var result = await _backend.GenerateAsync(request, progress);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("No model loaded");
+    }
+
+    [Fact]
+    public void InferenceRequest_WithInitImage_HasCorrectValues()
+    {
+        var initImage = new byte[] { 1, 2, 3, 4 };
+        var request = new InferenceRequest("prompt", "neg", Sampler.Euler, Scheduler.Normal,
+            Steps: 20, CfgScale: 7.0, Seed: 42, Width: 512, Height: 512, BatchSize: 1,
+            InitImage: initImage, DenoisingStrength: 0.6);
+
+        request.InitImage.Should().BeSameAs(initImage);
+        request.DenoisingStrength.Should().Be(0.6);
+    }
+
+    [Fact]
+    public void InferenceRequest_DefaultValues_HaveNoInitImage()
+    {
+        var request = new InferenceRequest("prompt", "neg", Sampler.Euler, Scheduler.Normal,
+            Steps: 20, CfgScale: 7.0, Seed: 42, Width: 512, Height: 512, BatchSize: 1);
+
+        request.InitImage.Should().BeNull();
+        request.DenoisingStrength.Should().Be(1.0);
+    }
 }
