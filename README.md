@@ -16,7 +16,7 @@ Stable Diffusion Studio is a local-first, web-based image generation application
 
 ### Key Features
 
-- **Image generation** — txt2img with SD 1.5, SDXL, and Flux models via StableDiffusion.NET (CUDA + Vulkan GPU acceleration)
+- **Image generation** — txt2img, img2img, and inpainting with SD 1.5, SDXL, and Flux models via StableDiffusion.NET (CUDA + Vulkan GPU acceleration)
 - **Model management** — Browse and download from HuggingFace and CivitAI, scan local folders, auto-detect model types (Checkpoint, VAE, LoRA, Embedding, ControlNet)
 - **A1111-style workspace** — Model/VAE/LoRA selection, sampler/scheduler/steps/CFG/seed controls, CLIP skip, batch generation, resolution presets
 - **Project-based workflow** — Organize work into projects with persistent generation history
@@ -71,7 +71,7 @@ This launches the Aspire dashboard. Click the **web** endpoint to open Stable Di
 ### Run the tests
 
 ```bash
-# Unit and integration tests (707+)
+# Unit and integration tests (819+)
 dotnet test --filter "FullyQualifiedName!~E2E"
 
 # E2E BDD tests (Playwright + Reqnroll)
@@ -116,7 +116,14 @@ See [docs/architecture/README.md](docs/architecture/README.md) for the full arch
 - [x] **Milestone 2** — Unified model provider system (HuggingFace, CivitAI), model downloads, tagged model folders, model type classification
 - [x] **Milestone 3** — Generation pipeline (txt2img), StableDiffusion.NET inference backend (CUDA + Vulkan), generation workspace with A1111-style controls, gallery with metadata
 - [x] **Milestone 4** — Presets, prompt history, image favorites, PNG metadata embedding, negative prompt helpers, advanced parameters (CLIP skip, batch count), data management
-- [ ] **Milestone 5** — img2img, inpainting, ControlNet workflows, plugin architecture
+- [x] **Milestone 5** — img2img, inpainting, plugin architecture (ControlNet deferred — requires preprocessor models)
+
+### What's New
+
+- **img2img** — Upload an init image, adjust denoising strength, generate variations
+- **Inpainting** — Paint a mask over an init image to selectively regenerate regions (canvas with configurable brush, touch support)
+- **Settings export/import** — Export all settings to JSON, import from file to restore configuration
+- **Plugin architecture** — IPlugin, IPostProcessor, IModelProviderPlugin interfaces with assembly-scanning PluginManager
 
 ### Additional features built
 
