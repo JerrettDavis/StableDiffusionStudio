@@ -21,12 +21,10 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
         _logger = logger;
     }
 
+    private const string ShieldSettingsKey = "nsfw-shield-enabled";
+
     public async Task<ContentClassification> ClassifyAsync(byte[] imageBytes, CancellationToken ct = default)
     {
-        var mode = await GetFilterModeAsync(ct);
-        if (mode == NsfwFilterMode.Off)
-            return new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1);
-
         try
         {
             EnsureInitialized();
@@ -85,6 +83,17 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
             QuestionableThreshold = thresholds.QuestionableThreshold
         };
         await _settings.SetAsync(SettingsKey, updated, ct);
+    }
+
+    public async Task<bool> GetNsfwShieldEnabledAsync(CancellationToken ct = default)
+    {
+        var raw = await _settings.GetRawAsync(ShieldSettingsKey, ct);
+        return raw is not null && bool.TryParse(raw, out var enabled) && enabled;
+    }
+
+    public async Task SetNsfwShieldEnabledAsync(bool enabled, CancellationToken ct = default)
+    {
+        await _settings.SetRawAsync(ShieldSettingsKey, enabled.ToString(), ct);
     }
 
     private async Task<ContentSafetySettings> GetSettingsAsync(CancellationToken ct)

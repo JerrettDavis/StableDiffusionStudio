@@ -2,6 +2,7 @@
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Web.Theme
 @inject IInferenceBackend InferenceBackend
+@inject IContentSafetyService ContentSafety
 
 <MudThemeProvider Theme="_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -17,6 +18,12 @@
 
         <MudTooltip Text="@_backendStatus">
             <span class="status-dot @(_backendOnline ? "online" : "offline")" style="margin-right:8px"></span>
+        </MudTooltip>
+
+        <MudTooltip Text="@(_nsfwShieldEnabled ? "NSFW Shield: ON — blurring explicit content" : "NSFW Shield: OFF — showing all content")">
+            <MudIconButton Icon="@(_nsfwShieldEnabled ? Icons.Material.Filled.Shield : Icons.Material.Outlined.Shield)"
+                           Color="@(_nsfwShieldEnabled ? Color.Warning : Color.Inherit)"
+                           OnClick="ToggleNsfwShield" />
         </MudTooltip>
 
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
@@ -41,6 +48,7 @@
     private bool _isDarkMode = true;
     private bool _backendOnline;
     private string _backendStatus = "Checking backend...";
+    private bool _nsfwShieldEnabled;
 
     protected override async Task OnInitializedAsync()
     {
@@ -48,8 +56,15 @@
         _backendStatus = _backendOnline
             ? $"Backend: {InferenceBackend.DisplayName}"
             : "Backend: Mock (no GPU)";
+        _nsfwShieldEnabled = await ContentSafety.GetNsfwShieldEnabledAsync();
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void ToggleTheme() => _isDarkMode = !_isDarkMode;
+
+    private async Task ToggleNsfwShield()
+    {
+        _nsfwShieldEnabled = !_nsfwShieldEnabled;
+        await ContentSafety.SetNsfwShieldEnabledAsync(_nsfwShieldEnabled);
+    }
 }
