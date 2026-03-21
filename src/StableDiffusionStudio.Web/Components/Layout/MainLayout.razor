@@ -10,6 +10,7 @@
 <MudSnackbarProvider />
 
 <CascadingValue Value="_nsfwShieldEnabled" Name="NsfwShieldEnabled">
+<CascadingValue Value="_nsfwThreshold" Name="NsfwThreshold">
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Style="border-bottom: 1px solid var(--mud-palette-lines-default)">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
@@ -43,6 +44,7 @@
     </MudMainContent>
 </MudLayout>
 </CascadingValue>
+</CascadingValue>
 
 @code {
     private MudTheme _theme = StudioTheme.Create();
@@ -51,6 +53,7 @@
     private bool _backendOnline;
     private string _backendStatus = "Checking backend...";
     private bool _nsfwShieldEnabled;
+    private double _nsfwThreshold = 0.5;
 
     protected override async Task OnInitializedAsync()
     {
@@ -59,6 +62,8 @@
             ? $"Backend: {InferenceBackend.DisplayName}"
             : "Backend: Mock (no GPU)";
         _nsfwShieldEnabled = await ContentSafety.GetNsfwShieldEnabledAsync();
+        var thresholds = await ContentSafety.GetThresholdsAsync();
+        _nsfwThreshold = thresholds.NsfwThreshold;
     }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
