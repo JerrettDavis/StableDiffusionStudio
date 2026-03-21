@@ -16,6 +16,7 @@ public class GenerationJobHandler : IJobHandler
     private readonly IAppPaths _appPaths;
     private readonly IContentSafetyService _contentSafetyService;
     private readonly IGenerationNotifier _generationNotifier;
+    private readonly IFluxComponentResolver? _fluxResolver;
     private readonly ILogger<GenerationJobHandler> _logger;
 
     public GenerationJobHandler(
@@ -25,7 +26,8 @@ public class GenerationJobHandler : IJobHandler
         IAppPaths appPaths,
         IContentSafetyService contentSafetyService,
         IGenerationNotifier generationNotifier,
-        ILogger<GenerationJobHandler> logger)
+        ILogger<GenerationJobHandler> logger,
+        IFluxComponentResolver? fluxResolver = null)
     {
         _generationJobRepository = generationJobRepository;
         _modelCatalogRepository = modelCatalogRepository;
@@ -33,6 +35,7 @@ public class GenerationJobHandler : IJobHandler
         _appPaths = appPaths;
         _contentSafetyService = contentSafetyService;
         _generationNotifier = generationNotifier;
+        _fluxResolver = fluxResolver;
         _logger = logger;
     }
 
@@ -94,8 +97,26 @@ public class GenerationJobHandler : IJobHandler
                     loras.Add(new LoraLoadInfo(loraModel.FilePath, loraRef.Weight));
             }
 
+            // Resolve Flux components if needed
+            string? clipLPath = null;
+            string? t5xxlPath = null;
+            var checkpointName = Path.GetFileName(checkpoint.FilePath).ToLowerInvariant();
+            if (checkpointName.Contains("flux") && _fluxResolver != null)
+            {
+                var components = await _fluxResolver.ResolveAsync(checkpoint.FilePath, ct);
+                if (components != null)
+                {
+                    clipLPath = components.ClipLPath;
+                    t5xxlPath = components.T5xxlPath;
+                    // Use Flux VAE if no VAE was explicitly selected
+                    if (string.IsNullOrWhiteSpace(vaePath) && components.VaePath != null)
+                        vaePath = components.VaePath;
+                }
+            }
+
             // Load model
-            await _inferenceBackend.LoadModelAsync(new ModelLoadRequest(checkpoint.FilePath, vaePath, loras), ct);
+            await _inferenceBackend.LoadModelAsync(
+                new ModelLoadRequest(checkpoint.FilePath, vaePath, loras, clipLPath, t5xxlPath), ct);
             job.UpdateProgress(20, "Generating");
 
             // Generate — run BatchCount iterations, each producing BatchSize images

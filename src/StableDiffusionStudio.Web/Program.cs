@@ -58,6 +58,7 @@ builder.Services.AddScoped<IInferenceSettingsProvider, DbInferenceSettingsProvid
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();
 builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
 builder.Services.AddScoped<IModelCatalogService, ModelCatalogService>();
+builder.Services.AddScoped<IFluxComponentResolver, FluxComponentResolver>();
 
 // Model providers
 builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
