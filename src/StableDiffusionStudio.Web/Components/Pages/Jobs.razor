@@ -114,13 +114,25 @@ else
                 .Build();
 
             _hubConnection.On<string, int, int, string>("GenerationPreview",
-                (_, _, _, _) => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+                (_, step, totalSteps, _) => InvokeAsync(async () =>
+                {
+                    await LoadJobs();
+                    StateHasChanged();
+                }));
 
             _hubConnection.On<string>("GenerationComplete",
-                _ => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+                _ => InvokeAsync(async () =>
+                {
+                    await LoadJobs();
+                    StateHasChanged();
+                }));
 
             _hubConnection.On<string, string>("GenerationFailed",
-                (_, _) => InvokeAsync(async () => { await LoadJobs(); StateHasChanged(); }));
+                (_, _) => InvokeAsync(async () =>
+                {
+                    await LoadJobs();
+                    StateHasChanged();
+                }));
 
             await _hubConnection.StartAsync();
         }
@@ -130,17 +142,24 @@ else
         }
 
         // Also poll every 3 seconds for non-generation job updates
-        _refreshTimer = new Timer(async _ =>
+        _refreshTimer = new Timer(_ =>
         {
-            try
+            _ = InvokeAsync(async () =>
             {
-                await LoadJobs();
-                await InvokeAsync(StateHasChanged);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to refresh jobs");
-            }
+                try
+                {
+                    await LoadJobs();
+                    StateHasChanged();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Component disposed during callback — ignore
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Failed to refresh jobs");
+                }
+            });
         }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
     }
 

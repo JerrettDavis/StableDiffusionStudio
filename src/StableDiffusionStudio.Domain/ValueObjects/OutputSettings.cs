@@ -23,6 +23,12 @@ public sealed record OutputSettings
         return result + ".png";
     }
 
+    private static readonly char[] InvalidChars =
+        Path.GetInvalidFileNameChars()
+            .Union(['/', '\\', ':', '*', '?', '"', '<', '>', '|'])
+            .Distinct()
+            .ToArray();
+
     private static string SanitizeFilename(string name)
-        => string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+        => string.Join("_", name.Split(InvalidChars));
 }

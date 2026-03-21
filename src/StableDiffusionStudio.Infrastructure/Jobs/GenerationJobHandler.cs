@@ -176,6 +176,20 @@ public class GenerationJobHandler : IJobHandler
 
                 var projectIdStr = generationJob.ProjectId.ToString();
 
+                // Send an immediate "step 0" event so the UI skeleton card appears right away.
+                // Some models/samplers (e.g. turbo models with DPM++ SDE) complete very fast
+                // or don't fire native progress callbacks reliably — this ensures the UI
+                // always shows a progress indicator as soon as generation begins.
+                try
+                {
+                    await _generationNotifier.SendPreviewAsync(
+                        projectIdStr, 0, request.Steps, "");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed to send initial progress notification");
+                }
+
                 // Use a direct IProgress implementation that sends synchronously
                 // Progress<T> with async callbacks doesn't work reliably without a SynchronizationContext
                 var progress = new DirectProgress<InferenceProgress>(p =>
