@@ -1,7 +1,9 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
 @inject IGenerationService GenerationService
+@inject IContentSafetyService ContentSafety
 @inject IDataManagementService DataManagement
 @inject IAppPaths AppPaths
 @inject IDialogService DialogService
@@ -37,11 +39,28 @@ else
         {
             @foreach (var image in GetFilteredImages(job))
             {
+                var shouldBlur = ShouldBlurImage(image);
                 <MudItem xs="6" sm="4" md="3">
                     <div class="gallery-card position-relative" style="cursor:pointer" @onclick="() => ShowDetail(image, job)">
                         <MudCard Elevation="0" Style="overflow:hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: var(--studio-radius-lg)">
                             <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
-                                <MudImage Src="@GetImageUrl(image)" Style="width:100%; height:100%; object-fit:cover;" />
+                                <MudImage Src="@GetImageUrl(image)"
+                                          Style="@($"width:100%; height:100%; object-fit:cover; {(shouldBlur ? "filter: blur(20px); transform: scale(1.1);" : "")}")" />
+                                @if (shouldBlur)
+                                {
+                                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.3)">
+                                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Warning"
+                                                   OnClick:stopPropagation="true" OnClick="() => RevealImage(image)">
+                                            Reveal
+                                        </MudButton>
+                                    </div>
+                                }
+                                @if (image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Shield" Size="Size.Small"
+                                             Color="@(image.ContentRating == ContentRating.Nsfw ? Color.Error : Color.Warning)"
+                                             Style="position:absolute; top:4px; right:4px" />
+                                }
                                 <div class="image-overlay">
                                     <div style="width:100%">
                                         <MudText Typo="Typo.caption" Style="color:#fff">Seed: @image.Seed</MudText>
@@ -81,8 +100,13 @@ else
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
+    private NsfwFilterMode _filterMode = NsfwFilterMode.Off;
 
-    protected override async Task OnInitializedAsync() => await Refresh();
+    protected override async Task OnInitializedAsync()
+    {
+        _filterMode = await ContentSafety.GetFilterModeAsync();
+        await Refresh();
+    }
 
     public async Task Refresh()
     {
@@ -116,6 +140,19 @@ else
     private IEnumerable<GeneratedImageDto> GetFilteredImages(GenerationJobDto job)
     {
         return _showFavoritesOnly ? job.Images.Where(i => i.IsFavorite) : job.Images;
+    }
+
+    private bool ShouldBlurImage(GeneratedImageDto image)
+    {
+        return !image.IsRevealed &&
+               _filterMode == NsfwFilterMode.Blur &&
+               image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable;
+    }
+
+    private async Task RevealImage(GeneratedImageDto image)
+    {
+        await GenerationService.RevealImageAsync(image.Id);
+        await Refresh();
     }
 
     private async Task ToggleFavorite(GeneratedImageDto image)
