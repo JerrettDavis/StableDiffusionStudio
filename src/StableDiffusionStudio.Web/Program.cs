@@ -126,20 +126,71 @@ app.MapDefaultEndpoints();
 var backend = app.Services.GetRequiredService<IInferenceBackend>();
 app.Logger.LogInformation("Active inference backend: {Backend} ({Id})", backend.DisplayName, backend.BackendId);
 
-// Apply EF Core migrations on startup
+// Database initialization with robust migration handling
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<AppDbContext>>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
     try
     {
-        await db.Database.MigrateAsync();
+        // Check if this is a fresh database (no tables exist)
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name != '__EFMigrationsHistory'";
+        var tableCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        await conn.CloseAsync();
+
+        if (tableCount == 0)
+        {
+            // Fresh database — create schema from scratch
+            logger.LogInformation("Fresh database detected — creating schema");
+            await db.Database.EnsureCreatedAsync();
+
+            // Mark all migrations as applied (we just created the full schema)
+            var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
+            foreach (var migration in pendingMigrations)
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES ({0}, {1})",
+                    migration, "10.0.5");
+            }
+
+            logger.LogInformation("Schema created successfully");
+        }
+        else
+        {
+            // Existing database — apply any pending migrations
+            var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+            if (pending.Count > 0)
+            {
+                logger.LogInformation("Applying {Count} pending migration(s): {Migrations}",
+                    pending.Count, string.Join(", ", pending));
+            }
+            await db.Database.MigrateAsync();
+            logger.LogInformation("Database migration complete");
+        }
     }
     catch (Exception ex)
     {
-        // Fallback for edge cases (e.g., pre-migration DBs that can't be migrated)
-        logger.LogWarning(ex, "Database migration failed — falling back to EnsureCreated. Existing data may be preserved if schema is compatible.");
-        await db.Database.EnsureCreatedAsync();
+        logger.LogError(ex, "Database initialization failed");
+
+        // Last resort: try to apply schema changes manually for SQLite
+        // SQLite doesn't support all ALTER TABLE operations through EF migrations well,
+        // so we do it manually for known missing columns/tables
+        try
+        {
+            logger.LogWarning("Attempting manual schema repair...");
+            await RepairSchema(db, logger);
+        }
+        catch (Exception repairEx)
+        {
+            logger.LogError(repairEx, "Manual schema repair failed — deleting and recreating database");
+            await db.Database.EnsureDeletedAsync();
+            await db.Database.EnsureCreatedAsync();
+            logger.LogWarning("Database recreated from scratch — previous data was lost");
+        }
     }
 }
 
@@ -169,4 +220,106 @@ app.MapRazorComponents<App>()
 app.Run();
 
 // Make Program accessible for integration testing
-public partial class Program { }
+public partial class Program
+{
+    static async Task RepairSchema(AppDbContext db, ILogger logger)
+    {
+        // Attempt to add missing tables and columns for SQLite compatibility
+        var repairs = new (string TableName, string CreateSql)[]
+        {
+            ("GenerationJobs", @"CREATE TABLE IF NOT EXISTS ""GenerationJobs"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_GenerationJobs"" PRIMARY KEY,
+                ""ProjectId"" TEXT NOT NULL,
+                ""Parameters"" TEXT NOT NULL DEFAULT '{}',
+                ""Status"" TEXT NOT NULL DEFAULT 'Pending',
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""StartedAt"" INTEGER,
+                ""CompletedAt"" INTEGER,
+                ""ErrorMessage"" TEXT
+            )"),
+            ("GeneratedImages", @"CREATE TABLE IF NOT EXISTS ""GeneratedImages"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_GeneratedImages"" PRIMARY KEY,
+                ""GenerationJobId"" TEXT NOT NULL,
+                ""FilePath"" TEXT NOT NULL DEFAULT '',
+                ""Seed"" INTEGER NOT NULL DEFAULT 0,
+                ""Width"" INTEGER NOT NULL DEFAULT 0,
+                ""Height"" INTEGER NOT NULL DEFAULT 0,
+                ""GenerationTimeSeconds"" REAL NOT NULL DEFAULT 0,
+                ""ParametersJson"" TEXT NOT NULL DEFAULT '',
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""IsFavorite"" INTEGER NOT NULL DEFAULT 0,
+                ""ContentRating"" TEXT NOT NULL DEFAULT 'Unknown',
+                ""NsfwScore"" REAL NOT NULL DEFAULT 0,
+                ""IsRevealed"" INTEGER NOT NULL DEFAULT 0,
+                CONSTRAINT ""FK_GeneratedImages_GenerationJobs_GenerationJobId"" FOREIGN KEY (""GenerationJobId"") REFERENCES ""GenerationJobs"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("GenerationPresets", @"CREATE TABLE IF NOT EXISTS ""GenerationPresets"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_GenerationPresets"" PRIMARY KEY,
+                ""Name"" TEXT NOT NULL DEFAULT '',
+                ""Description"" TEXT,
+                ""AssociatedModelId"" TEXT,
+                ""ModelFamilyFilter"" TEXT,
+                ""IsDefault"" INTEGER NOT NULL DEFAULT 0,
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""UpdatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""PositivePromptTemplate"" TEXT,
+                ""NegativePrompt"" TEXT NOT NULL DEFAULT '',
+                ""Sampler"" TEXT NOT NULL DEFAULT 'EulerA',
+                ""Scheduler"" TEXT NOT NULL DEFAULT 'Normal',
+                ""Steps"" INTEGER NOT NULL DEFAULT 20,
+                ""CfgScale"" REAL NOT NULL DEFAULT 7.0,
+                ""Width"" INTEGER NOT NULL DEFAULT 512,
+                ""Height"" INTEGER NOT NULL DEFAULT 512,
+                ""BatchSize"" INTEGER NOT NULL DEFAULT 1,
+                ""ClipSkip"" INTEGER NOT NULL DEFAULT 1
+            )"),
+            ("PromptHistories", @"CREATE TABLE IF NOT EXISTS ""PromptHistories"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_PromptHistories"" PRIMARY KEY,
+                ""PositivePrompt"" TEXT NOT NULL DEFAULT '',
+                ""NegativePrompt"" TEXT NOT NULL DEFAULT '',
+                ""UsedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""UseCount"" INTEGER NOT NULL DEFAULT 0
+            )"),
+        };
+
+        foreach (var (tableName, createSql) in repairs)
+        {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(createSql);
+                logger.LogInformation("Ensured table exists: {Table}", tableName);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create table {Table}", tableName);
+            }
+        }
+
+        // Add missing columns to existing tables (SQLite supports ADD COLUMN)
+        var columns = new (string Table, string Column, string AlterSql)[]
+        {
+            ("ModelRecords", "Type", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""Type"" TEXT NOT NULL DEFAULT 'Checkpoint'"),
+            ("GeneratedImages", "IsFavorite", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""IsFavorite"" INTEGER NOT NULL DEFAULT 0"),
+            ("GeneratedImages", "ContentRating", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""ContentRating"" TEXT NOT NULL DEFAULT 'Unknown'"),
+            ("GeneratedImages", "NsfwScore", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""NsfwScore"" REAL NOT NULL DEFAULT 0"),
+            ("GeneratedImages", "IsRevealed", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""IsRevealed"" INTEGER NOT NULL DEFAULT 0"),
+        };
+
+        foreach (var (table, column, alterSql) in columns)
+        {
+            try
+            {
+                await db.Database.ExecuteSqlRawAsync(alterSql);
+                logger.LogInformation("Added column {Table}.{Column}", table, column);
+            }
+            catch (Exception ex) when (ex.Message.Contains("duplicate column"))
+            {
+                // Column already exists — that's fine
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to add column {Table}.{Column}", table, column);
+            }
+        }
+    }
+}

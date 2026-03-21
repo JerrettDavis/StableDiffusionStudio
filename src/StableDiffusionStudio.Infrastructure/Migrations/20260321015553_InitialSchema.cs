@@ -163,7 +163,10 @@ namespace StableDiffusionStudio.Infrastructure.Migrations
                     GenerationTimeSeconds = table.Column<double>(type: "REAL", nullable: false),
                     ParametersJson = table.Column<string>(type: "TEXT", maxLength: 10000, nullable: false),
                     CreatedAt = table.Column<long>(type: "INTEGER", nullable: false),
-                    IsFavorite = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false)
+                    IsFavorite = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    ContentRating = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false, defaultValue: "Unknown"),
+                    NsfwScore = table.Column<double>(type: "REAL", nullable: false, defaultValue: 0.0),
+                    IsRevealed = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
                 {

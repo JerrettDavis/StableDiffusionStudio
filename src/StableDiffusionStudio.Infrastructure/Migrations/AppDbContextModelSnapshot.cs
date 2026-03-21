@@ -23,6 +23,13 @@ namespace StableDiffusionStudio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ContentRating")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Unknown");
+
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
 
@@ -44,6 +51,16 @@ namespace StableDiffusionStudio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(false);
+
+                    b.Property<bool>("IsRevealed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<double>("NsfwScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(0.0);
 
                     b.Property<string>("ParametersJson")
                         .IsRequired()

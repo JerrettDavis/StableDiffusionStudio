@@ -11,7 +11,7 @@ using StableDiffusionStudio.Infrastructure.Persistence;
 namespace StableDiffusionStudio.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260320175119_InitialSchema")]
+    [Migration("20260321015553_InitialSchema")]
     partial class InitialSchema
     {
         /// <inheritdoc />
@@ -25,6 +25,13 @@ namespace StableDiffusionStudio.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentRating")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Unknown");
 
                     b.Property<long>("CreatedAt")
                         .HasColumnType("INTEGER");
@@ -47,6 +54,16 @@ namespace StableDiffusionStudio.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(false);
+
+                    b.Property<bool>("IsRevealed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<double>("NsfwScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(0.0);
 
                     b.Property<string>("ParametersJson")
                         .IsRequired()
