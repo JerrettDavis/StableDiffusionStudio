@@ -139,6 +139,7 @@ else
     [Parameter] public Guid ProjectId { get; set; }
     [Parameter] public EventCallback<GenerationJobDto> OnReuseSettings { get; set; }
     [CascadingParameter(Name = "NsfwShieldEnabled")] public bool NsfwShieldEnabled { get; set; }
+    [CascadingParameter(Name = "NsfwThreshold")] public double NsfwThreshold { get; set; } = 0.5;
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
@@ -245,8 +246,9 @@ else
 
     private bool ShouldBlurImage(GeneratedImageDto image)
     {
-        return NsfwShieldEnabled && !image.IsRevealed &&
-               image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable;
+        // Compare the actual NSFW score against the user's configured threshold
+        // This respects threshold changes even for previously classified images
+        return NsfwShieldEnabled && !image.IsRevealed && image.NsfwScore >= NsfwThreshold;
     }
 
     private async Task RevealImage(GeneratedImageDto image)
