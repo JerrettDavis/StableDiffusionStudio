@@ -44,22 +44,34 @@ else
                     <div class="gallery-card position-relative" style="cursor:pointer" @onclick="() => ShowDetail(image, job)">
                         <MudCard Elevation="0" Style="overflow:hidden; border: 1px solid var(--mud-palette-lines-default); border-radius: var(--studio-radius-lg)">
                             <div style="position:relative; overflow:hidden; aspect-ratio: 1;">
+                                @{
+                                    var blurAmount = image.ContentRating == ContentRating.Nsfw ? 20 : 10;
+                                }
                                 <MudImage Src="@GetImageUrl(image)"
-                                          Style="@($"width:100%; height:100%; object-fit:cover; {(shouldBlur ? "filter: blur(20px); transform: scale(1.1);" : "")}")" />
+                                          Style="@($"width:100%; height:100%; object-fit:cover;{(shouldBlur ? $" filter: blur({blurAmount}px); transform: scale(1.1);" : "")}")" />
+
                                 @if (shouldBlur)
                                 {
-                                    <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.3)">
-                                        <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Warning"
-                                                   OnClick:stopPropagation="true" OnClick="() => RevealImage(image)">
-                                            Reveal
-                                        </MudButton>
+                                    <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(0,0,0,0.3); gap:4px">
+                                        <MudIcon Icon="@Icons.Material.Filled.Shield" Color="Color.Warning" />
+                                        <MudText Typo="Typo.caption" Style="color:#fff">
+                                            @(image.ContentRating) @((image.NsfwScore * 100).ToString("F0"))%
+                                        </MudText>
+                                        <div @onclick:stopPropagation="true">
+                                            <MudButton Variant="Variant.Filled" Size="Size.Small" Color="Color.Warning"
+                                                       OnClick="() => RevealImage(image)">
+                                                Reveal
+                                            </MudButton>
+                                        </div>
                                     </div>
                                 }
-                                @if (image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable)
+
+                                @if (!shouldBlur && image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable)
                                 {
-                                    <MudIcon Icon="@Icons.Material.Filled.Shield" Size="Size.Small"
-                                             Color="@(image.ContentRating == ContentRating.Nsfw ? Color.Error : Color.Warning)"
-                                             Style="position:absolute; top:4px; right:4px" />
+                                    <MudChip T="string" Size="Size.Small" Style="position:absolute; top:4px; right:4px; opacity:0.8"
+                                             Color="@(image.ContentRating == ContentRating.Nsfw ? Color.Error : Color.Warning)">
+                                        @((image.NsfwScore * 100).ToString("F0"))%
+                                    </MudChip>
                                 }
                                 <div class="image-overlay">
                                     <div style="width:100%">
@@ -100,11 +112,11 @@ else
 
     private IReadOnlyList<GenerationJobDto>? _jobs;
     private bool _showFavoritesOnly;
-    private NsfwFilterMode _filterMode = NsfwFilterMode.Off;
+    private bool _nsfwShieldEnabled;
 
     protected override async Task OnInitializedAsync()
     {
-        _filterMode = await ContentSafety.GetFilterModeAsync();
+        _nsfwShieldEnabled = await ContentSafety.GetNsfwShieldEnabledAsync();
         await Refresh();
     }
 
@@ -144,8 +156,7 @@ else
 
     private bool ShouldBlurImage(GeneratedImageDto image)
     {
-        return !image.IsRevealed &&
-               _filterMode == NsfwFilterMode.Blur &&
+        return _nsfwShieldEnabled && !image.IsRevealed &&
                image.ContentRating is ContentRating.Nsfw or ContentRating.Questionable;
     }
 

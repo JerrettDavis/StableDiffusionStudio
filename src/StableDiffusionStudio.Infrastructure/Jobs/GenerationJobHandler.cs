@@ -188,6 +188,9 @@ public class GenerationJobHandler : IJobHandler
 
                 // Embed A1111-compatible metadata into PNG before saving
                 byte[] bytesToSave = imageData.ImageBytes;
+                // Classify content safety (always runs regardless of filter mode)
+                var classification = await _contentSafetyService.ClassifyAsync(imageData.ImageBytes, ct);
+
                 try
                 {
                     var a1111Params = PngMetadataService.FormatA1111Parameters(
@@ -201,6 +204,10 @@ public class GenerationJobHandler : IJobHandler
                         parameters.Height,
                         modelName,
                         parameters.ClipSkip);
+
+                    if (classification.Rating != ContentRating.Unknown)
+                        a1111Params += $", Content Rating: {classification.Rating} ({classification.NsfwScore:P0})";
+
                     bytesToSave = PngMetadataService.EmbedMetadata(imageData.ImageBytes, a1111Params);
                 }
                 catch (Exception ex)
@@ -210,9 +217,6 @@ public class GenerationJobHandler : IJobHandler
                 }
 
                 await File.WriteAllBytesAsync(filePath, bytesToSave, ct);
-
-                // Classify content safety
-                var classification = await _contentSafetyService.ClassifyAsync(imageData.ImageBytes, ct);
 
                 var generatedImage = GeneratedImage.Create(
                     generationJob.Id,

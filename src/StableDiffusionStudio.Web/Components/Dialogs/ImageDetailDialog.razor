@@ -35,21 +35,19 @@
                 {
                     <tr><td><strong>Negative</strong></td><td style="word-break:break-all">@Job.Parameters.NegativePrompt</td></tr>
                 }
-                @if (Image.ContentRating != ContentRating.Unknown)
-                {
-                    <tr>
-                        <td><strong>Content Rating</strong></td>
-                        <td>
-                            <MudChip T="string" Size="Size.Small"
-                                     Color="@(Image.ContentRating == ContentRating.Nsfw ? Color.Error : Image.ContentRating == ContentRating.Questionable ? Color.Warning : Color.Success)">
-                                @Image.ContentRating
+                <tr>
+                    <td><strong>Content Rating</strong></td>
+                    <td>
+                        @Image.ContentRating
+                        @if (Image.ContentRating != ContentRating.Unknown && Image.ContentRating != ContentRating.Safe)
+                        {
+                            <MudChip T="string" Size="Size.Small" Class="ml-2"
+                                     Color="@(Image.ContentRating == ContentRating.Nsfw ? Color.Error : Color.Warning)">
+                                @((Image.NsfwScore * 100).ToString("F1"))% confidence
                             </MudChip>
-                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-inline ml-2">
-                                Score: @Image.NsfwScore.ToString("P1")
-                            </MudText>
-                        </td>
-                    </tr>
-                }
+                        }
+                    </td>
+                </tr>
                 <tr><td><strong>File Path</strong></td><td style="word-break:break-all">@Image.FilePath</td></tr>
             </tbody>
         </MudSimpleTable>
