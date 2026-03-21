@@ -15,6 +15,10 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
     <PackageReference Include="NsfwSpy" Version="3.5.0" />
+    <PackageReference Include="NtvLibs.cuda12.cublas64_12.runtime.win-x64" Version="12.8.1" />
+    <PackageReference Include="NtvLibs.cuda12.cublasLt64_12.runtime.win-x64.f00" Version="12.8.1" />
+    <PackageReference Include="NtvLibs.cuda12.cublasLt64_12.runtime.win-x64.f01" Version="12.8.1" />
+    <PackageReference Include="NtvLibs.cuda12.cudart64_12.runtime.win-x64" Version="12.8.1" />
     <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cpu" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cuda12.Windows" Version="6.0.0" />
