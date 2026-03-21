@@ -194,7 +194,7 @@ public partial class Program
             ("GenerationJobs", @"CREATE TABLE IF NOT EXISTS ""GenerationJobs"" (
                 ""Id"" TEXT NOT NULL CONSTRAINT ""PK_GenerationJobs"" PRIMARY KEY,
                 ""ProjectId"" TEXT NOT NULL,
-                ""Parameters"" TEXT NOT NULL DEFAULT '{}',
+                ""Parameters"" TEXT NOT NULL DEFAULT '',
                 ""Status"" TEXT NOT NULL DEFAULT 'Pending',
                 ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
                 ""StartedAt"" INTEGER,
