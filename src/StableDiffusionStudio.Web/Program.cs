@@ -94,6 +94,9 @@ builder.Services.AddSingleton<StableDiffusionCppBackend>();
 builder.Services.AddSingleton<IInferenceBackend, LazyInferenceBackend>();
 builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
 
+// Plugins
+builder.Services.AddSingleton<IPluginManager, StableDiffusionStudio.Infrastructure.Plugins.PluginManager>();
+
 // Telemetry
 builder.Services.AddSingleton<StudioMetrics>();
 

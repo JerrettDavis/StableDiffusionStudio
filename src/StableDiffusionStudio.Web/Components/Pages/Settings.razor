@@ -21,6 +21,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject StableDiffusionStudio.Infrastructure.Persistence.AppDbContext DbContext
 @inject ISettingsExportService SettingsExportService
+@inject IPluginManager PluginManager
 
 @if (_loadError is not null)
 {
@@ -260,6 +261,39 @@
         <MudAlert Severity="Severity.Info" Dense="true">
             The application currently uses a dark theme by default.
         </MudAlert>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Plugins" Icon="@Icons.Material.Filled.Extension">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Plugins extend Stable Diffusion Studio with additional capabilities such as post-processing, custom model sources, and more.
+            Place plugin DLLs in the Plugins directory and restart the application.
+        </MudText>
+
+        @if (_loadedPlugins is not null && _loadedPlugins.Count > 0)
+        {
+            <MudSimpleTable Dense="true" Hover="true" Striped="true" Elevation="1" Class="mb-4">
+                <thead>
+                    <tr><th>Name</th><th>Version</th><th>Type</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var plugin in _loadedPlugins)
+                    {
+                        <tr>
+                            <td><MudText Typo="Typo.subtitle2">@plugin.Name</MudText></td>
+                            <td><MudChip T="string" Size="Size.Small" Color="Color.Info">@plugin.Version</MudChip></td>
+                            <td>@GetPluginType(plugin)</td>
+                            <td><MudText Typo="Typo.body2" Color="Color.Secondary">@plugin.Description</MudText></td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+        else
+        {
+            <EmptyState Title="No plugins loaded"
+                        Subtitle="Place plugin DLLs in the Plugins directory and restart the application"
+                        Icon="@Icons.Material.Filled.ExtensionOff" />
+        }
     </MudTabPanel>
 
     <MudTabPanel Text="Diagnostics" Icon="@Icons.Material.Filled.BugReport">
@@ -502,6 +536,7 @@
             await LoadInferenceSettings();
             await LoadOutputSettings();
             await LoadDataManagement();
+            await LoadPlugins();
         }
         catch (Exception ex)
         {
@@ -857,6 +892,9 @@
         return $"{bytes} B";
     }
 
+    // Plugin state
+    private IReadOnlyList<IPlugin>? _loadedPlugins;
+
     // Export/import state
     private bool _exporting;
 
@@ -907,6 +945,27 @@
             Snackbar.Add($"Import failed: {ex.Message}", MudBlazor.Severity.Error);
         }
     }
+
+    private async Task LoadPlugins()
+    {
+        try
+        {
+            await PluginManager.LoadPluginsAsync();
+            _loadedPlugins = PluginManager.LoadedPlugins;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load plugins");
+            _loadedPlugins = [];
+        }
+    }
+
+    private static string GetPluginType(IPlugin plugin) => plugin switch
+    {
+        IPostProcessor => "Post-Processor",
+        IModelProviderPlugin => "Model Provider",
+        _ => "General"
+    };
 
     // Database health check
     private string? _dbHealthStatus;
