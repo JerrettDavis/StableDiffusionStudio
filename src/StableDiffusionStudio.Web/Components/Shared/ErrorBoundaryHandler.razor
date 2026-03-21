@@ -1,0 +1,28 @@
+@using Microsoft.Extensions.Logging
+@inject ILogger<ErrorBoundaryHandler> Logger
+
+<ErrorBoundary @ref="_errorBoundary">
+    <ChildContent>
+        @ChildContent
+    </ChildContent>
+    <ErrorContent Context="ex">
+        <MudAlert Severity="Severity.Error" Class="my-4" ShowCloseIcon="true" CloseIconClicked="Recover">
+            <MudText Typo="Typo.subtitle2">Something went wrong</MudText>
+            <MudText Typo="Typo.caption">@ex.Message</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="Recover" Class="mt-2">
+                Try Again
+            </MudButton>
+        </MudAlert>
+    </ErrorContent>
+</ErrorBoundary>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private ErrorBoundary? _errorBoundary;
+
+    private void Recover()
+    {
+        _errorBoundary?.Recover();
+    }
+}

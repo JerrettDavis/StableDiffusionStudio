@@ -2,7 +2,16 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
 @inject IJobQueue JobQueue
+@inject ILogger<Jobs> Logger
 @implements IDisposable
+
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _loadError = null">
+        @_loadError
+    </MudAlert>
+}
 
 <MudText Typo="Typo.h4" Class="mb-4">Jobs</MudText>
 
@@ -37,15 +46,24 @@ else
     private IReadOnlyList<JobRecordDto>? _jobs;
     private bool _activeOnly = true;
     private Timer? _timer;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadJobs();
-        _timer = new Timer(async _ =>
+        try
         {
             await LoadJobs();
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+            _timer = new Timer(async _ =>
+            {
+                await LoadJobs();
+                await InvokeAsync(StateHasChanged);
+            }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Failed to load jobs: {ex.Message}";
+            Logger.LogError(ex, "Failed to load jobs");
+        }
     }
 
     private async Task LoadJobs()
