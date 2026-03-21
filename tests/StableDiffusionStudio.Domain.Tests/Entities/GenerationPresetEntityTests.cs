@@ -127,4 +127,40 @@ public class GenerationPresetEntityTests
         preset.SetDefault(false);
         preset.IsDefault.Should().BeFalse();
     }
+
+    [Fact]
+    public void Create_DefaultApplyMode_IsReplace()
+    {
+        var preset = GenerationPresetEntity.Create(
+            "Test", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+        preset.ApplyMode.Should().Be(PresetApplyMode.Replace);
+    }
+
+    [Theory]
+    [InlineData(PresetApplyMode.Replace)]
+    [InlineData(PresetApplyMode.AppendToPrompt)]
+    [InlineData(PresetApplyMode.PrependToPrompt)]
+    public void Create_WithApplyMode_SetsCorrectly(PresetApplyMode mode)
+    {
+        var preset = GenerationPresetEntity.Create(
+            "Test", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1, mode);
+        preset.ApplyMode.Should().Be(mode);
+    }
+
+    [Fact]
+    public void Update_WithApplyMode_ChangesApplyMode()
+    {
+        var preset = GenerationPresetEntity.Create(
+            "Test", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+
+        preset.Update(
+            "Test", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1,
+            PresetApplyMode.AppendToPrompt);
+
+        preset.ApplyMode.Should().Be(PresetApplyMode.AppendToPrompt);
+    }
 }

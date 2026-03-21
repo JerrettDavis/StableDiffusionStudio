@@ -28,7 +28,8 @@ public class PresetService : IPresetService
                     command.PositivePromptTemplate, command.NegativePrompt,
                     command.Sampler, command.Scheduler,
                     command.Steps, command.CfgScale, command.Width, command.Height,
-                    command.BatchSize, command.ClipSkip);
+                    command.BatchSize, command.ClipSkip,
+                    command.ApplyMode);
                 existing.SetDefault(command.IsDefault);
                 await _repository.UpdateAsync(existing, ct);
                 return ToDto(existing);
@@ -41,7 +42,8 @@ public class PresetService : IPresetService
             command.PositivePromptTemplate, command.NegativePrompt,
             command.Sampler, command.Scheduler,
             command.Steps, command.CfgScale, command.Width, command.Height,
-            command.BatchSize, command.ClipSkip);
+            command.BatchSize, command.ClipSkip,
+            command.ApplyMode);
         preset.SetDefault(command.IsDefault);
         await _repository.AddAsync(preset, ct);
         return ToDto(preset);
@@ -77,5 +79,5 @@ public class PresetService : IPresetService
             p.PositivePromptTemplate, p.NegativePrompt,
             p.Sampler, p.Scheduler, p.Steps, p.CfgScale,
             p.Width, p.Height, p.BatchSize, p.ClipSkip,
-            p.CreatedAt, p.UpdatedAt);
+            p.ApplyMode, p.CreatedAt, p.UpdatedAt);
 }

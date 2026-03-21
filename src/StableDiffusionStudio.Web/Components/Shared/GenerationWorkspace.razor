@@ -267,10 +267,37 @@
         _height = preset.Height;
         _batchSize = preset.BatchSize;
         _clipSkip = preset.ClipSkip;
-        if (!string.IsNullOrWhiteSpace(preset.NegativePrompt))
-            _negativePrompt = preset.NegativePrompt;
-        if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
-            _positivePrompt = preset.PositivePromptTemplate;
+
+        if (preset.ApplyMode == Domain.Enums.PresetApplyMode.AppendToPrompt)
+        {
+            if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
+                _positivePrompt = string.IsNullOrWhiteSpace(_positivePrompt)
+                    ? preset.PositivePromptTemplate
+                    : $"{_positivePrompt}, {preset.PositivePromptTemplate}";
+            if (!string.IsNullOrWhiteSpace(preset.NegativePrompt))
+                _negativePrompt = string.IsNullOrWhiteSpace(_negativePrompt)
+                    ? preset.NegativePrompt
+                    : $"{_negativePrompt}, {preset.NegativePrompt}";
+        }
+        else if (preset.ApplyMode == Domain.Enums.PresetApplyMode.PrependToPrompt)
+        {
+            if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
+                _positivePrompt = string.IsNullOrWhiteSpace(_positivePrompt)
+                    ? preset.PositivePromptTemplate
+                    : $"{preset.PositivePromptTemplate}, {_positivePrompt}";
+            if (!string.IsNullOrWhiteSpace(preset.NegativePrompt))
+                _negativePrompt = string.IsNullOrWhiteSpace(_negativePrompt)
+                    ? preset.NegativePrompt
+                    : $"{preset.NegativePrompt}, {_negativePrompt}";
+        }
+        else // Replace (existing behavior)
+        {
+            if (!string.IsNullOrWhiteSpace(preset.NegativePrompt))
+                _negativePrompt = preset.NegativePrompt;
+            if (!string.IsNullOrWhiteSpace(preset.PositivePromptTemplate))
+                _positivePrompt = preset.PositivePromptTemplate;
+        }
+
         RecalculateTokenCounts();
         Snackbar.Add($"Applied preset: {preset.Name}", Severity.Success);
         StateHasChanged();

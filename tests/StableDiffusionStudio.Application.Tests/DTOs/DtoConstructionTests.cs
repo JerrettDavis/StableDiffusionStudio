@@ -88,7 +88,7 @@ public class DtoConstructionTests
             Guid.NewGuid(), "My Preset", "desc",
             Guid.NewGuid(), ModelFamily.SD15, true,
             "masterpiece", "ugly", Sampler.EulerA, Scheduler.Normal,
-            20, 7.0, 512, 512, 1, 1,
+            20, 7.0, 512, 512, 1, 1, PresetApplyMode.Replace,
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         dto.Name.Should().Be("My Preset");
