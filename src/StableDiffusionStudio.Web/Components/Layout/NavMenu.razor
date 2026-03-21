@@ -1,10 +1,20 @@
+<div class="drawer-header">
+    <MudText Typo="Typo.h6">SD Studio</MudText>
+    <div class="subtitle">stable diffusion studio</div>
+</div>
+
 <MudNavMenu>
-    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-    <MudNavLink Href="/projects" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Folder">Projects</MudNavLink>
-    <MudNavLink Href="/models" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewInAr">Models</MudNavLink>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 pt-4 pb-1">Create</MudText>
     <MudNavLink Href="/generate" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.AutoAwesome">Generate</MudNavLink>
+    <MudNavLink Href="/projects" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Folder">Projects</MudNavLink>
     <MudNavLink Href="/presets" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Tune">Presets</MudNavLink>
+
+    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 pt-4 pb-1">Library</MudText>
+    <MudNavLink Href="/models" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ViewInAr">Models</MudNavLink>
+
+    <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="px-4 pt-4 pb-1">System</MudText>
     <MudNavLink Href="/jobs" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.WorkHistory">Jobs</MudNavLink>
-    <MudDivider Class="my-2" />
     <MudNavLink Href="/settings" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Settings">Settings</MudNavLink>
 </MudNavMenu>
