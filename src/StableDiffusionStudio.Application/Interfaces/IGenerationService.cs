@@ -12,5 +12,7 @@ public interface IGenerationService
     Task<GenerationStatusDto?> GetJobStatusAsync(Guid generationJobId, CancellationToken ct = default);
     Task<GenerationParameters> CloneParametersAsync(Guid jobId, CancellationToken ct = default);
     Task ToggleFavoriteAsync(Guid imageId, CancellationToken ct = default);
+    Task RevealImageAsync(Guid imageId, CancellationToken ct = default);
+    Task ConcealImageAsync(Guid imageId, CancellationToken ct = default);
     Task CancelGenerationAsync(Guid jobId, CancellationToken ct = default);
 }

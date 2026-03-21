@@ -1,3 +1,5 @@
+using StableDiffusionStudio.Domain.Enums;
+
 namespace StableDiffusionStudio.Application.DTOs;
 
 public record GeneratedImageDto(
@@ -10,4 +12,7 @@ public record GeneratedImageDto(
     double GenerationTimeSeconds,
     string ParametersJson,
     DateTimeOffset CreatedAt,
-    bool IsFavorite = false);
+    bool IsFavorite = false,
+    ContentRating ContentRating = ContentRating.Unknown,
+    double NsfwScore = 0,
+    bool IsRevealed = false);
