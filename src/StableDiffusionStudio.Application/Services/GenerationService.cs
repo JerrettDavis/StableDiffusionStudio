@@ -5,6 +5,7 @@ using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Entities;
 using StableDiffusionStudio.Domain.Enums;
+using StableDiffusionStudio.Domain.Services;
 using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Application.Services;
@@ -57,6 +58,29 @@ public class GenerationService : IGenerationService
 
         _logger?.LogInformation("Generation job {JobId} created for project {ProjectId}", job.Id, command.ProjectId);
         return ToDto(job);
+    }
+
+    public async Task<IReadOnlyList<GenerationJobDto>> CreateWithMatrixAsync(CreateGenerationCommand command, CancellationToken ct = default)
+    {
+        var prompts = PromptMatrixParser.ExpandMatrix(command.Parameters.PositivePrompt);
+        if (prompts.Count <= 1)
+        {
+            var single = await CreateAsync(command, ct);
+            return [single];
+        }
+
+        var results = new List<GenerationJobDto>();
+        foreach (var prompt in prompts)
+        {
+            var variantParams = command.Parameters with { PositivePrompt = prompt };
+            var variantCommand = new CreateGenerationCommand(command.ProjectId, variantParams, command.InitImageBytes);
+            var job = await CreateAsync(variantCommand, ct);
+            results.Add(job);
+        }
+
+        _logger?.LogInformation("Prompt matrix expanded into {Count} jobs for project {ProjectId}",
+            results.Count, command.ProjectId);
+        return results;
     }
 
     public async Task<GenerationJobDto?> GetJobAsync(Guid id, CancellationToken ct = default)

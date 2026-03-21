@@ -411,7 +411,8 @@
             };
 
             var command = new CreateGenerationCommand(ProjectId, parameters, _initImageBytes);
-            var genJob = await GenerationService.CreateAsync(command, ct);
+            var genJobs = await GenerationService.CreateWithMatrixAsync(command, ct);
+            var genJob = genJobs[0];
             _currentJobId = genJob.Id;
 
             // Record prompt in history
