@@ -186,4 +186,70 @@ public class PresetRepositoryTests : IDisposable
         results.Select(p => p.Name).Should().Contain("Model Any Family");
         results.Select(p => p.Name).Should().NotContain("No Match");
     }
+
+    [Fact]
+    public async Task ListAsync_WithNullModelId_IncludesUniversalPresets()
+    {
+        var universal = GenerationPresetEntity.Create(
+            "Universal", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+        var modelSpecific = GenerationPresetEntity.Create(
+            "Model Specific", null, Guid.NewGuid(), null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+
+        await _repo.AddAsync(universal);
+        await _repo.AddAsync(modelSpecific);
+
+        var results = await _repo.ListAsync(modelId: null);
+
+        // When modelId is null, should return all presets (universal + model-specific)
+        results.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesOnly_TargetPreset()
+    {
+        var keep = GenerationPresetEntity.Create(
+            "Keep Me", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+        var delete = GenerationPresetEntity.Create(
+            "Delete Me", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+
+        await _repo.AddAsync(keep);
+        await _repo.AddAsync(delete);
+
+        await _repo.DeleteAsync(delete.Id);
+
+        var results = await _repo.ListAsync();
+        results.Should().HaveCount(1);
+        results[0].Name.Should().Be("Keep Me");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_NonExistent_ReturnsNull()
+    {
+        var result = await _repo.GetByIdAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListAsync_DefaultsFirst_ThenAlphabetical()
+    {
+        var preset1 = GenerationPresetEntity.Create(
+            "Zebra", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+        var preset2 = GenerationPresetEntity.Create(
+            "Apple", null, null, null, null, "",
+            Sampler.EulerA, Scheduler.Normal, 20, 7.0, 512, 512, 1, 1);
+        preset2.SetDefault(true);
+
+        await _repo.AddAsync(preset1);
+        await _repo.AddAsync(preset2);
+
+        var results = await _repo.ListAsync();
+
+        results[0].Name.Should().Be("Apple"); // default first
+        results[1].Name.Should().Be("Zebra");
+    }
 }

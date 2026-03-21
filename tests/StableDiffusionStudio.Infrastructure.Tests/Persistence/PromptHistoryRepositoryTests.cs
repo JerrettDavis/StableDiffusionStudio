@@ -160,6 +160,77 @@ public class PromptHistoryRepositoryTests : IDisposable
         found.Should().BeNull();
     }
 
+    [Fact]
+    public async Task SearchAsync_MatchesSubstring()
+    {
+        await _repo.UpsertAsync(PromptHistory.Create("A Beautiful Sunset over the ocean", ""));
+
+        var results = await _repo.SearchAsync("Beautiful");
+
+        results.Should().HaveCount(1);
+        results[0].PositivePrompt.Should().Contain("Beautiful");
+    }
+
+    [Fact]
+    public async Task UpsertAsync_IncrementUsage_UpdatesUseCount()
+    {
+        var entry = PromptHistory.Create("test prompt", "negative");
+        await _repo.UpsertAsync(entry);
+        _context.ChangeTracker.Clear();
+
+        var found = await _repo.FindByPromptsAsync("test prompt", "negative");
+        found!.IncrementUsage();
+        found.IncrementUsage();
+        await _repo.UpsertAsync(found);
+
+        _context.ChangeTracker.Clear();
+        var updated = await _repo.FindByPromptsAsync("test prompt", "negative");
+        updated!.UseCount.Should().Be(3); // initial 1 + 2 increments
+    }
+
+    [Fact]
+    public async Task ListRecentAsync_OrdersByUsedAtDescending()
+    {
+        var entry1 = PromptHistory.Create("oldest", "");
+        await _repo.UpsertAsync(entry1);
+        await Task.Delay(10);
+
+        var entry2 = PromptHistory.Create("middle", "");
+        await _repo.UpsertAsync(entry2);
+        await Task.Delay(10);
+
+        var entry3 = PromptHistory.Create("newest", "");
+        await _repo.UpsertAsync(entry3);
+
+        var results = await _repo.ListRecentAsync();
+
+        results[0].PositivePrompt.Should().Be("newest");
+        results[1].PositivePrompt.Should().Be("middle");
+        results[2].PositivePrompt.Should().Be("oldest");
+    }
+
+    [Fact]
+    public async Task SearchAsync_MatchesNegativePrompt()
+    {
+        await _repo.UpsertAsync(PromptHistory.Create("a landscape", "ugly deformed"));
+        await _repo.UpsertAsync(PromptHistory.Create("a portrait", "blurry"));
+
+        var results = await _repo.SearchAsync("deformed");
+
+        results.Should().HaveCount(1);
+        results[0].PositivePrompt.Should().Be("a landscape");
+    }
+
+    [Fact]
+    public async Task SearchAsync_NoMatch_ReturnsEmpty()
+    {
+        await _repo.UpsertAsync(PromptHistory.Create("sunset", ""));
+
+        var results = await _repo.SearchAsync("zzzznonexistentzzzz");
+
+        results.Should().BeEmpty();
+    }
+
     public void Dispose()
     {
         _context.Dispose();

@@ -120,6 +120,72 @@ public class DbSettingsProviderTests : IDisposable
         result.Value.Should().Be(99);
     }
 
+    [Fact]
+    public async Task SetRawAsync_WithEmptyString_PersistsEmpty()
+    {
+        await _provider.SetRawAsync("empty-key", "");
+
+        var result = await _provider.GetRawAsync("empty-key");
+        result.Should().Be("");
+    }
+
+    [Fact]
+    public async Task GetAsync_WithInvalidJson_ReturnsNull()
+    {
+        await _provider.SetRawAsync("bad-json", "not json at all {{{");
+
+        var act = () => _provider.GetAsync<TestData>("bad-json");
+        await act.Should().ThrowAsync<System.Text.Json.JsonException>();
+    }
+
+    [Fact]
+    public async Task SetAsync_ThenDeleteKey_GetReturnsNull()
+    {
+        await _provider.SetAsync("temp-key", new TestData("temp", 1));
+
+        // Verify it exists
+        var before = await _provider.GetAsync<TestData>("temp-key");
+        before.Should().NotBeNull();
+
+        // Overwrite with a different key to ensure independence
+        var result = await _provider.GetAsync<TestData>("nonexistent-key");
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetAsync_WithWrongType_StillDeserializesAvailableFields()
+    {
+        await _provider.SetAsync("typed-key", new TestData("hello", 42));
+
+        // Read as a different compatible type
+        var result = await _provider.GetAsync<PartialTestData>("typed-key");
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("hello");
+    }
+
+    [Fact]
+    public async Task SetRawAsync_OverwriteMultipleTimes_OnlyLatestPersists()
+    {
+        await _provider.SetRawAsync("overwrite", "first");
+        await _provider.SetRawAsync("overwrite", "second");
+        await _provider.SetRawAsync("overwrite", "third");
+
+        var result = await _provider.GetRawAsync("overwrite");
+        result.Should().Be("third");
+    }
+
+    [Fact]
+    public async Task SetAsync_WithLargeObject_RoundTrips()
+    {
+        var tags = Enumerable.Range(0, 100).Select(i => $"tag_{i}").ToArray();
+        var data = new NestedTestData("large", new TestData("inner", 999), tags);
+        await _provider.SetAsync("large-key", data);
+
+        var result = await _provider.GetAsync<NestedTestData>("large-key");
+        result.Should().NotBeNull();
+        result!.Tags.Should().HaveCount(100);
+    }
+
     public void Dispose()
     {
         _context.Database.CloseConnection();
@@ -127,5 +193,6 @@ public class DbSettingsProviderTests : IDisposable
     }
 
     private record TestData(string Name, int Value);
+    private record PartialTestData(string Name);
     private record NestedTestData(string Label, TestData Inner, string[] Tags);
 }

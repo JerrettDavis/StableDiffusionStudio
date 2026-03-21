@@ -145,4 +145,92 @@ public class ModelCatalogRepositoryTests : IDisposable
 
         results.Should().HaveCount(3);
     }
+
+    [Fact]
+    public async Task ListAsync_WithSourceFilter_FiltersCorrectly()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("Local Model", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("HF Model", "/b.safetensors", ModelFamily.SDXL, ModelFormat.SafeTensors, 1000, "huggingface"));
+
+        var results = await _repo.ListAsync(new ModelFilter(Source: "huggingface"));
+
+        results.Should().HaveCount(1);
+        results[0].Title.Should().Be("HF Model");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithPagination_SkipAndTake()
+    {
+        for (int i = 0; i < 10; i++)
+            await _repo.UpsertAsync(ModelRecord.Create($"Model {i:D2}", $"/m{i}.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+
+        var results = await _repo.ListAsync(new ModelFilter(Skip: 3, Take: 4));
+
+        results.Should().HaveCount(4);
+    }
+
+    [Fact]
+    public async Task ListAsync_OrdersByTitle()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("Charlie", "/c.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("Alpha", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("Bravo", "/b.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+
+        var results = await _repo.ListAsync(new ModelFilter());
+
+        results[0].Title.Should().Be("Alpha");
+        results[1].Title.Should().Be("Bravo");
+        results[2].Title.Should().Be("Charlie");
+    }
+
+    [Fact]
+    public async Task UpsertAsync_UpdateExistingRecord_PreservesId()
+    {
+        var record = ModelRecord.Create("Original", "/path/model.safetensors",
+            ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local");
+        var originalId = record.Id;
+        await _repo.UpsertAsync(record);
+
+        record.UpdateMetadata(title: "Updated");
+        await _repo.UpsertAsync(record);
+
+        _context.ChangeTracker.Clear();
+        var all = await _repo.ListAsync(new ModelFilter());
+        all.Should().HaveCount(1);
+        all[0].Id.Should().Be(originalId);
+        all[0].Title.Should().Be("Updated");
+    }
+
+    [Fact]
+    public async Task RemoveAsync_NonExistent_DoesNotThrow()
+    {
+        var act = () => _repo.RemoveAsync(Guid.NewGuid());
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task ListAsync_WithFormatFilter_FiltersCorrectly()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("SafeTensors Model", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local"));
+        await _repo.UpsertAsync(ModelRecord.Create("GGUF Model", "/b.gguf", ModelFamily.SD15, ModelFormat.GGUF, 1000, "local"));
+
+        var results = await _repo.ListAsync(new ModelFilter(Format: ModelFormat.GGUF));
+
+        results.Should().HaveCount(1);
+        results[0].Title.Should().Be("GGUF Model");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithAllFiltersCombined()
+    {
+        await _repo.UpsertAsync(ModelRecord.Create("Target", "/a.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local", ModelType.Checkpoint));
+        await _repo.UpsertAsync(ModelRecord.Create("Wrong Source", "/b.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "huggingface", ModelType.Checkpoint));
+        await _repo.UpsertAsync(ModelRecord.Create("Wrong Type", "/c.safetensors", ModelFamily.SD15, ModelFormat.SafeTensors, 1000, "local", ModelType.LoRA));
+        await _repo.UpsertAsync(ModelRecord.Create("Wrong Family", "/d.safetensors", ModelFamily.SDXL, ModelFormat.SafeTensors, 1000, "local", ModelType.Checkpoint));
+
+        var results = await _repo.ListAsync(new ModelFilter(Family: ModelFamily.SD15, Source: "local", Type: ModelType.Checkpoint));
+
+        results.Should().HaveCount(1);
+        results[0].Title.Should().Be("Target");
+    }
 }

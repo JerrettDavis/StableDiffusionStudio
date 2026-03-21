@@ -91,4 +91,69 @@ public class ProjectRepositoryTests : IDisposable
         results.Should().HaveCount(1);
         results[0].Name.Should().Be("Pinned");
     }
+
+    [Fact]
+    public async Task ListAsync_OrdersPinnedFirst()
+    {
+        var unpinned = Project.Create("Unpinned", null);
+        var pinned = Project.Create("Pinned", null);
+        pinned.Pin();
+        await _repo.AddAsync(unpinned);
+        await _repo.AddAsync(pinned);
+
+        var results = await _repo.ListAsync(new ProjectFilter());
+
+        results[0].Name.Should().Be("Pinned");
+    }
+
+    [Fact]
+    public async Task ListAsync_WithPagination_SkipAndTake()
+    {
+        for (int i = 0; i < 10; i++)
+            await _repo.AddAsync(Project.Create($"Project {i}", null));
+
+        var results = await _repo.ListAsync(new ProjectFilter(Skip: 2, Take: 3));
+
+        results.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_NonExistent_DoesNotThrow()
+    {
+        var act = () => _repo.DeleteAsync(Guid.NewGuid());
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ChangesPersistAcrossQueries()
+    {
+        var project = Project.Create("Original Name", "Original Desc");
+        await _repo.AddAsync(project);
+
+        project.Rename("New Name");
+        await _repo.UpdateAsync(project);
+
+        _context.ChangeTracker.Clear();
+        var retrieved = await _repo.GetByIdAsync(project.Id);
+        retrieved!.Name.Should().Be("New Name");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_NonExistent_ReturnsNull()
+    {
+        var result = await _repo.GetByIdAsync(Guid.NewGuid());
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListAsync_NoFilter_ReturnsAll()
+    {
+        await _repo.AddAsync(Project.Create("A", null));
+        await _repo.AddAsync(Project.Create("B", null));
+        await _repo.AddAsync(Project.Create("C", null));
+
+        var results = await _repo.ListAsync(new ProjectFilter());
+
+        results.Should().HaveCount(3);
+    }
 }

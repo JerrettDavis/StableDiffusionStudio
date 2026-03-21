@@ -116,6 +116,56 @@ public class DbStorageRootProviderTests : IDisposable
         roots.Select(r => r.Path).Should().BeEquivalentTo(new[] { "/a", "/c" });
     }
 
+    [Fact]
+    public async Task AddRootAsync_DifferentDisplayNames_SamePath_OnlyFirstPersists()
+    {
+        await _provider.AddRootAsync(new StorageRoot("/models", "First Name"));
+        await _provider.AddRootAsync(new StorageRoot("/models", "Second Name"));
+
+        var roots = await _provider.GetRootsAsync();
+        roots.Should().HaveCount(1);
+        roots[0].DisplayName.Should().Be("First Name");
+    }
+
+    [Fact]
+    public async Task RemoveRootAsync_ThenAddAgain_Works()
+    {
+        await _provider.AddRootAsync(new StorageRoot("/models", "Models"));
+        await _provider.RemoveRootAsync("/models");
+
+        var emptyRoots = await _provider.GetRootsAsync();
+        emptyRoots.Should().BeEmpty();
+
+        await _provider.AddRootAsync(new StorageRoot("/models", "Models Reborn"));
+
+        var roots = await _provider.GetRootsAsync();
+        roots.Should().HaveCount(1);
+        roots[0].DisplayName.Should().Be("Models Reborn");
+    }
+
+    [Fact]
+    public async Task AddRootAsync_WithNullModelTypeTag_PersistsNull()
+    {
+        await _provider.AddRootAsync(new StorageRoot("/generic", "Generic"));
+
+        var roots = await _provider.GetRootsAsync();
+        roots[0].ModelTypeTag.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task RemoveRootAsync_RemovesOnlyTarget_LeavesOthers()
+    {
+        await _provider.AddRootAsync(new StorageRoot("/a", "A"));
+        await _provider.AddRootAsync(new StorageRoot("/b", "B"));
+        await _provider.AddRootAsync(new StorageRoot("/c", "C"));
+
+        await _provider.RemoveRootAsync("/a");
+
+        var roots = await _provider.GetRootsAsync();
+        roots.Should().HaveCount(2);
+        roots.Select(r => r.Path).Should().BeEquivalentTo(new[] { "/b", "/c" });
+    }
+
     public void Dispose()
     {
         _context.Database.CloseConnection();
