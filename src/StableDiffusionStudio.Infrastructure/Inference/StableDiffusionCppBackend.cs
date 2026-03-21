@@ -285,9 +285,20 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
 
         var images = new List<GeneratedImageData>();
 
-        // Enable preview — Proj mode works without extra model files, shows every step
-        // TAE requires a separate TAESD model; VAE is too slow for previews
-        StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.Proj, 1, true, false);
+        // Enable preview decoding during generation
+        // Proj = latent projection (fast, approximate, no extra model needed)
+        // TAE = Tiny AutoEncoder (fast, good quality, needs TAESD model)
+        // VAE = Full VAE decode (slow, best quality, uses loaded VAE)
+        // Try Proj first — if the backend supports it, we get fast previews
+        try
+        {
+            StableDiffusionCpp.EnablePreview(StableDiffusion.NET.Preview.Proj, 1, true, false);
+            _logger.LogInformation("Preview mode: Proj (latent projection)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enable Proj preview — previews will not be available");
+        }
 
         byte[]? latestPreviewBytes = null;
 
