@@ -12,6 +12,7 @@ using StableDiffusionStudio.Infrastructure.Telemetry;
 using StableDiffusionStudio.Infrastructure.Inference;
 using StableDiffusionStudio.Infrastructure.Storage;
 using Microsoft.Extensions.FileProviders;
+using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
 
@@ -170,8 +171,8 @@ using (var scope = app.Services.CreateScope())
 
         // Mark stale generation jobs as Failed
         var staleGenJobs = await db.GenerationJobs
-            .Where(j => j.Status == Domain.Enums.GenerationJobStatus.Pending
-                     || j.Status == Domain.Enums.GenerationJobStatus.Running)
+            .Where(j => j.Status == GenerationJobStatus.Pending
+                     || j.Status == GenerationJobStatus.Running)
             .ToListAsync();
         foreach (var job in staleGenJobs)
         {
@@ -180,8 +181,8 @@ using (var scope = app.Services.CreateScope())
 
         // Mark stale background jobs as Failed
         var staleJobRecords = await db.JobRecords
-            .Where(j => j.Status == Domain.Enums.JobStatus.Pending
-                     || j.Status == Domain.Enums.JobStatus.Running)
+            .Where(j => j.Status == JobStatus.Pending
+                     || j.Status == JobStatus.Running)
             .ToListAsync();
         foreach (var job in staleJobRecords)
         {
