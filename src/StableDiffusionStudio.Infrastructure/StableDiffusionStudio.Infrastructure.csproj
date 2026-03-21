@@ -35,4 +35,5 @@
     <InternalsVisibleTo Include="StableDiffusionStudio.Infrastructure.Tests" />
   </ItemGroup>
 
+
 </Project>

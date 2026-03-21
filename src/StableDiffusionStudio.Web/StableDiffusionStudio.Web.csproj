@@ -26,4 +26,21 @@
     <InternalsVisibleTo Include="StableDiffusionStudio.E2E.Tests" />
   </ItemGroup>
 
+  <!-- Assemble cublasLt64_12.dll from NtvLibs fragment packages after build.
+       The cuBLAS LT library is too large for a single NuGet package (~644MB),
+       so NtvLibs splits it into two fragment packages that need concatenation. -->
+  <Target Name="AssembleCublasLt" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <_CublasLtTarget>$(OutputPath)runtimes\win-x64\native\cublasLt64_12.dll</_CublasLtTarget>
+      <_CublasLtF00>$(NuGetPackageRoot)ntvlibs.cuda12.cublaslt64_12.runtime.win-x64.f00\12.8.1\fragments\win-x64\native\cublasLt64_12.dll.f00</_CublasLtF00>
+      <_CublasLtF01>$(NuGetPackageRoot)ntvlibs.cuda12.cublaslt64_12.runtime.win-x64.f01\12.8.1\fragments\win-x64\native\cublasLt64_12.dll.f01</_CublasLtF01>
+    </PropertyGroup>
+    <MakeDir Directories="$(OutputPath)runtimes\win-x64\native" Condition="!Exists('$(OutputPath)runtimes\win-x64\native')" />
+    <Exec Command="copy /b &quot;$(_CublasLtF00)&quot;+&quot;$(_CublasLtF01)&quot; &quot;$(_CublasLtTarget)&quot;"
+          Condition="Exists('$(_CublasLtF00)') And Exists('$(_CublasLtF01)') And !Exists('$(_CublasLtTarget)')"
+          IgnoreExitCode="true" />
+    <Message Importance="high" Text="Assembled cublasLt64_12.dll (CUDA 12) from NuGet fragments"
+             Condition="Exists('$(_CublasLtTarget)')" />
+  </Target>
+
 </Project>
