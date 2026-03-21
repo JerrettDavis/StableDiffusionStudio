@@ -54,6 +54,7 @@ builder.Services.AddScoped<IDataManagementService, DataManagementService>();
 // Settings
 builder.Services.AddScoped<ISettingsProvider, DbSettingsProvider>();
 builder.Services.AddScoped<IInferenceSettingsProvider, DbInferenceSettingsProvider>();
+builder.Services.AddScoped<IOutputSettingsProvider, DbOutputSettingsProvider>();
 
 // Model services
 builder.Services.AddScoped<IStorageRootProvider, DbStorageRootProvider>();

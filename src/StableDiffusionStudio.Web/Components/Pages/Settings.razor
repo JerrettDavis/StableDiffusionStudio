@@ -11,6 +11,7 @@
 @inject IInferenceSettingsProvider InferenceSettingsProvider
 @inject IModelCatalogService CatalogService
 @inject IContentSafetyService ContentSafety
+@inject IOutputSettingsProvider OutputSettingsProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Settings> Logger
@@ -223,6 +224,31 @@
         </MudText>
     </MudTabPanel>
 
+    <MudTabPanel Text="Output" Icon="@Icons.Material.Filled.SaveAlt">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Configure how generated images are saved to disk.
+        </MudText>
+
+        <MudTextField T="string" Label="Custom Output Directory (leave empty for default)"
+                      Value="_outputCustomDir" ValueChanged="v => _outputCustomDir = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      Placeholder="e.g., D:\StableDiffusion\Output" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Filename Pattern</MudText>
+        <MudTextField T="string" Label="Pattern" Value="_outputFilenamePattern" ValueChanged="v => _outputFilenamePattern = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-1" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Available tokens: [seed], [prompt], [date], [model]. Example: [seed]-[date] produces 12345-20260321-143022.png
+        </MudText>
+
+        <MudSwitch T="bool" @bind-Value="_outputAutoSave" Label="Auto-save images after generation" Color="Color.Primary" Class="mb-2" />
+        <MudSwitch T="bool" @bind-Value="_outputSaveGrid" Label="Save image grid for batch generations" Color="Color.Primary" Class="mb-3" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveOutputSettings">
+            Save Output Settings
+        </MudButton>
+    </MudTabPanel>
+
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
             Appearance settings will be available in a future update.
@@ -408,6 +434,12 @@
     private double _nsfwThreshold = 0.5;
     private double _questionableThreshold = 0.3;
 
+    // Output settings fields
+    private string _outputCustomDir = string.Empty;
+    private string _outputFilenamePattern = "[seed]";
+    private bool _outputAutoSave = true;
+    private bool _outputSaveGrid;
+
     // Inference settings fields
     private int _inferenceSettings_ThreadCount;
     private bool _inferenceSettings_FlashAttention;
@@ -428,6 +460,7 @@
             await LoadProviders();
             await LoadContentSafety();
             await LoadInferenceSettings();
+            await LoadOutputSettings();
             await LoadDataManagement();
         }
         catch (Exception ex)
@@ -636,6 +669,30 @@
         };
         await InferenceSettingsProvider.SaveSettingsAsync(settings);
         Snackbar.Add("Performance settings saved. Changes will apply on next model load.", MudBlazor.Severity.Success);
+    }
+
+    // Output settings methods
+
+    private async Task LoadOutputSettings()
+    {
+        var settings = await OutputSettingsProvider.GetSettingsAsync();
+        _outputCustomDir = settings.CustomOutputDirectory ?? string.Empty;
+        _outputFilenamePattern = settings.FilenamePattern;
+        _outputAutoSave = settings.AutoSave;
+        _outputSaveGrid = settings.SaveGrid;
+    }
+
+    private async Task SaveOutputSettings()
+    {
+        var settings = new OutputSettings
+        {
+            CustomOutputDirectory = string.IsNullOrWhiteSpace(_outputCustomDir) ? null : _outputCustomDir.Trim(),
+            FilenamePattern = string.IsNullOrWhiteSpace(_outputFilenamePattern) ? "[seed]" : _outputFilenamePattern.Trim(),
+            AutoSave = _outputAutoSave,
+            SaveGrid = _outputSaveGrid
+        };
+        await OutputSettingsProvider.SaveSettingsAsync(settings);
+        Snackbar.Add("Output settings saved", MudBlazor.Severity.Success);
     }
 
     // Data management methods

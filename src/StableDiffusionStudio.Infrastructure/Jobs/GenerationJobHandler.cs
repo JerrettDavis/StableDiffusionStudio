@@ -17,6 +17,7 @@ public class GenerationJobHandler : IJobHandler
     private readonly IContentSafetyService _contentSafetyService;
     private readonly IGenerationNotifier _generationNotifier;
     private readonly IFluxComponentResolver? _fluxResolver;
+    private readonly IOutputSettingsProvider? _outputSettingsProvider;
     private readonly ILogger<GenerationJobHandler> _logger;
 
     public GenerationJobHandler(
@@ -27,7 +28,8 @@ public class GenerationJobHandler : IJobHandler
         IContentSafetyService contentSafetyService,
         IGenerationNotifier generationNotifier,
         ILogger<GenerationJobHandler> logger,
-        IFluxComponentResolver? fluxResolver = null)
+        IFluxComponentResolver? fluxResolver = null,
+        IOutputSettingsProvider? outputSettingsProvider = null)
     {
         _generationJobRepository = generationJobRepository;
         _modelCatalogRepository = modelCatalogRepository;
@@ -36,6 +38,7 @@ public class GenerationJobHandler : IJobHandler
         _contentSafetyService = contentSafetyService;
         _generationNotifier = generationNotifier;
         _fluxResolver = fluxResolver;
+        _outputSettingsProvider = outputSettingsProvider;
         _logger = logger;
     }
 
@@ -251,7 +254,18 @@ public class GenerationJobHandler : IJobHandler
             // Free memory after generation before saving/classification
             GC.Collect(2, GCCollectionMode.Forced, false);
 
-            var assetsDir = _appPaths.GetJobAssetsDirectory(generationJob.ProjectId, generationJob.Id);
+            // Load output settings for filename formatting
+            Domain.ValueObjects.OutputSettings? outputSettings = null;
+            if (_outputSettingsProvider is not null)
+            {
+                try { outputSettings = await _outputSettingsProvider.GetSettingsAsync(ct); }
+                catch { /* Use default if settings unavailable */ }
+            }
+            outputSettings ??= Domain.ValueObjects.OutputSettings.Default;
+
+            var assetsDir = !string.IsNullOrWhiteSpace(outputSettings.CustomOutputDirectory)
+                ? Path.Combine(outputSettings.CustomOutputDirectory, generationJob.ProjectId.ToString(), generationJob.Id.ToString())
+                : _appPaths.GetJobAssetsDirectory(generationJob.ProjectId, generationJob.Id);
             Directory.CreateDirectory(assetsDir);
 
             var parametersJson = JsonSerializer.Serialize(parameters);
@@ -269,7 +283,9 @@ public class GenerationJobHandler : IJobHandler
 
             foreach (var imageData in allImages)
             {
-                var fileName = $"{imageData.Seed}.png";
+                var fileName = outputSettings.FormatFilename(
+                    imageData.Seed, parameters.PositivePrompt,
+                    DateTimeOffset.UtcNow, modelName ?? "unknown");
                 var filePath = Path.Combine(assetsDir, fileName);
 
                 // Embed A1111-compatible metadata into PNG before saving
