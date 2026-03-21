@@ -70,14 +70,26 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
         await _settings.SetAsync(SettingsKey, updated, ct);
     }
 
-    internal async Task<ContentSafetySettings> GetSettingsAsync(CancellationToken ct)
+    public async Task<ContentSafetyThresholds> GetThresholdsAsync(CancellationToken ct = default)
     {
-        return await _settings.GetAsync<ContentSafetySettings>(SettingsKey, ct) ?? ContentSafetySettings.Default;
+        var settings = await GetSettingsAsync(ct);
+        return new ContentSafetyThresholds(settings.NsfwThreshold, settings.QuestionableThreshold);
     }
 
-    internal async Task SaveSettingsAsync(ContentSafetySettings settings, CancellationToken ct)
+    public async Task SetThresholdsAsync(ContentSafetyThresholds thresholds, CancellationToken ct = default)
     {
-        await _settings.SetAsync(SettingsKey, settings, ct);
+        var settings = await GetSettingsAsync(ct);
+        var updated = settings with
+        {
+            NsfwThreshold = thresholds.NsfwThreshold,
+            QuestionableThreshold = thresholds.QuestionableThreshold
+        };
+        await _settings.SetAsync(SettingsKey, updated, ct);
+    }
+
+    private async Task<ContentSafetySettings> GetSettingsAsync(CancellationToken ct)
+    {
+        return await _settings.GetAsync<ContentSafetySettings>(SettingsKey, ct) ?? ContentSafetySettings.Default;
     }
 
     private void EnsureInitialized()

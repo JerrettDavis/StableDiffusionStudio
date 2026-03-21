@@ -10,6 +10,7 @@
 @inject IProviderCredentialStore CredentialStore
 @inject IInferenceSettingsProvider InferenceSettingsProvider
 @inject IModelCatalogService CatalogService
+@inject IContentSafetyService ContentSafety
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -162,6 +163,55 @@
         </MudButton>
     </MudTabPanel>
 
+    <MudTabPanel Text="Content Safety" Icon="@Icons.Material.Filled.Shield">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Locally detect and filter NSFW content. All classification runs on your machine — no data leaves your system.
+        </MudText>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Filter Mode</MudText>
+        <MudRadioGroup T="NsfwFilterMode" Value="_nsfwFilterMode" ValueChanged="OnFilterModeChanged">
+            <MudRadio T="NsfwFilterMode" Value="NsfwFilterMode.Off" Color="Color.Default">
+                <MudText Typo="Typo.body2">Off</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">No content filtering. All images shown as generated.</MudText>
+            </MudRadio>
+            <MudRadio T="NsfwFilterMode" Value="NsfwFilterMode.Blur" Color="Color.Warning" Class="mt-2">
+                <MudText Typo="Typo.body2">Blur &amp; Reveal</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">NSFW images are blurred. You can reveal individual images by clicking them.</MudText>
+            </MudRadio>
+            <MudRadio T="NsfwFilterMode" Value="NsfwFilterMode.BlockAndDelete" Color="Color.Error" Class="mt-2">
+                <MudText Typo="Typo.body2">Block &amp; Delete</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">NSFW images are automatically deleted immediately after generation. Cannot be recovered.</MudText>
+            </MudRadio>
+        </MudRadioGroup>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Sensitivity</MudText>
+        <MudSlider T="double" Value="_nsfwThreshold" ValueChanged="OnNsfwThresholdChanged"
+                   Min="0.1" Max="0.9" Step="0.05" Color="Color.Warning">
+            NSFW Threshold: <span class="param-value">@_nsfwThreshold.ToString("P0")</span>
+        </MudSlider>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Lower = more strict (blocks more). Higher = more lenient. Default: 50%
+        </MudText>
+
+        <MudSlider T="double" Value="_questionableThreshold" ValueChanged="OnQuestionableThresholdChanged"
+                   Min="0.05" Max="0.5" Step="0.05" Color="Color.Info">
+            Questionable Threshold: <span class="param-value">@_questionableThreshold.ToString("P0")</span>
+        </MudSlider>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Content above this score but below NSFW threshold is marked as questionable.
+        </MudText>
+
+        <MudDivider Class="my-4" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">About</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Content safety is powered by NsfwSpy, an ML.NET model that runs entirely on your machine.
+            No images or data are sent to any external service. Classification categories: Neutral, Sexy, Hentai, Pornography.
+        </MudText>
+    </MudTabPanel>
+
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
             Appearance settings will be available in a future update.
@@ -289,6 +339,11 @@
     private IReadOnlyList<ProjectDto>? _projectList;
     private Guid? _selectedProjectForCleanup;
 
+    // Content safety fields
+    private NsfwFilterMode _nsfwFilterMode;
+    private double _nsfwThreshold = 0.5;
+    private double _questionableThreshold = 0.3;
+
     // Inference settings fields
     private int _inferenceSettings_ThreadCount;
     private bool _inferenceSettings_FlashAttention;
@@ -305,6 +360,7 @@
     {
         await LoadRoots();
         await LoadProviders();
+        await LoadContentSafety();
         await LoadInferenceSettings();
         await LoadDataManagement();
     }
@@ -423,6 +479,39 @@
             await LoadRoots();
             Snackbar.Add("Directory removed", MudBlazor.Severity.Info);
         }
+    }
+
+    private async Task LoadContentSafety()
+    {
+        _nsfwFilterMode = await ContentSafety.GetFilterModeAsync();
+        var thresholds = await ContentSafety.GetThresholdsAsync();
+        _nsfwThreshold = thresholds.NsfwThreshold;
+        _questionableThreshold = thresholds.QuestionableThreshold;
+    }
+
+    private async Task OnFilterModeChanged(NsfwFilterMode mode)
+    {
+        _nsfwFilterMode = mode;
+        await ContentSafety.SetFilterModeAsync(mode);
+        Snackbar.Add($"Content safety filter set to: {mode}", MudBlazor.Severity.Info);
+    }
+
+    private async Task OnNsfwThresholdChanged(double value)
+    {
+        _nsfwThreshold = value;
+        await SaveContentSafetyThresholds();
+    }
+
+    private async Task OnQuestionableThresholdChanged(double value)
+    {
+        _questionableThreshold = value;
+        await SaveContentSafetyThresholds();
+    }
+
+    private async Task SaveContentSafetyThresholds()
+    {
+        await ContentSafety.SetThresholdsAsync(new ContentSafetyThresholds(_nsfwThreshold, _questionableThreshold));
+        Snackbar.Add("Sensitivity thresholds updated", MudBlazor.Severity.Info);
     }
 
     private async Task LoadInferenceSettings()
