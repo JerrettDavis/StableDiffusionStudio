@@ -16,12 +16,15 @@ public class DataManagementServiceTests : IDisposable
     private readonly Microsoft.Data.Sqlite.SqliteConnection _connection;
     private readonly AppDbContext _context;
     private readonly DataManagementService _service;
+    private readonly string _testAssetsDir;
 
     public DataManagementServiceTests()
     {
         (_context, _connection) = TestDbContextFactory.Create();
+        _testAssetsDir = Path.Combine(Path.GetTempPath(), $"SDS_Test_Assets_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testAssetsDir);
         var appPaths = Substitute.For<IAppPaths>();
-        appPaths.AssetsDirectory.Returns(Path.Combine(Path.GetTempPath(), "SDS_Test_Assets"));
+        appPaths.AssetsDirectory.Returns(_testAssetsDir);
         _service = new DataManagementService(_context, appPaths);
     }
 
@@ -29,6 +32,7 @@ public class DataManagementServiceTests : IDisposable
     {
         _context.Dispose();
         _connection.Dispose();
+        try { if (Directory.Exists(_testAssetsDir)) Directory.Delete(_testAssetsDir, true); } catch { }
     }
 
     [Fact]

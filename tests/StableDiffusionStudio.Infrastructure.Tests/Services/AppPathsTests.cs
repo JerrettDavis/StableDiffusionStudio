@@ -86,11 +86,14 @@ public class AppPathsTests
         result.Should().Contain("project/job/output.png");
     }
 
-    [Fact]
-    public void GetImageUrl_WithPathOutsideAssets_ReturnsFilenameOnly()
+    [Theory]
+    [InlineData("D:\\somewhere\\else\\photo.png", "/assets/photo.png")]
+    [InlineData("/tmp/somewhere/else/photo.png", "/assets/photo.png")]
+    [InlineData("photo.png", "/assets/photo.png")]
+    public void GetImageUrl_WithPathOutsideAssets_ReturnsFilenameOnly(string input, string expected)
     {
-        var result = _appPaths.GetImageUrl("D:\\somewhere\\else\\photo.png");
-        result.Should().Be("/assets/photo.png");
+        var result = _appPaths.GetImageUrl(input);
+        result.Should().Be(expected);
     }
 
     [Fact]
