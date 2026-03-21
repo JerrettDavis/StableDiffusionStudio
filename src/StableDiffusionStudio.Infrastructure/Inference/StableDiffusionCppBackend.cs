@@ -346,7 +346,19 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                 var seed = request.Seed == -1 ? Random.Shared.NextInt64() : request.Seed + i;
                 var sw = Stopwatch.StartNew();
 
-                var genParams = ImageGenerationParameter.TextToImage(request.PositivePrompt);
+                ImageGenerationParameter genParams;
+                if (request.InitImage is not null && request.DenoisingStrength < 1.0)
+                {
+                    // img2img: create from init image
+                    var initImage = LoadImageFromBytes(request.InitImage);
+                    genParams = ImageGenerationParameter.ImageToImage(request.PositivePrompt, initImage);
+                    genParams.Strength = (float)request.DenoisingStrength;
+                    _logger.LogInformation("Using img2img pipeline with denoising strength {Strength}", request.DenoisingStrength);
+                }
+                else
+                {
+                    genParams = ImageGenerationParameter.TextToImage(request.PositivePrompt);
+                }
                 genParams.NegativePrompt = request.NegativePrompt;
                 genParams.Width = request.Width;
                 genParams.Height = request.Height;
@@ -425,6 +437,19 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         _model = null;
         _loadedModelPath = null;
     }
+
+    /// <summary>
+    /// Converts PNG bytes to an HPPH IImage suitable for img2img generation.
+    /// Uses System.Drawing.Bitmap (Windows-only) and the HPPH.System.Drawing ToImage() extension.
+    /// </summary>
+#pragma warning disable CA1416 // Platform compatibility — this application targets Windows
+    private static HPPH.IImage LoadImageFromBytes(byte[] pngBytes)
+    {
+        using var ms = new MemoryStream(pngBytes);
+        using var bitmap = new System.Drawing.Bitmap(ms);
+        return bitmap.ToImage();
+    }
+#pragma warning restore CA1416
 
     internal static SdSampler MapSampler(Sampler sampler) => sampler switch
     {
