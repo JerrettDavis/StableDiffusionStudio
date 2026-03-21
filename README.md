@@ -56,10 +56,14 @@ CUDA is auto-selected for NVIDIA GPUs. Vulkan is the fallback for universal GPU 
 ```bash
 git clone https://github.com/JerrettDavis/StableDiffusionStudio.git
 cd StableDiffusionStudio
+
+# Direct launch (recommended — fastest startup, most stable)
+dotnet run --project src/StableDiffusionStudio.Web
+# Open http://localhost:5190
+
+# Or with Aspire dashboard (adds OpenTelemetry monitoring)
 dotnet run --project src/StableDiffusionStudio.AppHost
 ```
-
-This launches the Aspire dashboard. Click the **web** endpoint to open Stable Diffusion Studio.
 
 ### First steps
 
