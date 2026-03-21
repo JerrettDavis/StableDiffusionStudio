@@ -141,7 +141,7 @@ public class DbInferenceSettingsProviderTests : IDisposable
         settings.FlashAttention.Should().BeTrue();
         settings.DiffusionFlashAttention.Should().BeTrue();
         settings.VaeTiling.Should().BeTrue();
-        settings.VaeDecodeOnly.Should().BeTrue();
+        settings.VaeDecodeOnly.Should().BeFalse();
         settings.KeepClipOnCPU.Should().BeTrue();
         settings.KeepVaeOnCPU.Should().BeTrue();
         settings.KeepControlNetOnCPU.Should().BeFalse();

@@ -9,7 +9,7 @@ public sealed record InferenceSettings
     public bool FlashAttention { get; init; } = true;
     public bool DiffusionFlashAttention { get; init; } = true;
     public bool VaeTiling { get; init; } = true;
-    public bool VaeDecodeOnly { get; init; } = true;
+    public bool VaeDecodeOnly { get; init; } = false; // Must be false to support img2img/inpainting
     public bool KeepClipOnCPU { get; init; } = true;
     public bool KeepVaeOnCPU { get; init; } = true;
     public bool KeepControlNetOnCPU { get; init; } = false;
