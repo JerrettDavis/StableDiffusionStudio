@@ -20,14 +20,20 @@
                 </MudSelect>
             </MudItem>
             <MudItem xs="6">
-                <MudSlider T="int" Value="Params_Steps" ValueChanged="OnStepsChanged" Min="1" Max="150" Step="1">
-                    Steps: @Params_Steps
-                </MudSlider>
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">Steps</MudText>
+                    <span class="param-value">@Params_Steps</span>
+                </div>
+                <MudSlider T="int" Value="Params_Steps" ValueChanged="OnStepsChanged" Min="1" Max="150" Step="1"
+                           Color="Color.Primary" Size="Size.Small" />
             </MudItem>
             <MudItem xs="6">
-                <MudSlider T="double" Value="Params_CfgScale" ValueChanged="OnCfgScaleChanged" Min="1" Max="30" Step="0.5">
-                    CFG: @Params_CfgScale.ToString("F1")
-                </MudSlider>
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">CFG Scale</MudText>
+                    <span class="param-value">@Params_CfgScale.ToString("F1")</span>
+                </div>
+                <MudSlider T="double" Value="Params_CfgScale" ValueChanged="OnCfgScaleChanged" Min="1" Max="30" Step="0.5"
+                           Color="Color.Primary" Size="Size.Small" />
             </MudItem>
             <MudItem xs="5">
                 <MudTextField T="long" Label="Seed (-1 = random)" Value="Params_Seed" ValueChanged="OnSeedChanged"
@@ -37,30 +43,33 @@
                 <MudIconButton Icon="@Icons.Material.Filled.Casino" Size="Size.Small"
                                OnClick="RandomizeSeed" aria-label="Random seed" />
             </MudItem>
-            <MudItem xs="3">
-                <MudSelect T="int" Label="Width" Value="Params_Width" ValueChanged="OnWidthChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @foreach (var w in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
-                    {
-                        <MudSelectItem T="int" Value="@w">@w</MudSelectItem>
-                    }
-                </MudSelect>
-            </MudItem>
-            <MudItem xs="1" Class="d-flex align-center justify-center">
-                <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
-                               OnClick="SwapDimensions" aria-label="Swap width and height" />
-            </MudItem>
-            <MudItem xs="2">
-                <MudSelect T="int" Label="Height" Value="Params_Height" ValueChanged="OnHeightChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
-                    @foreach (var h in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
-                    {
-                        <MudSelectItem T="int" Value="@h">@h</MudSelectItem>
-                    }
-                </MudSelect>
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-2">Resolution</MudText>
+                <div class="d-flex align-center gap-2">
+                    <MudSelect T="int" Label="Width" Value="Params_Width" ValueChanged="OnWidthChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
+                        @foreach (var w in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
+                        {
+                            <MudSelectItem T="int" Value="@w">@w</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz" Size="Size.Small"
+                                   OnClick="SwapDimensions" aria-label="Swap width and height" />
+                    <MudSelect T="int" Label="Height" Value="Params_Height" ValueChanged="OnHeightChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px">
+                        @foreach (var h in new[] { 256, 384, 512, 640, 768, 896, 1024, 1152, 1280, 1536 })
+                        {
+                            <MudSelectItem T="int" Value="@h">@h</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <span class="param-value" style="white-space:nowrap">@(Params_Width)x@(Params_Height)</span>
+                </div>
             </MudItem>
             <MudItem xs="6">
-                <MudSlider T="int" Value="Params_BatchSize" ValueChanged="OnBatchSizeChanged" Min="1" Max="8" Step="1">
-                    Batch Size: @Params_BatchSize
-                </MudSlider>
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">Batch Size</MudText>
+                    <span class="param-value">@Params_BatchSize</span>
+                </div>
+                <MudSlider T="int" Value="Params_BatchSize" ValueChanged="OnBatchSizeChanged" Min="1" Max="8" Step="1"
+                           Color="Color.Primary" Size="Size.Small" />
             </MudItem>
         </MudGrid>
     </MudExpansionPanel>
@@ -68,26 +77,32 @@
     <MudExpansionPanel Text="Advanced">
         <MudGrid>
             <MudItem xs="6">
-                <MudSlider T="int" Value="Params_ClipSkip" ValueChanged="OnClipSkipChanged" Min="1" Max="12" Step="1">
-                    CLIP Skip: @Params_ClipSkip
-                </MudSlider>
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">CLIP Skip</MudText>
+                    <span class="param-value">@Params_ClipSkip</span>
+                </div>
+                <MudSlider T="int" Value="Params_ClipSkip" ValueChanged="OnClipSkipChanged" Min="1" Max="12" Step="1"
+                           Color="Color.Primary" Size="Size.Small" />
             </MudItem>
             <MudItem xs="6">
-                <MudSlider T="int" Value="Params_BatchCount" ValueChanged="OnBatchCountChanged" Min="1" Max="10" Step="1">
-                    Batch Count: @Params_BatchCount
-                </MudSlider>
+                <div class="d-flex align-center justify-space-between mb-1">
+                    <MudText Typo="Typo.body2">Batch Count</MudText>
+                    <span class="param-value">@Params_BatchCount</span>
+                </div>
+                <MudSlider T="int" Value="Params_BatchCount" ValueChanged="OnBatchCountChanged" Min="1" Max="10" Step="1"
+                           Color="Color.Primary" Size="Size.Small" />
             </MudItem>
         </MudGrid>
 
-        <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Quick Resolution</MudText>
+        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3 mb-2">Quick Resolution</MudText>
         <MudChipSet T="string" Class="mb-2">
-            <MudChip T="string" OnClick="() => SetResolution(512, 512)">512x512</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(512, 768)">512x768</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(768, 512)">768x512</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(768, 768)">768x768</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(1024, 1024)">1024x1024</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(1024, 1536)">1024x1536</MudChip>
-            <MudChip T="string" OnClick="() => SetResolution(1536, 1024)">1536x1024</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(512, 512)" Class="quick-chip">512x512</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(512, 768)" Class="quick-chip">512x768</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(768, 512)" Class="quick-chip">768x512</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(768, 768)" Class="quick-chip">768x768</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1024, 1024)" Class="quick-chip">1024x1024</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1024, 1536)" Class="quick-chip">1024x1536</MudChip>
+            <MudChip T="string" OnClick="() => SetResolution(1536, 1024)" Class="quick-chip">1536x1024</MudChip>
         </MudChipSet>
     </MudExpansionPanel>
 </MudExpansionPanels>
