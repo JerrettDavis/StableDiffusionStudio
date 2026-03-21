@@ -165,6 +165,9 @@ public class GenerationJobHandler : IJobHandler
             job.UpdateProgress(85, "Saving images");
 
             // Save images to disk
+            // Free memory after generation before saving/classification
+            GC.Collect(2, GCCollectionMode.Forced, false);
+
             var assetsDir = _appPaths.GetJobAssetsDirectory(generationJob.ProjectId, generationJob.Id);
             Directory.CreateDirectory(assetsDir);
 
