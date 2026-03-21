@@ -4,8 +4,15 @@
 @using StableDiffusionStudio.Domain.Enums
 @using StableDiffusionStudio.Domain.ValueObjects
 @inject IModelCatalogService CatalogService
+@inject IDialogService DialogService
 
-<MudText Typo="Typo.subtitle2" Class="mb-2">LoRAs</MudText>
+<div class="d-flex align-center justify-space-between mb-2">
+    <MudText Typo="Typo.subtitle2">LoRAs</MudText>
+    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.GridView" OnClick="OpenBrowser">
+        Browse
+    </MudButton>
+</div>
 
 @foreach (var lora in SelectedLoras)
 {
@@ -63,5 +70,24 @@
         var idx = SelectedLoras.FindIndex(l => l.ModelId == id);
         if (idx >= 0) SelectedLoras[idx] = new LoraReference(id, weight);
         await SelectedLorasChanged.InvokeAsync(SelectedLoras);
+    }
+
+    private async Task OpenBrowser()
+    {
+        var parameters = new DialogParameters<Dialogs.ExtraNetworkBrowser>
+        {
+            { x => x.ExcludeIds, SelectedLoras.Select(l => l.ModelId).ToList() }
+        };
+        var dialog = await DialogService.ShowAsync<Dialogs.ExtraNetworkBrowser>("Extra Networks", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled && result.Data is ModelRecordDto model)
+        {
+            SelectedLoras.Add(new LoraReference(model.Id, 1.0));
+            await SelectedLorasChanged.InvokeAsync(SelectedLoras);
+            // Refresh available loras in case they changed
+            _availableLoras = await CatalogService.ListAsync(new ModelFilter(Type: ModelType.LoRA));
+        }
     }
 }

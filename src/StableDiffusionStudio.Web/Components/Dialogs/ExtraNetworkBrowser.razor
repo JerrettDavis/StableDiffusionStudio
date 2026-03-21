@@ -1,0 +1,122 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Application.Services
+@using StableDiffusionStudio.Domain.Enums
+@inject IModelCatalogService CatalogService
+@inject IAppPaths AppPaths
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center gap-2">
+            <MudText Typo="Typo.h6">Extra Networks</MudText>
+            <MudChipSet T="string" SelectedValue="_typeFilter" SelectedValueChanged="OnTypeFilterChanged">
+                <MudChip T="string" Value="@("LoRA")" Color="Color.Primary">LoRAs</MudChip>
+                <MudChip T="string" Value="@("Embedding")" Color="Color.Secondary">Embeddings</MudChip>
+            </MudChipSet>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_search" Placeholder="Search..." Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-3"
+                      DebounceInterval="300" />
+
+        @if (_models is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (GetFilteredModels().Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Align="Align.Center" Class="py-8">
+                No @_typeFilter models found.
+            </MudText>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var model in GetFilteredModels())
+                {
+                    <MudItem xs="4" sm="3" md="2">
+                        <MudCard Elevation="0" Class="cursor-pointer"
+                                 Style="border:1px solid var(--mud-palette-lines-default); border-radius:var(--mud-default-borderradius)"
+                                 @onclick="() => SelectModel(model)">
+                            @if (model.PreviewImagePath is not null)
+                            {
+                                <MudCardMedia Image="@GetPreviewUrl(model)" Height="120" />
+                            }
+                            else
+                            {
+                                <div style="height:120px; display:flex; align-items:center; justify-content:center; background:var(--mud-palette-surface)">
+                                    <MudIcon Icon="@Icons.Material.Filled.Image" Color="Color.Default" />
+                                </div>
+                            }
+                            <MudCardContent Class="pa-2">
+                                <MudText Typo="Typo.caption"
+                                         Style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block">
+                                    @model.Title
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @model.ModelFamily
+                                </MudText>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<Guid> ExcludeIds { get; set; } = [];
+
+    private string _typeFilter = "LoRA";
+    private string _search = string.Empty;
+    private IReadOnlyList<ModelRecordDto>? _models;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadModels();
+    }
+
+    private async Task OnTypeFilterChanged(string value)
+    {
+        _typeFilter = value;
+        await LoadModels();
+    }
+
+    private async Task LoadModels()
+    {
+        var type = _typeFilter == "Embedding" ? ModelType.Embedding : ModelType.LoRA;
+        _models = await CatalogService.ListAsync(new ModelFilter(Type: type, Take: 200));
+    }
+
+    private IReadOnlyList<ModelRecordDto> GetFilteredModels()
+    {
+        if (_models is null) return [];
+
+        var filtered = _models.Where(m => !ExcludeIds.Contains(m.Id));
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim();
+            filtered = filtered.Where(m =>
+                m.Title.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                m.Tags.Any(t => t.Contains(term, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return filtered.ToList();
+    }
+
+    private string GetPreviewUrl(ModelRecordDto model)
+        => model.PreviewImagePath is not null ? AppPaths.GetImageUrl(model.PreviewImagePath) : string.Empty;
+
+    private void SelectModel(ModelRecordDto model)
+        => MudDialog.Close(DialogResult.Ok(model));
+
+    private void Close() => MudDialog.Cancel();
+}
