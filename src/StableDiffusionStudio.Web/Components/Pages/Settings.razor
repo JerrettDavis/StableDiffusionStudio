@@ -14,6 +14,8 @@
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Settings> Logger
+@using Microsoft.EntityFrameworkCore
+@inject StableDiffusionStudio.Infrastructure.Persistence.AppDbContext DbContext
 
 @if (_loadError is not null)
 {
@@ -231,16 +233,68 @@
     </MudTabPanel>
 
     <MudTabPanel Text="Diagnostics" Icon="@Icons.Material.Filled.BugReport">
-        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
-            Diagnostics and telemetry information will be available in a future update.
-        </MudText>
-        <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+        <MudText Typo="Typo.subtitle2" Class="mb-2">System Information</MudText>
+        <MudSimpleTable Dense="true" Hover="true" Elevation="0" Class="mb-4">
             <tbody>
                 <tr><td><strong>Runtime</strong></td><td>@System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription</td></tr>
                 <tr><td><strong>OS</strong></td><td>@System.Runtime.InteropServices.RuntimeInformation.OSDescription</td></tr>
                 <tr><td><strong>Storage Roots</strong></td><td>@(_roots?.Count ?? 0)</td></tr>
             </tbody>
         </MudSimpleTable>
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Database Health</MudText>
+        @if (_dbHealthStatus is null)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                       OnClick="CheckDatabaseHealth" Disabled="_checkingDbHealth" Class="mb-3">
+                @if (_checkingDbHealth)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Checking...</span>
+                }
+                else
+                {
+                    <span>Run Health Check</span>
+                }
+            </MudButton>
+        }
+        else
+        {
+            <MudAlert Severity="@(_dbHealthy ? Severity.Success : Severity.Error)" Dense="true" Class="mb-3">
+                @_dbHealthStatus
+            </MudAlert>
+            @if (_dbTableCounts is not null)
+            {
+                <MudSimpleTable Dense="true" Hover="true" Striped="true" Elevation="0" Class="mb-3">
+                    <thead>
+                        <tr><th>Table</th><th>Row Count</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (table, count, error) in _dbTableCounts)
+                        {
+                            <tr>
+                                <td>@table</td>
+                                <td>@(error is not null ? "N/A" : count.ToString())</td>
+                                <td>
+                                    @if (error is not null)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error">@error</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success">OK</MudChip>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+            <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="CheckDatabaseHealth"
+                       Disabled="_checkingDbHealth">
+                Re-check
+            </MudButton>
+        }
     </MudTabPanel>
 
     <MudTabPanel Text="Data Management" Icon="@Icons.Material.Filled.DeleteSweep">
@@ -704,5 +758,64 @@
         if (bytes >= mb) return $"{bytes / (double)mb:F1} MB";
         if (bytes >= kb) return $"{bytes / (double)kb:F1} KB";
         return $"{bytes} B";
+    }
+
+    // Database health check
+    private string? _dbHealthStatus;
+    private bool _dbHealthy;
+    private bool _checkingDbHealth;
+    private List<(string Table, int Count, string? Error)>? _dbTableCounts;
+
+    private async Task CheckDatabaseHealth()
+    {
+        _checkingDbHealth = true;
+        StateHasChanged();
+
+        try
+        {
+            var tables = new (string Name, Func<Task<int>> CountFn)[]
+            {
+                ("Projects", () => DbContext.Projects.CountAsync()),
+                ("ModelRecords", () => DbContext.ModelRecords.CountAsync()),
+                ("JobRecords", () => DbContext.JobRecords.CountAsync()),
+                ("Settings", () => DbContext.Settings.CountAsync()),
+                ("GenerationJobs", () => DbContext.GenerationJobs.CountAsync()),
+                ("GeneratedImages", () => DbContext.GeneratedImages.CountAsync()),
+                ("GenerationPresets", () => DbContext.GenerationPresets.CountAsync()),
+                ("PromptHistories", () => DbContext.PromptHistories.CountAsync()),
+            };
+
+            _dbTableCounts = new List<(string, int, string?)>();
+            var hasErrors = false;
+
+            foreach (var (name, countFn) in tables)
+            {
+                try
+                {
+                    var count = await countFn();
+                    _dbTableCounts.Add((name, count, null));
+                }
+                catch (Exception ex)
+                {
+                    _dbTableCounts.Add((name, 0, ex.Message));
+                    hasErrors = true;
+                }
+            }
+
+            _dbHealthy = !hasErrors;
+            _dbHealthStatus = hasErrors
+                ? "Database has schema issues — some tables are inaccessible"
+                : $"All {tables.Length} tables accessible and healthy";
+        }
+        catch (Exception ex)
+        {
+            _dbHealthy = false;
+            _dbHealthStatus = $"Database unreachable: {ex.Message}";
+            Logger.LogError(ex, "Database health check failed");
+        }
+        finally
+        {
+            _checkingDbHealth = false;
+        }
     }
 }

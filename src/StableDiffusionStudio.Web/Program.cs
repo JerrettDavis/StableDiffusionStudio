@@ -110,6 +110,10 @@ builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation")
 // Telemetry
 builder.Services.AddSingleton<StudioMetrics>();
 
+// Database health check
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>("database");
+
 // SignalR
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IGenerationNotifier, SignalRGenerationNotifier>();
