@@ -25,10 +25,19 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
 
     public async Task<ContentClassification> ClassifyAsync(byte[] imageBytes, CancellationToken ct = default)
     {
+        if (_initFailed)
+            return new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1);
+
         try
         {
             EnsureInitialized();
-            var result = _nsfwSpy!.ClassifyImage(imageBytes);
+
+            // Run classification on a background thread with a timeout
+            // ML.NET can hang or consume excessive memory on certain images
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+
+            var result = await Task.Run(() => _nsfwSpy!.ClassifyImage(imageBytes), cts.Token);
 
             var pornScore = (double)result.Pornography;
             var sexyScore = (double)result.Sexy;
@@ -47,6 +56,11 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
 
             _logger.LogInformation("Content classified: {Rating} (NSFW: {Score:P1})", rating, nsfwScore);
             return new ContentClassification(rating, nsfwScore, pornScore, sexyScore, hentaiScore, neutralScore);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Content classification timed out after 30s — skipping");
+            return new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1);
         }
         catch (Exception ex)
         {
@@ -101,16 +115,28 @@ public class NsfwSpyContentSafetyService : IContentSafetyService
         return await _settings.GetAsync<ContentSafetySettings>(SettingsKey, ct) ?? ContentSafetySettings.Default;
     }
 
+    private bool _initFailed;
+
     private void EnsureInitialized()
     {
+        if (_initFailed) return;
         if (!_initialized)
         {
             lock (_initLock)
             {
-                if (!_initialized)
+                if (!_initialized && !_initFailed)
                 {
-                    _nsfwSpy = new NsfwSpy();
-                    _initialized = true;
+                    try
+                    {
+                        _nsfwSpy = new NsfwSpy();
+                        _initialized = true;
+                        _logger.LogInformation("NsfwSpy ML model loaded successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        _initFailed = true;
+                        _logger.LogError(ex, "Failed to initialize NsfwSpy — content classification disabled");
+                    }
                 }
             }
         }
