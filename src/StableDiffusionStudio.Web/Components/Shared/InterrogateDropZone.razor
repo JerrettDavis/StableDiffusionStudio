@@ -1,0 +1,99 @@
+@using Microsoft.AspNetCore.Components.Forms
+@inject ISnackbar Snackbar
+@inject StableDiffusionStudio.Application.Interfaces.IImageInterrogator Interrogator
+
+<MudExpansionPanels Class="mt-2 mb-2" Elevation="0">
+    <MudExpansionPanel Style="background:transparent" Dense="true">
+        <TitleContent>
+            <div class="d-flex align-center gap-2">
+                <MudIcon Icon="@Icons.Material.Filled.ImageSearch" Size="Size.Small" Color="Color.Secondary" />
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Interrogate image for prompt</MudText>
+            </div>
+        </TitleContent>
+        <ChildContent>
+            <div class="interrogate-zone @(_isDragOver ? "drag-over" : "")"
+                 @ondragover="() => _isDragOver = true"
+                 @ondragover:preventDefault="true"
+                 @ondragleave="() => _isDragOver = false">
+                @if (_isInterrogating)
+                {
+                    <div class="d-flex flex-column align-center gap-2 pa-3">
+                        <MudProgressCircular Size="Size.Medium" Indeterminate="true" Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Analyzing image...</MudText>
+                    </div>
+                }
+                else
+                {
+                    <InputFile OnChange="OnFileSelected" accept=".png,.jpg,.jpeg,.webp"
+                               style="position:absolute;inset:0;opacity:0;cursor:pointer;z-index:1" />
+                    <div style="pointer-events:none" class="d-flex flex-column align-center pa-2">
+                        <MudIcon Icon="@Icons.Material.Outlined.AddPhotoAlternate" Size="Size.Medium"
+                                 Color="Color.Secondary" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                            Drop or click — generates a prompt from the image
+                        </MudText>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+<style>
+    .interrogate-zone {
+        position: relative;
+        border: 1px dashed var(--mud-palette-lines-default);
+        border-radius: var(--mud-default-borderradius);
+        text-align: center;
+        transition: border-color 0.15s, background 0.15s;
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .interrogate-zone:hover {
+        border-color: var(--mud-palette-primary);
+    }
+
+    .interrogate-zone.drag-over {
+        border-color: var(--mud-palette-primary);
+        background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback<string> OnPromptGenerated { get; set; }
+
+    private bool _isInterrogating;
+    private bool _isDragOver;
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _isDragOver = false;
+        _isInterrogating = true;
+        StateHasChanged();
+
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024).CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            var prompt = await Interrogator.InterrogateAsync(bytes);
+            if (!string.IsNullOrWhiteSpace(prompt))
+                await OnPromptGenerated.InvokeAsync(prompt);
+            else
+                Snackbar.Add("No prompt generated — try a different image", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Interrogation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isInterrogating = false;
+            StateHasChanged();
+        }
+    }
+}

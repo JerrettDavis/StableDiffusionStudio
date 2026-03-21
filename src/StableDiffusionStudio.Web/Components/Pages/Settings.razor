@@ -12,6 +12,8 @@
 @inject IModelCatalogService CatalogService
 @inject IContentSafetyService ContentSafety
 @inject IOutputSettingsProvider OutputSettingsProvider
+@inject IImageInterrogator ImageInterrogator
+@inject ISettingsProvider SettingsProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject ILogger<Settings> Logger
@@ -252,6 +254,36 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveOutputSettings">
             Save Output Settings
         </MudButton>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Interrogation" Icon="@Icons.Material.Filled.ImageSearch">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Configure the vision model used to generate prompts from images. Requires a running
+            <MudLink Href="https://ollama.com" Target="_blank">Ollama</MudLink> instance with a vision model installed
+            (e.g., <code>ollama pull llava</code> or <code>ollama pull llama3.2-vision</code>).
+        </MudText>
+
+        <MudTextField T="string" Label="Ollama URL" Value="_interrogateUrl" ValueChanged="v => _interrogateUrl = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      Placeholder="http://localhost:11434" />
+
+        <MudTextField T="string" Label="Vision Model" Value="_interrogateModel" ValueChanged="v => _interrogateModel = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      HelperText="e.g., llava, llama3.2-vision, moondream" />
+
+        <MudTextField T="string" Label="System Prompt" Lines="4" Value="_interrogateSystemPrompt"
+                      ValueChanged="v => _interrogateSystemPrompt = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      HelperText="Instructions for how the model should describe the image" />
+
+        <div class="d-flex gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveInterrogationSettings">
+                Save Interrogation Settings
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TestOllamaConnection">
+                Test Connection
+            </MudButton>
+        </div>
     </MudTabPanel>
 
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
@@ -514,6 +546,11 @@
     private bool _outputAutoSave = true;
     private bool _outputSaveGrid;
 
+    // Interrogation settings fields
+    private string _interrogateUrl = "http://localhost:11434";
+    private string _interrogateModel = "llava";
+    private string _interrogateSystemPrompt = StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings.Default.SystemPrompt;
+
     // Inference settings fields
     private int _inferenceSettings_ThreadCount;
     private bool _inferenceSettings_FlashAttention;
@@ -535,6 +572,7 @@
             await LoadContentSafety();
             await LoadInferenceSettings();
             await LoadOutputSettings();
+            await LoadInterrogationSettings();
             await LoadDataManagement();
             await LoadPlugins();
         }
@@ -768,6 +806,38 @@
         };
         await OutputSettingsProvider.SaveSettingsAsync(settings);
         Snackbar.Add("Output settings saved", MudBlazor.Severity.Success);
+    }
+
+    // Interrogation settings methods
+
+    private async Task LoadInterrogationSettings()
+    {
+        var settings = await SettingsProvider.GetAsync<StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings>("InterrogationSettings");
+        settings ??= StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings.Default;
+        _interrogateUrl = settings.OllamaUrl;
+        _interrogateModel = settings.Model;
+        _interrogateSystemPrompt = settings.SystemPrompt;
+    }
+
+    private async Task SaveInterrogationSettings()
+    {
+        var settings = new StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings
+        {
+            OllamaUrl = _interrogateUrl.TrimEnd('/'),
+            Model = _interrogateModel.Trim(),
+            SystemPrompt = _interrogateSystemPrompt
+        };
+        await SettingsProvider.SetAsync("InterrogationSettings", settings);
+        Snackbar.Add("Interrogation settings saved", MudBlazor.Severity.Success);
+    }
+
+    private async Task TestOllamaConnection()
+    {
+        var available = await ImageInterrogator.IsAvailableAsync();
+        if (available)
+            Snackbar.Add($"Connected to Ollama at {_interrogateUrl}", MudBlazor.Severity.Success);
+        else
+            Snackbar.Add($"Could not connect to Ollama at {_interrogateUrl}. Is it running?", MudBlazor.Severity.Error);
     }
 
     // Data management methods
