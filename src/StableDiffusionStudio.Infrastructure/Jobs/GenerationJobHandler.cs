@@ -71,8 +71,13 @@ public class GenerationJobHandler : IJobHandler
         await _generationJobRepository.UpdateAsync(generationJob, ct);
         job.UpdateProgress(5, "Loading model");
 
+        var projectIdStr = generationJob.ProjectId.ToString();
+
         try
         {
+            // Notify UI that model loading has started
+            await SendStatusSafe(projectIdStr, "Resolving model...", 5);
+
             // Resolve checkpoint path
             var checkpoint = await _modelCatalogRepository.GetByIdAsync(generationJob.Parameters.CheckpointModelId, ct);
             if (checkpoint is null)
@@ -106,6 +111,7 @@ public class GenerationJobHandler : IJobHandler
             var checkpointName = Path.GetFileName(checkpoint.FilePath).ToLowerInvariant();
             if (checkpointName.Contains("flux") && _fluxResolver != null)
             {
+                await SendStatusSafe(projectIdStr, "Resolving Flux components (VAE, CLIP-L, T5-XXL)...", 8);
                 var components = await _fluxResolver.ResolveAsync(checkpoint.FilePath, ct);
                 if (components != null)
                 {
@@ -117,9 +123,15 @@ public class GenerationJobHandler : IJobHandler
                 }
             }
 
-            // Load model
+            // Load model — this can take 30-120+ seconds for large models
+            var modelFileName = Path.GetFileName(checkpoint.FilePath);
+            await SendStatusSafe(projectIdStr, $"Loading model: {modelFileName}...", 10);
+            job.UpdateProgress(10, $"Loading {modelFileName}");
+
             await _inferenceBackend.LoadModelAsync(
                 new ModelLoadRequest(checkpoint.FilePath, vaePath, loras, clipLPath, t5xxlPath), ct);
+
+            await SendStatusSafe(projectIdStr, "Model loaded — starting generation...", 20);
             job.UpdateProgress(20, "Generating");
 
             // Generate — run BatchCount iterations, each producing BatchSize images
@@ -173,8 +185,6 @@ public class GenerationJobHandler : IJobHandler
                     parameters.DenoisingStrength,
                     maskImageBytes
                 );
-
-                var projectIdStr = generationJob.ProjectId.ToString();
 
                 // Send an immediate "step 0" event so the UI skeleton card appears right away.
                 // Some models/samplers (e.g. turbo models with DPM++ SDE) complete very fast
@@ -388,6 +398,18 @@ public class GenerationJobHandler : IJobHandler
 
             await _generationNotifier.SendFailedAsync(generationJob.ProjectId.ToString(), ex.Message);
             // Don't re-throw — we've handled the error by updating both job records
+        }
+    }
+
+    private async Task SendStatusSafe(string projectId, string phase, int progressPercent)
+    {
+        try
+        {
+            await _generationNotifier.SendStatusAsync(projectId, phase, progressPercent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to send status notification");
         }
     }
 
