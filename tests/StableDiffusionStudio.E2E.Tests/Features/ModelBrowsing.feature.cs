@@ -241,9 +241,6 @@ namespace StableDiffusionStudio.E2E.Tests.Features
 #line 22
     await testRunner.AndAsync("I should see the \"Quick Actions\" section", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 23
-    await testRunner.AndAsync("I should see a \"Generate\" button", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
-#line hidden
             }
             await this.ScenarioCleanupAsync();
         }

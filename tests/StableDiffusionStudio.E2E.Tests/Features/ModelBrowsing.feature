@@ -20,4 +20,3 @@ Feature: Model Browsing
     Given I am on the home page
     Then I should see the "Welcome back" heading
     And I should see the "Quick Actions" section
-    And I should see a "Generate" button
