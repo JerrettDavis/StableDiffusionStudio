@@ -81,6 +81,10 @@
         }
         <MudSpacer />
         <MudButton OnClick="Close">Close</MudButton>
+        <MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="SendToImg2Img"
+                   StartIcon="@Icons.Material.Filled.Image">
+            Send to img2img
+        </MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ReuseSettings">
             Reuse Settings
         </MudButton>
@@ -104,6 +108,7 @@
 
     private void Close() => MudDialog.Close();
     private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
+    private void SendToImg2Img() => MudDialog.Close(DialogResult.Ok("img2img"));
 
     private async Task ToggleFavorite()
     {

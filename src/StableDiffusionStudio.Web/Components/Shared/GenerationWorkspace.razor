@@ -23,6 +23,17 @@
         <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-3">Generation Workspace</MudText>
 
+            <MudToggleGroup T="Domain.Enums.GenerationMode" @bind-Value="_generationMode" Class="mb-3"
+                            Color="Color.Primary" Outlined="true" Dense="true">
+                <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.TextToImage">txt2img</MudToggleItem>
+                <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.ImageToImage">img2img</MudToggleItem>
+            </MudToggleGroup>
+
+            @if (_generationMode == Domain.Enums.GenerationMode.ImageToImage)
+            {
+                <ImageUpload @bind-ImageBytes="_initImageBytes" />
+            }
+
             <RecentModelsBar @ref="_recentModelsBar" SelectedModelId="_checkpointId"
                              OnModelSelected="OnCheckpointChanged" />
 
@@ -93,7 +104,7 @@
 
             <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mt-4"
                        StartIcon="@Icons.Material.Filled.AutoAwesome"
-                       Disabled="@(_isGenerating || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt))"
+                       Disabled="@(_isGenerating || _checkpointId is null || string.IsNullOrWhiteSpace(_positivePrompt) || (_generationMode == Domain.Enums.GenerationMode.ImageToImage && _initImageBytes is null))"
                        OnClick="Generate">
                 @if (_isGenerating)
                 {
@@ -143,7 +154,9 @@
         <MudPaper Class="pa-4" Elevation="1">
             <MudText Typo="Typo.h6" Class="mb-3">Generated Images</MudText>
 
-            <GenerationGallery @ref="_gallery" ProjectId="ProjectId" OnReuseSettings="ReuseSettings" />
+            <GenerationGallery @ref="_gallery" ProjectId="ProjectId"
+                               OnReuseSettings="ReuseSettings"
+                               OnSendToImg2Img="OnSendToImg2Img" />
         </MudPaper>
     </MudItem>
 </MudGrid>
@@ -170,6 +183,8 @@
     private int _batchCount = 1;
     private double _eta = 0.0;
     private double _denoisingStrength = 1.0;
+    private Domain.Enums.GenerationMode _generationMode = Domain.Enums.GenerationMode.TextToImage;
+    private byte[]? _initImageBytes;
     private bool _isGenerating;
     private string? _generationError;
     private string? _generationStatus;
@@ -379,10 +394,11 @@
                 ClipSkip = _clipSkip,
                 BatchCount = _batchCount,
                 Eta = _eta,
-                DenoisingStrength = _denoisingStrength
+                DenoisingStrength = _denoisingStrength,
+                Mode = _generationMode
             };
 
-            var command = new CreateGenerationCommand(ProjectId, parameters);
+            var command = new CreateGenerationCommand(ProjectId, parameters, _initImageBytes);
             var genJob = await GenerationService.CreateAsync(command, ct);
             _currentJobId = genJob.Id;
 
@@ -474,8 +490,20 @@
         _batchCount = job.Parameters.BatchCount;
         _eta = job.Parameters.Eta;
         _denoisingStrength = job.Parameters.DenoisingStrength;
+        _generationMode = job.Parameters.Mode;
+        // Clear init image when reusing — the user must re-upload or use Send to img2img
+        _initImageBytes = null;
         RecalculateTokenCounts();
         Snackbar.Add("Settings loaded from previous generation", Severity.Success);
+        StateHasChanged();
+    }
+
+    private void OnSendToImg2Img(byte[] imageBytes)
+    {
+        _generationMode = Domain.Enums.GenerationMode.ImageToImage;
+        _initImageBytes = imageBytes;
+        _denoisingStrength = 0.75; // Sensible default for img2img
+        Snackbar.Add("Image loaded for img2img. Adjust denoising strength and generate.", Severity.Success);
         StateHasChanged();
     }
 
