@@ -31,6 +31,8 @@ public class AppPaths : IAppPaths
                 .Replace('\\', '/');
             return $"/assets/{relativePath}";
         }
-        return $"/assets/{Path.GetFileName(filePath)}";
+        // Path.GetFileName doesn't handle backslashes on Linux, so handle both separators
+        var fileName = filePath.Split('/', '\\').Last();
+        return $"/assets/{fileName}";
     }
 }
