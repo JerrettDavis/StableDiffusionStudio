@@ -148,4 +148,96 @@ public class StableDiffusionCppBackendTests
     {
         StableDiffusionCppBackend.MapScheduler(input).Should().Be(expected);
     }
+
+    [Fact]
+    public void MapSampler_UnknownValue_ReturnsDefault()
+    {
+        StableDiffusionCppBackend.MapSampler((Sampler)999).Should().Be(SdSampler.Default);
+    }
+
+    [Fact]
+    public void MapScheduler_UnknownValue_ReturnsDefault()
+    {
+        StableDiffusionCppBackend.MapScheduler((Scheduler)999).Should().Be(SdScheduler.Default);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithoutModel_ReturnsEmptyImageList()
+    {
+        var request = new InferenceRequest("test", "", Sampler.Euler, Scheduler.Normal,
+            Steps: 10, CfgScale: 7.0, Seed: 1, Width: 512, Height: 512, BatchSize: 1);
+        var progress = new Progress<InferenceProgress>();
+
+        var result = await _backend.GenerateAsync(request, progress);
+
+        result.Images.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_WithLargeBatch_WithoutModel_ReturnsError()
+    {
+        var request = new InferenceRequest("test", "", Sampler.DPMPlusPlus2M, Scheduler.Karras,
+            Steps: 20, CfgScale: 9.0, Seed: 100, Width: 1024, Height: 1024, BatchSize: 4);
+        var progress = new Progress<InferenceProgress>();
+
+        var result = await _backend.GenerateAsync(request, progress);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Be("No model loaded");
+    }
+
+    [Fact]
+    public async Task LoadModelAsync_WithNonExistentPath_ThrowsOrFails()
+    {
+        var request = new ModelLoadRequest("/nonexistent/model.safetensors", null, []);
+
+        try
+        {
+            await _backend.LoadModelAsync(request);
+            // If native lib is not present, this may throw before reaching model load
+        }
+        catch (Exception ex)
+        {
+            // Expected: DllNotFoundException, TypeInitializationException, or InvalidOperationException
+            ex.Should().Match<Exception>(e =>
+                e is DllNotFoundException ||
+                e is InvalidOperationException ||
+                e is TypeInitializationException ||
+                e is EntryPointNotFoundException);
+        }
+    }
+
+    [Fact]
+    public async Task UnloadModelAsync_MultipleCalls_DoNotThrow()
+    {
+        await _backend.UnloadModelAsync();
+        await _backend.UnloadModelAsync();
+        await _backend.UnloadModelAsync();
+    }
+
+    [Fact]
+    public void Capabilities_SupportedSamplers_DoesNotContainDuplicates()
+    {
+        _backend.Capabilities.SupportedSamplers.Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public void Capabilities_SupportedFamilies_DoesNotContainDuplicates()
+    {
+        _backend.Capabilities.SupportedFamilies.Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
+    public async Task ConcurrentGenerateAsync_BothReturnNoModelError()
+    {
+        var request = new InferenceRequest("test", "", Sampler.Euler, Scheduler.Normal,
+            Steps: 5, CfgScale: 7.0, Seed: 1, Width: 512, Height: 512, BatchSize: 1);
+
+        var task1 = _backend.GenerateAsync(request, new Progress<InferenceProgress>());
+        var task2 = _backend.GenerateAsync(request, new Progress<InferenceProgress>());
+
+        var results = await Task.WhenAll(task1, task2);
+        results[0].Success.Should().BeFalse();
+        results[1].Success.Should().BeFalse();
+    }
 }

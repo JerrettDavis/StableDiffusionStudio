@@ -451,4 +451,229 @@ public class CivitAIProviderTests
         result.Models[0].PreviewImageUrl.Should().Be("https://img.com/v2.jpg");
         result.Models[0].Variants[0].FileName.Should().Be("v2.safetensors");
     }
+
+    [Fact]
+    public async Task SearchAsync_MapsTextualInversionToEmbedding()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 777,
+                    "name": "EasyNegative",
+                    "type": "TextualInversion",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 888,
+                            "baseModel": "SD 1.5",
+                            "images": [],
+                            "files": [{"id": 999, "name": "easynegative.safetensors", "sizeKB": 50}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "easyneg"));
+
+        result.Models[0].Type.Should().Be(ModelType.Embedding);
+    }
+
+    [Fact]
+    public async Task SearchAsync_MapsVAEType()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 555,
+                    "name": "SD VAE FT-MSE",
+                    "type": "VAE",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 666,
+                            "baseModel": "SD 1.5",
+                            "images": [],
+                            "files": [{"id": 777, "name": "vae-ft-mse.safetensors", "sizeKB": 300000}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "vae"));
+
+        result.Models[0].Type.Should().Be(ModelType.VAE);
+    }
+
+    [Fact]
+    public async Task SearchAsync_InfersCkptFormatFromFileName()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 100,
+                    "name": "Old Model",
+                    "type": "Checkpoint",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 200,
+                            "baseModel": "SD 1.5",
+                            "images": [],
+                            "files": [{"id": 300, "name": "old_model.ckpt", "sizeKB": 2048000}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "old"));
+
+        result.Models[0].Format.Should().Be(ModelFormat.CKPT);
+        result.Models[0].Variants[0].Format.Should().Be(ModelFormat.CKPT);
+    }
+
+    [Fact]
+    public async Task SearchAsync_HttpException_ReturnsEmptyResult()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithHandler("civitai.com/api/v1/models", _ => throw new HttpRequestException("Timeout"));
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "test"));
+
+        result.Models.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+        result.HasMore.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExtractsQuantizationMetadata()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, SampleApiResponse);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "realistic"));
+
+        result.Models[0].Variants[0].Quantization.Should().Be("fp16");
+    }
+
+    [Fact]
+    public async Task DownloadAsync_WithoutApiKey_NoTokenInUrl()
+    {
+        _credentialStore.GetTokenAsync("civitai", Arg.Any<CancellationToken>())
+            .Returns((string?)null);
+
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"civit_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("civitai", "12345", "model.safetensors",
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests[0].RequestUri!.ToString().Should().NotContain("token=");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public async Task ValidateCredentialsAsync_HttpException_ReturnsFalse()
+    {
+        _credentialStore.GetTokenAsync("civitai", Arg.Any<CancellationToken>())
+            .Returns("some_token");
+
+        var handler = new MockHttpMessageHandler()
+            .WithHandler("civitai.com/api/v1/models", _ => throw new HttpRequestException("Network error"));
+
+        var provider = CreateProvider(handler);
+        var result = await provider.ValidateCredentialsAsync();
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SearchAsync_NoModelVersions_StillReturnsModel()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 100,
+                    "name": "Empty Model",
+                    "type": "Checkpoint",
+                    "tags": []
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "empty"));
+
+        result.Models.Should().HaveCount(1);
+        result.Models[0].Title.Should().Be("Empty Model");
+        result.Models[0].Variants.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Capabilities_SupportedModelTypes_IncludesEmbeddingAndControlNet()
+    {
+        var handler = new MockHttpMessageHandler();
+        var provider = CreateProvider(handler);
+
+        provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.Embedding);
+        provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.ControlNet);
+    }
+
+    [Fact]
+    public async Task DownloadAsync_NoVariant_UsesDefaultFileName()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithDefaultResponse(HttpStatusCode.OK, "file content");
+
+        var provider = CreateProvider(handler);
+        var tempDir = Path.Combine(Path.GetTempPath(), $"civit_test_{Guid.NewGuid():N}");
+        try
+        {
+            var request = new DownloadRequest("civitai", "99999", null,
+                new StorageRoot(tempDir, "Test"), ModelType.Checkpoint);
+            await provider.DownloadAsync(request, new Progress<DownloadProgress>());
+
+            handler.SentRequests[0].RequestUri!.ToString().Should().Contain("download/models/99999");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
