@@ -78,6 +78,9 @@ builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
 
+// Content safety
+builder.Services.AddScoped<IContentSafetyService, NsfwSpyContentSafetyService>();
+
 // Generation services
 builder.Services.AddScoped<IGenerationService, GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();

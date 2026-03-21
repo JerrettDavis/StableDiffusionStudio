@@ -17,6 +17,7 @@ public class GenerationJobHandlerTests
     private readonly IModelCatalogRepository _modelCatalog = Substitute.For<IModelCatalogRepository>();
     private readonly IInferenceBackend _backend = Substitute.For<IInferenceBackend>();
     private readonly IAppPaths _appPaths = Substitute.For<IAppPaths>();
+    private readonly IContentSafetyService _contentSafety = Substitute.For<IContentSafetyService>();
     private readonly ILogger<GenerationJobHandler> _logger = Substitute.For<ILogger<GenerationJobHandler>>();
     private readonly GenerationJobHandler _handler;
 
@@ -27,7 +28,11 @@ public class GenerationJobHandlerTests
         _appPaths.GetJobAssetsDirectory(Arg.Any<Guid>(), Arg.Any<Guid>())
             .Returns(ci => Path.Combine(Path.GetTempPath(), "SDS_Test_Assets",
                 ci.ArgAt<Guid>(0).ToString(), ci.ArgAt<Guid>(1).ToString()));
-        _handler = new GenerationJobHandler(_genJobRepo, _modelCatalog, _backend, _appPaths, _logger);
+        _contentSafety.GetFilterModeAsync(Arg.Any<CancellationToken>())
+            .Returns(Domain.Enums.NsfwFilterMode.Off);
+        _contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new ContentClassification(Domain.Enums.ContentRating.Unknown, 0, 0, 0, 0, 1));
+        _handler = new GenerationJobHandler(_genJobRepo, _modelCatalog, _backend, _appPaths, _contentSafety, _logger);
     }
 
     private static GenerationParameters ValidParameters => new()

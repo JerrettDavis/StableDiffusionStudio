@@ -83,8 +83,12 @@ public class EndToEndGenerationTests : IDisposable
 
         // 4. Process the job via GenerationJobHandler (simulating the background worker)
         var mockBackend = new MockInferenceBackend();
+        var contentSafety = Substitute.For<IContentSafetyService>();
+        contentSafety.GetFilterModeAsync(Arg.Any<CancellationToken>()).Returns(NsfwFilterMode.Off);
+        contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
-            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths,
+            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
             Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", $"{{\"GenerationJobId\":\"{genJobDto.Id}\"}}");
@@ -142,8 +146,12 @@ public class EndToEndGenerationTests : IDisposable
 
         // Process the job
         var mockBackend = new MockInferenceBackend();
+        var contentSafety = Substitute.For<IContentSafetyService>();
+        contentSafety.GetFilterModeAsync(Arg.Any<CancellationToken>()).Returns(NsfwFilterMode.Off);
+        contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
-            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths,
+            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
             Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", $"{{\"GenerationJobId\":\"{genJobDto.Id}\"}}");
@@ -160,8 +168,12 @@ public class EndToEndGenerationTests : IDisposable
     public async Task Pipeline_WithInvalidJobData_FailsJobRecord()
     {
         var mockBackend = new MockInferenceBackend();
+        var contentSafety = Substitute.For<IContentSafetyService>();
+        contentSafety.GetFilterModeAsync(Arg.Any<CancellationToken>()).Returns(NsfwFilterMode.Off);
+        contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
-            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths,
+            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
             Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", "invalid-json");
@@ -176,8 +188,12 @@ public class EndToEndGenerationTests : IDisposable
     public async Task Pipeline_WithNullJobData_FailsJobRecord()
     {
         var mockBackend = new MockInferenceBackend();
+        var contentSafety = Substitute.For<IContentSafetyService>();
+        contentSafety.GetFilterModeAsync(Arg.Any<CancellationToken>()).Returns(NsfwFilterMode.Off);
+        contentSafety.ClassifyAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
+            .Returns(new ContentClassification(ContentRating.Unknown, 0, 0, 0, 0, 1));
         var handler = new GenerationJobHandler(
-            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths,
+            _genJobRepo, _modelCatalogRepo, mockBackend, _appPaths, contentSafety,
             Substitute.For<ILogger<GenerationJobHandler>>());
 
         var jobRecord = JobRecord.Create("generation", null);
