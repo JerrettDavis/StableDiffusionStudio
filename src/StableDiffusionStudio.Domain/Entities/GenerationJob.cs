@@ -30,6 +30,8 @@ public class GenerationJob
             throw new ArgumentException("CFG scale must be between 1 and 30.");
         if (parameters.BatchSize < 1 || parameters.BatchSize > 16)
             throw new ArgumentException("Batch size must be between 1 and 16.");
+        if (parameters.Mode == GenerationMode.ImageToImage && parameters.DenoisingStrength >= 1.0)
+            throw new ArgumentException("Denoising strength must be less than 1.0 for img2img mode.");
 
         return new GenerationJob
         {

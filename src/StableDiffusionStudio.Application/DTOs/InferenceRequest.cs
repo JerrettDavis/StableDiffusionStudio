@@ -14,4 +14,6 @@ public sealed record InferenceRequest(
     int Height,
     int BatchSize,
     int ClipSkip = 1,
-    double Eta = 0.0);
+    double Eta = 0.0,
+    byte[]? InitImage = null,
+    double DenoisingStrength = 1.0);

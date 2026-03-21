@@ -14,17 +14,20 @@ public class GenerationService : IGenerationService
     private readonly IGenerationJobRepository _repository;
     private readonly IModelCatalogRepository _modelCatalog;
     private readonly IJobQueue _jobQueue;
+    private readonly IAppPaths _appPaths;
     private readonly ILogger<GenerationService>? _logger;
 
     public GenerationService(
         IGenerationJobRepository repository,
         IModelCatalogRepository modelCatalog,
         IJobQueue jobQueue,
+        IAppPaths appPaths,
         ILogger<GenerationService>? logger = null)
     {
         _repository = repository;
         _modelCatalog = modelCatalog;
         _jobQueue = jobQueue;
+        _appPaths = appPaths;
         _logger = logger;
     }
 
@@ -34,7 +37,19 @@ public class GenerationService : IGenerationService
         if (checkpoint is null)
             throw new KeyNotFoundException($"Checkpoint model {command.Parameters.CheckpointModelId} not found.");
 
-        var job = GenerationJob.Create(command.ProjectId, command.Parameters);
+        var parameters = command.Parameters;
+
+        // If init image bytes are provided, save them to disk and set the path on parameters
+        if (command.InitImageBytes is not null)
+        {
+            var initDir = _appPaths.GetProjectAssetsDirectory(command.ProjectId);
+            Directory.CreateDirectory(initDir);
+            var initPath = Path.Combine(initDir, $"init_{Guid.NewGuid():N}.png");
+            await File.WriteAllBytesAsync(initPath, command.InitImageBytes, ct);
+            parameters = parameters with { InitImagePath = initPath };
+        }
+
+        var job = GenerationJob.Create(command.ProjectId, parameters);
         await _repository.AddAsync(job, ct);
 
         var jobData = JsonSerializer.Serialize(new { GenerationJobId = job.Id });

@@ -21,4 +21,6 @@ public sealed record GenerationParameters
     public int BatchCount { get; init; } = 1;
     public double Eta { get; init; } = 0.0;
     public double DenoisingStrength { get; init; } = 1.0;
+    public GenerationMode Mode { get; init; } = GenerationMode.TextToImage;
+    public string? InitImagePath { get; init; }
 }
