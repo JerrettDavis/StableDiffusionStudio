@@ -7,7 +7,11 @@ public interface IContentSafetyService
     Task<ContentClassification> ClassifyAsync(byte[] imageBytes, CancellationToken ct = default);
     Task<NsfwFilterMode> GetFilterModeAsync(CancellationToken ct = default);
     Task SetFilterModeAsync(NsfwFilterMode mode, CancellationToken ct = default);
+    Task<ContentSafetyThresholds> GetThresholdsAsync(CancellationToken ct = default);
+    Task SetThresholdsAsync(ContentSafetyThresholds thresholds, CancellationToken ct = default);
 }
+
+public record ContentSafetyThresholds(double NsfwThreshold, double QuestionableThreshold);
 
 public record ContentClassification(
     ContentRating Rating,
