@@ -37,8 +37,10 @@
 
 <MudTabs Elevation="1" Rounded="true">
     <MudTabPanel Text="Storage Roots" Icon="@Icons.Material.Filled.Folder">
-        <MudText Typo="Typo.body1" Class="mb-3">
-            Configure directories where your model files are stored.
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Point the app at folders containing your model files (checkpoints, LoRAs, VAEs, embeddings).
+            These are the same folders used by A1111/Forge/ComfyUI — you can share them.
+            Tag a folder with a model type to help auto-classification during scanning.
         </MudText>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Add" OnClick="AddRoot" Class="mb-4">
@@ -83,7 +85,8 @@
 
     <MudTabPanel Text="Model Sources" Icon="@Icons.Material.Filled.Cloud">
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-            Configure credentials for remote model providers.
+            Add API keys for remote model providers so you can search and download models directly from the app.
+            Tokens are stored locally in the database — they are never sent anywhere except the provider's own API.
         </MudText>
 
         @if (_providerInfos is not null)
@@ -124,62 +127,99 @@
 
     <MudTabPanel Text="Performance / Backend" Icon="@Icons.Material.Filled.Speed">
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-            Configure hardware utilization and memory management for image generation.
+            Control how the inference engine uses your hardware. These settings affect VRAM usage, speed, and stability.
+            Changes take effect the next time a model is loaded.
         </MudText>
 
-        <MudText Typo="Typo.subtitle2" Class="mb-2">VRAM Presets</MudText>
-        <MudChipSet T="string" Class="mb-3">
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Quick Presets</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+            Pick a preset to auto-configure all settings below for your GPU's VRAM. You can fine-tune individual settings after.
+        </MudText>
+        <MudChipSet T="string" Class="mb-4">
             <MudChip T="string" Color="Color.Success" OnClick="ApplyHighVRAM">High VRAM (16GB+)</MudChip>
-            <MudChip T="string" Color="Color.Primary" OnClick="ApplyDefaultVRAM">Default (8-16GB)</MudChip>
+            <MudChip T="string" Color="Color.Primary" OnClick="ApplyDefaultVRAM">Default (8-12GB)</MudChip>
             <MudChip T="string" Color="Color.Warning" OnClick="ApplyLowVRAM">Low VRAM (&lt;8GB)</MudChip>
         </MudChipSet>
 
-        <MudGrid>
-            <MudItem xs="6">
-                <MudNumericField T="int" Label="CPU Threads (0 = auto)" @bind-Value="_inferenceSettings_ThreadCount"
-                                 Min="0" Max="128" Variant="Variant.Outlined" Margin="Margin.Dense" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
-                    Auto = @Environment.ProcessorCount threads
-                </MudText>
-            </MudItem>
-        </MudGrid>
+        <MudNumericField T="int" Label="CPU Threads" @bind-Value="_inferenceSettings_ThreadCount"
+                         Min="0" Max="128" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4"
+                         HelperText="@($"Number of CPU threads for computation. 0 = auto-detect ({Environment.ProcessorCount} on this machine). Lower values free CPU for other tasks.")" />
 
-        <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Memory Optimization</MudText>
-        <MudGrid>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_FlashAttention" Label="Flash Attention" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_DiffusionFlashAttention" Label="Diffusion Flash Attention (fp16 K/V)" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeTiling" Label="VAE Tiling" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeDecodeOnly" Label="VAE Decode Only" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepClipOnCPU" Label="CLIP on CPU" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepVaeOnCPU" Label="VAE on CPU" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepControlNetOnCPU" Label="ControlNet on CPU" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_OffloadParamsToCPU" Label="Offload Params to CPU" Color="Color.Primary" />
-            </MudItem>
-            <MudItem xs="6">
-                <MudSwitch T="bool" @bind-Value="_inferenceSettings_EnableMmap" Label="Enable Memory Mapping" Color="Color.Primary" />
-            </MudItem>
-        </MudGrid>
+        <MudText Typo="Typo.subtitle2" Class="mt-2 mb-1">Speed Optimizations</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+            These reduce memory usage and increase speed. Safe to enable on most modern GPUs.
+        </MudText>
 
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="SaveInferenceSettings">
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_FlashAttention" Label="Flash Attention" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Faster, more memory-efficient attention calculation. Recommended for all GPUs. Required for some large models.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_DiffusionFlashAttention" Label="Diffusion Flash Attention" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Uses half-precision (fp16) for attention keys/values in the diffusion model. Saves VRAM with minimal quality impact.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeTiling" Label="VAE Tiling" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Decodes the final image in tiles instead of all at once. Uses much less VRAM at high resolutions. Enable if you get out-of-memory errors during the final decode step.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_EnableMmap" Label="Memory-Mapped File I/O" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Load model weights via memory mapping instead of reading into RAM. Can speed up model loading on fast SSDs but may cause issues on some systems.
+            </MudText>
+        </div>
+
+        <MudDivider Class="my-3" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-1">GPU/CPU Offloading</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+            Move parts of the model from GPU to CPU to free VRAM. Useful when your GPU doesn't have enough memory for the full model.
+            Trade-off: saves VRAM but slows generation. On NVIDIA GPUs with CUDA, offloading is automatically disabled to prevent crashes on hybrid Intel CPUs.
+        </MudText>
+
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepClipOnCPU" Label="CLIP Text Encoder on CPU" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Run the text encoder (which converts your prompt to tokens) on CPU. Frees ~1-2 GB VRAM. Slightly slower prompt processing.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepVaeOnCPU" Label="VAE Decoder on CPU" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Run the VAE (which converts latent noise to the final image) on CPU. Frees ~1-2 GB VRAM. Slower final decode step.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_KeepControlNetOnCPU" Label="ControlNet on CPU" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Run ControlNet models on CPU. Frees significant VRAM when using ControlNet guidance. No effect if ControlNet is not in use.
+            </MudText>
+        </div>
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_OffloadParamsToCPU" Label="Offload Model Parameters to CPU" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Keep model weights in system RAM and stream them to the GPU during computation. Dramatically reduces VRAM usage but significantly slows generation. Last resort for very low VRAM GPUs.
+            </MudText>
+        </div>
+        <div class="mb-4">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_VaeDecodeOnly" Label="VAE Decode Only" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Skip building the VAE encoder (only build the decoder). Saves a small amount of VRAM but breaks img2img and inpainting, which need the encoder. Leave off unless you only use txt2img.
+            </MudText>
+        </div>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveInferenceSettings">
             Save Performance Settings
         </MudButton>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+            Changes apply the next time a model is loaded. If a model is already loaded, generate once to trigger a reload.
+        </MudText>
     </MudTabPanel>
 
     <MudTabPanel Text="Content Safety" Icon="@Icons.Material.Filled.Shield">
@@ -233,23 +273,31 @@
 
     <MudTabPanel Text="Output" Icon="@Icons.Material.Filled.SaveAlt">
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            Configure how generated images are saved to disk.
+            Control where and how generated images are saved to disk. By default, images are saved in the app's local data directory organized by project and job.
         </MudText>
 
-        <MudTextField T="string" Label="Custom Output Directory (leave empty for default)"
+        <MudTextField T="string" Label="Custom Output Directory"
                       Value="_outputCustomDir" ValueChanged="v => _outputCustomDir = v"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                      Placeholder="e.g., D:\StableDiffusion\Output" />
+                      Placeholder="e.g., D:\StableDiffusion\Output"
+                      HelperText="Override the default save location. Leave empty to use the app's data directory. Images are organized into project/job subfolders automatically." />
 
-        <MudText Typo="Typo.subtitle2" Class="mb-1">Filename Pattern</MudText>
-        <MudTextField T="string" Label="Pattern" Value="_outputFilenamePattern" ValueChanged="v => _outputFilenamePattern = v"
-                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-1" />
-        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
-            Available tokens: [seed], [prompt], [date], [model]. Example: [seed]-[date] produces 12345-20260321-143022.png
-        </MudText>
+        <MudTextField T="string" Label="Filename Pattern" Value="_outputFilenamePattern" ValueChanged="v => _outputFilenamePattern = v"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      HelperText="Tokens: [seed] = generation seed, [prompt] = first 50 chars of prompt, [date] = timestamp, [model] = model name. Example: [seed]-[date] → 12345-20260321-143022.png" />
 
-        <MudSwitch T="bool" @bind-Value="_outputAutoSave" Label="Auto-save images after generation" Color="Color.Primary" Class="mb-2" />
-        <MudSwitch T="bool" @bind-Value="_outputSaveGrid" Label="Save image grid for batch generations" Color="Color.Primary" Class="mb-3" />
+        <div class="mb-2">
+            <MudSwitch T="bool" @bind-Value="_outputAutoSave" Label="Auto-save images after generation" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Automatically save every generated image to disk. If off, images only exist in the gallery until the app restarts.
+            </MudText>
+        </div>
+        <div class="mb-4">
+            <MudSwitch T="bool" @bind-Value="_outputSaveGrid" Label="Save image grid for batch generations" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                When generating multiple images in a batch, also save a single grid image combining all results side by side.
+            </MudText>
+        </div>
 
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveOutputSettings">
             Save Output Settings
@@ -265,16 +313,17 @@
 
         <MudTextField T="string" Label="Ollama URL" Value="_interrogateUrl" ValueChanged="v => _interrogateUrl = v"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                      Placeholder="http://localhost:11434" />
+                      Placeholder="http://localhost:11434"
+                      HelperText="The address where Ollama is running. Default is localhost:11434. Change this if Ollama runs on a different machine or port." />
 
         <MudTextField T="string" Label="Vision Model" Value="_interrogateModel" ValueChanged="v => _interrogateModel = v"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                      HelperText="e.g., llava, llama3.2-vision, moondream" />
+                      HelperText="Which Ollama model to use for image analysis. Popular choices: llava (good quality, ~5GB), moondream (fast, ~2GB), llama3.2-vision (best quality, ~8GB). Install with: ollama pull <model>" />
 
         <MudTextField T="string" Label="System Prompt" Lines="4" Value="_interrogateSystemPrompt"
                       ValueChanged="v => _interrogateSystemPrompt = v"
                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
-                      HelperText="Instructions for how the model should describe the image" />
+                      HelperText="Instructions that tell the vision model HOW to describe the image. The default produces comma-separated tags suitable for Stable Diffusion prompts. Customize for different output styles." />
 
         <div class="d-flex gap-2">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveInterrogationSettings">
