@@ -41,6 +41,12 @@ Feature: Full Generation Workflow
     Then I should see the "Jobs" heading
     And the page should not have any error messages
 
+  Scenario: Parameter Lab page loads
+    Given I am on the home page
+    When I navigate to the parameter lab page
+    Then I should see the "Parameter Lab" heading
+    And the page should not have any error messages
+
   Scenario: Settings page has all configuration tabs
     Given I am on the home page
     When I navigate to the settings page

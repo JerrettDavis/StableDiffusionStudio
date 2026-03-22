@@ -51,6 +51,13 @@ public class NavigationSteps
         await Page.WaitForTimeoutAsync(1000);
     }
 
+    [When(@"I navigate to the parameter lab page")]
+    public async Task WhenINavigateToTheParameterLabPage()
+    {
+        await Page.Locator(".mud-nav-link", new() { HasText = "Parameter Lab" }).ClickAsync();
+        await Page.WaitForTimeoutAsync(1000);
+    }
+
     [Then(@"I should see the ""(.*)"" heading")]
     public async Task ThenIShouldSeeTheHeading(string heading)
     {
