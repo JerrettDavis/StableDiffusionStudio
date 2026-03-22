@@ -2,6 +2,49 @@
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Domain.Enums
 
+@if (_lightboxImage is not null)
+{
+    <div class="lightbox-overlay" @onclick="CloseLightbox">
+        <div class="lightbox-content" @onclick:stopPropagation="true">
+            <div class="lightbox-image-wrapper">
+                <img src="@(AppPaths?.GetImageUrl(_lightboxImage.FilePath) ?? _lightboxImage.FilePath)"
+                     alt="Full size" />
+            </div>
+            <div class="lightbox-info">
+                <div class="d-flex align-center gap-2 mb-2">
+                    <MudText Typo="Typo.subtitle2">Grid position: @_lightboxImage.GridX, @_lightboxImage.GridY</MudText>
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(_lightboxImage.IsWinner ? Color.Warning : Color.Default)"
+                             OnClick="() => ToggleWinnerFromLightbox(_lightboxImage.Id)">
+                        @(_lightboxImage.IsWinner ? "Winner" : "Select as Winner")
+                    </MudChip>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Seed: @_lightboxImage.Seed | Time: @_lightboxImage.GenerationTimeSeconds.ToString("F1")s
+                </MudText>
+                @if (!string.IsNullOrEmpty(_lightboxImage.AxisValuesJson) && _lightboxImage.AxisValuesJson != "{}")
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        @FormatAxisValues(_lightboxImage.AxisValuesJson)
+                    </MudText>
+                }
+                <div class="d-flex gap-2 mt-3">
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               OnClick="CloseLightbox">Close</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.ArrowBack"
+                               Disabled="_lightboxIndex <= 0"
+                               OnClick="PreviousImage">Prev</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               StartIcon="@Icons.Material.Filled.ArrowForward"
+                               Disabled="_lightboxIndex >= (Run?.Images.Count ?? 0) - 1"
+                               OnClick="NextImage">Next</MudButton>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @if (Run is null)
 {
     <EmptyState Icon="@Icons.Material.Filled.Science"
@@ -80,6 +123,53 @@ else
     [Parameter] public bool IsRunning { get; set; }
 
     private bool HasAxis2 => Axis2Values is not null && Axis2Values.Count > 0;
+    private ExperimentRunImageDto? _lightboxImage;
+    private int _lightboxIndex = -1;
+
+    private void OpenLightbox(ExperimentRunImageDto image)
+    {
+        _lightboxImage = image;
+        _lightboxIndex = Run?.Images.ToList().IndexOf(image) ?? -1;
+    }
+
+    private void CloseLightbox()
+    {
+        _lightboxImage = null;
+        _lightboxIndex = -1;
+    }
+
+    private void PreviousImage()
+    {
+        if (Run is null || _lightboxIndex <= 0) return;
+        _lightboxIndex--;
+        _lightboxImage = Run.Images[_lightboxIndex];
+    }
+
+    private void NextImage()
+    {
+        if (Run is null || _lightboxIndex >= Run.Images.Count - 1) return;
+        _lightboxIndex++;
+        _lightboxImage = Run.Images[_lightboxIndex];
+    }
+
+    private async Task ToggleWinnerFromLightbox(Guid imageId)
+    {
+        await OnWinnerToggled.InvokeAsync(imageId);
+        // Update the lightbox image's winner state locally for immediate feedback
+        if (_lightboxImage is not null && _lightboxImage.Id == imageId)
+            _lightboxImage = _lightboxImage with { IsWinner = !_lightboxImage.IsWinner };
+    }
+
+    private static string FormatAxisValues(string axisValuesJson)
+    {
+        try
+        {
+            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(axisValuesJson);
+            if (dict is null || dict.Count == 0) return "";
+            return string.Join(" | ", dict.Select(kv => $"{kv.Key}: {kv.Value}"));
+        }
+        catch { return ""; }
+    }
 
     private ExperimentRunImageDto? FindImage(int gridX, int gridY)
     {
@@ -90,11 +180,11 @@ else
     {
         if (image is not null)
         {
-            // Completed cell — show the generated image
+            // Completed cell — show the generated image, click to open lightbox
             var borderStyle = image.IsWinner ? "border: 3px solid var(--mud-palette-warning);" : "";
             var imageUrl = AppPaths?.GetImageUrl(image.FilePath) ?? image.FilePath;
             <div class="grid-cell grid-image @(image.IsWinner ? "winner" : "")" style="@borderStyle cursor: pointer;"
-                 @onclick="() => OnWinnerToggled.InvokeAsync(image.Id)">
+                 @onclick="() => OpenLightbox(image)">
                 <img src="@imageUrl" alt="Grid @(image.GridX),@(image.GridY)" loading="lazy" />
             </div>
         }
@@ -191,5 +281,50 @@ else
 
     .grid-image.pending {
         opacity: 0.4;
+    }
+
+    /* Lightbox overlay */
+    .lightbox-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    .lightbox-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 90vw;
+        max-height: 90vh;
+        cursor: default;
+    }
+
+    .lightbox-image-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        max-height: 75vh;
+        overflow: hidden;
+    }
+
+    .lightbox-image-wrapper img {
+        max-width: 90vw;
+        max-height: 75vh;
+        object-fit: contain;
+        border-radius: 4px;
+    }
+
+    .lightbox-info {
+        margin-top: 12px;
+        padding: 12px 16px;
+        background: var(--mud-palette-surface);
+        border-radius: 8px;
+        min-width: 300px;
+        text-align: center;
     }
 </style>
