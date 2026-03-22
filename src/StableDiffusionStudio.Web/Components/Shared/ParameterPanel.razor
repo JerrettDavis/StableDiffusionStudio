@@ -10,6 +10,12 @@
                         <MudSelectItem T="Sampler" Value="@s">@s</MudSelectItem>
                     }
                 </MudSelect>
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        The algorithm used to remove noise from the image step by step. <strong>Euler A</strong> is fast and creative. <strong>DPM++ 2M</strong> produces high-quality results. <strong>DDIM</strong> is deterministic and consistent. Turbo/LCM models work best with <strong>DPM++ SDE</strong> or <strong>Euler</strong>.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <MudSelect T="Scheduler" Label="Scheduler" Value="Params_Scheduler" ValueChanged="OnSchedulerChanged" Variant="Variant.Outlined" Margin="Margin.Dense">
@@ -18,6 +24,12 @@
                         <MudSelectItem T="Scheduler" Value="@s">@s</MudSelectItem>
                     }
                 </MudSelect>
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        Controls how noise is distributed across steps. <strong>Normal</strong> is the standard linear schedule. <strong>Karras</strong> front-loads noise removal for sharper results. <strong>Exponential</strong> is smoother. <strong>SGM Uniform</strong> works well with certain models.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <div class="d-flex align-center justify-space-between mb-1">
@@ -26,6 +38,12 @@
                 </div>
                 <MudSlider T="int" Value="Params_Steps" ValueChanged="OnStepsChanged" Min="1" Max="150" Step="1"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        How many denoising iterations to run. More steps = more detail but slower. <strong>20-30</strong> is good for most models. Turbo/LCM models only need <strong>4-8</strong> steps. Beyond 50 steps, returns diminish.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <div class="d-flex align-center justify-space-between mb-1">
@@ -34,10 +52,22 @@
                 </div>
                 <MudSlider T="double" Value="Params_CfgScale" ValueChanged="OnCfgScaleChanged" Min="1" Max="30" Step="0.5"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Classifier-Free Guidance — how strongly the image follows your prompt. <strong>1-3</strong> = creative/dreamy. <strong>5-8</strong> = balanced (recommended). <strong>10+</strong> = strict prompt adherence but can look oversaturated or artificial. Flux models typically use <strong>1-4</strong>.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="5">
                 <MudTextField T="long" Label="Seed (-1 = random)" Value="Params_Seed" ValueChanged="OnSeedChanged"
                               Variant="Variant.Outlined" Margin="Margin.Dense" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        A number that determines the initial noise pattern. Same seed + same settings = same image every time. Use <strong>-1</strong> for a random seed each generation. Fix the seed when fine-tuning other parameters.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="1" Class="d-flex align-center">
                 <MudIconButton Icon="@Icons.Material.Filled.Casino" Size="Size.Small"
@@ -62,6 +92,12 @@
                     </MudSelect>
                     <span class="param-value" style="white-space:nowrap">@(Params_Width)x@(Params_Height)</span>
                 </div>
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        Output image dimensions in pixels. Must be multiples of 64. <strong>SD 1.5</strong> works best at 512x512 or 512x768. <strong>SDXL</strong> is optimized for 1024x1024. <strong>Flux</strong> handles various sizes but prefers 1024x1024. Larger = more VRAM and slower.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <div class="d-flex align-center justify-space-between mb-1">
@@ -70,6 +106,12 @@
                 </div>
                 <MudSlider T="int" Value="Params_BatchSize" ValueChanged="OnBatchSizeChanged" Min="1" Max="8" Step="1"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        How many images to generate at once in a single batch. Higher values use more VRAM but are faster than running separate generations. Each image in the batch gets a different seed.
+                    </MudText>
+                }
             </MudItem>
         </MudGrid>
     </MudExpansionPanel>
@@ -83,6 +125,12 @@
                 </div>
                 <MudSlider T="int" Value="Params_ClipSkip" ValueChanged="OnClipSkipChanged" Min="1" Max="12" Step="1"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Skips the last N layers of the CLIP text encoder. <strong>1</strong> = use all layers (most literal prompt interpretation). <strong>2</strong> = skip last layer (more creative, slightly softer). Some anime models (NAI-based) expect CLIP Skip 2. Most realistic models use 1.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <div class="d-flex align-center justify-space-between mb-1">
@@ -91,6 +139,12 @@
                 </div>
                 <MudSlider T="int" Value="Params_BatchCount" ValueChanged="OnBatchCountChanged" Min="1" Max="10" Step="1"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        How many times to repeat the batch. Unlike batch size (which runs in parallel), batch count runs sequentially — each batch is a separate generation pass. Total images = Batch Size x Batch Count.
+                    </MudText>
+                }
             </MudItem>
         </MudGrid>
 
@@ -103,14 +157,26 @@
                 </div>
                 <MudSlider T="double" Value="Params_Eta" ValueChanged="OnEtaChanged" Min="0" Max="1" Step="0.01"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Controls randomness in the DDIM sampler. <strong>0</strong> = fully deterministic (same seed always gives same result). <strong>1</strong> = maximum randomness (similar to other samplers). Values in between blend deterministic and stochastic behavior. Only affects DDIM-based samplers.
+                    </MudText>
+                }
             </MudItem>
             <MudItem xs="6">
                 <div class="d-flex align-center justify-space-between mb-1">
-                    <MudText Typo="Typo.body2">Denoising</MudText>
+                    <MudText Typo="Typo.body2">Denoising Strength</MudText>
                     <span class="param-value">@Params_DenoisingStrength.ToString("F2")</span>
                 </div>
                 <MudSlider T="double" Value="Params_DenoisingStrength" ValueChanged="OnDenoisingStrengthChanged" Min="0" Max="1" Step="0.01"
                            Color="Color.Primary" Size="Size.Small" />
+                @if (ShowHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        How much of the original image to replace with new content. Only used in img2img and inpainting modes. <strong>0.0</strong> = keep original image unchanged. <strong>0.75</strong> = replace 75% (good default for img2img). <strong>1.0</strong> = completely replace (like txt2img). Lower values preserve more of the original composition.
+                    </MudText>
+                }
             </MudItem>
         </MudGrid>
 
@@ -127,6 +193,12 @@
     </MudExpansionPanel>
 
     <MudExpansionPanel Text="Hires Fix">
+        @if (ShowHelp)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                Hires Fix generates at a smaller resolution first, then upscales and refines the image with a second pass. This produces much higher quality results at large resolutions than generating directly at full size, which can produce duplicated subjects or distorted anatomy.
+            </MudText>
+        }
         <MudSwitch T="bool" Value="Params_HiresFixEnabled" ValueChanged="OnHiresFixEnabledChanged"
                    Label="Enable Hires Fix" Color="Color.Primary" />
         @if (Params_HiresFixEnabled)
@@ -139,6 +211,12 @@
                     </div>
                     <MudSlider T="double" Value="Params_HiresUpscaleFactor" ValueChanged="OnHiresUpscaleFactorChanged"
                                Min="1.5" Max="4" Step="0.25" Color="Color.Primary" Size="Size.Small" />
+                    @if (ShowHelp)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            How much to enlarge the first-pass image. <strong>2x</strong> doubles both dimensions (4x the pixels). Higher values need more VRAM and time. For a 512x512 base with 2x upscale, the final image is 1024x1024.
+                        </MudText>
+                    }
                 </MudItem>
                 <MudItem xs="6">
                     <div class="d-flex align-center justify-space-between mb-1">
@@ -147,6 +225,12 @@
                     </div>
                     <MudSlider T="int" Value="Params_HiresSteps" ValueChanged="OnHiresStepsChanged"
                                Min="0" Max="150" Step="1" Color="Color.Primary" Size="Size.Small" />
+                    @if (ShowHelp)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Number of denoising steps for the upscale pass. <strong>0</strong> uses the same step count as the first pass. Lower values (10-15) are faster; higher values add more detail to the upscaled image.
+                        </MudText>
+                    }
                 </MudItem>
                 <MudItem xs="6">
                     <div class="d-flex align-center justify-space-between mb-1">
@@ -155,6 +239,12 @@
                     </div>
                     <MudSlider T="double" Value="Params_HiresDenoisingStrength" ValueChanged="OnHiresDenoisingStrengthChanged"
                                Min="0.1" Max="0.9" Step="0.05" Color="Color.Primary" Size="Size.Small" />
+                    @if (ShowHelp)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            How much to change during the upscale pass. <strong>0.3-0.5</strong> adds detail while keeping the composition. <strong>0.6-0.7</strong> allows more creative changes. Too high and the upscaled image may diverge from the original.
+                        </MudText>
+                    }
                 </MudItem>
             </MudGrid>
         }
@@ -162,6 +252,8 @@
 </MudExpansionPanels>
 
 @code {
+    [CascadingParameter(Name = "ShowHelpText")] private bool ShowHelp { get; set; }
+
     [Parameter] public Sampler Params_Sampler { get; set; } = Sampler.EulerA;
     [Parameter] public EventCallback<Sampler> Params_SamplerChanged { get; set; }
     [Parameter] public Scheduler Params_Scheduler { get; set; } = Scheduler.Normal;

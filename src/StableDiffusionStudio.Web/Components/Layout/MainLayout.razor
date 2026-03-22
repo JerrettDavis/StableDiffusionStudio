@@ -11,6 +11,7 @@
 
 <CascadingValue Value="_nsfwShieldEnabled" Name="NsfwShieldEnabled">
 <CascadingValue Value="_nsfwThreshold" Name="NsfwThreshold">
+<CascadingValue Value="_showHelpText" Name="ShowHelpText">
 <MudLayout>
     <MudAppBar Elevation="0" Dense="true" Style="border-bottom: 1px solid var(--mud-palette-lines-default)">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" />
@@ -26,6 +27,12 @@
             <MudIconButton Icon="@(_nsfwShieldEnabled ? Icons.Material.Filled.Shield : Icons.Material.Outlined.Shield)"
                            Color="@(_nsfwShieldEnabled ? Color.Warning : Color.Inherit)"
                            OnClick="ToggleNsfwShield" />
+        </MudTooltip>
+
+        <MudTooltip Text="@(_showHelpText ? "Help text: ON — showing parameter descriptions" : "Help text: OFF — click to show what each setting does")">
+            <MudIconButton Icon="@(_showHelpText ? Icons.Material.Filled.Help : Icons.Material.Outlined.HelpOutline)"
+                           Color="@(_showHelpText ? Color.Info : Color.Inherit)"
+                           OnClick="() => _showHelpText = !_showHelpText" />
         </MudTooltip>
 
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
@@ -45,6 +52,7 @@
 </MudLayout>
 </CascadingValue>
 </CascadingValue>
+</CascadingValue>
 
 @code {
     private MudTheme _theme = StudioTheme.Create();
@@ -54,6 +62,7 @@
     private string _backendStatus = "Checking backend...";
     private bool _nsfwShieldEnabled;
     private double _nsfwThreshold = 0.5;
+    private bool _showHelpText;
 
     protected override async Task OnInitializedAsync()
     {
