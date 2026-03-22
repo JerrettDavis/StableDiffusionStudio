@@ -53,15 +53,21 @@ public class ExperimentRepository : IExperimentRepository
             entry.State = EntityState.Modified;
         }
 
-        // Handle child runs that may be new
+        // Handle child runs that may be new.
+        // When we Attach the parent experiment, EF Core recursively attaches all
+        // child entities as Unchanged. New runs that don't exist in the DB yet
+        // must be re-marked as Added, otherwise they silently don't get inserted.
         foreach (var run in experiment.Runs)
         {
             var runEntry = _context.Entry(run);
-            if (runEntry.State is EntityState.Detached)
+            var runExists = await _context.ExperimentRuns.AsNoTracking().AnyAsync(r => r.Id == run.Id, ct);
+            if (!runExists)
             {
-                var runExists = await _context.ExperimentRuns.AsNoTracking().AnyAsync(r => r.Id == run.Id, ct);
-                _context.ExperimentRuns.Attach(run);
-                runEntry.State = runExists ? EntityState.Modified : EntityState.Added;
+                runEntry.State = EntityState.Added;
+            }
+            else if (runEntry.State is EntityState.Unchanged)
+            {
+                runEntry.State = EntityState.Modified;
             }
         }
 
@@ -100,21 +106,18 @@ public class ExperimentRepository : IExperimentRepository
             entry.State = EntityState.Modified;
         }
 
-        // Ensure new images are tracked as Added rather than Modified
+        // Ensure new images are tracked as Added rather than Modified.
+        // Attach sets children to Unchanged — new images must be re-marked Added.
         foreach (var image in run.Images)
         {
             var imageEntry = _context.Entry(image);
-            if (imageEntry.State is EntityState.Detached or EntityState.Modified)
-            {
-                // Check if this image actually exists in the database
-                var existsInDb = await _context.ExperimentRunImages
-                    .AsNoTracking()
-                    .AnyAsync(i => i.Id == image.Id, ct);
+            var existsInDb = await _context.ExperimentRunImages
+                .AsNoTracking()
+                .AnyAsync(i => i.Id == image.Id, ct);
 
-                if (!existsInDb)
-                {
-                    imageEntry.State = EntityState.Added;
-                }
+            if (!existsInDb)
+            {
+                imageEntry.State = EntityState.Added;
             }
         }
 
