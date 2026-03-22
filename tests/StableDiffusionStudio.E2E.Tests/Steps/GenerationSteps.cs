@@ -16,9 +16,9 @@ public class GenerationSteps
     [When(@"I navigate to the generate page")]
     public async Task WhenINavigateToTheGeneratePage()
     {
-        await Page.ClickAsync("text=Generate");
+        await Page.Locator(".mud-nav-link", new() { HasText = "Generate" }).ClickAsync();
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Task.Delay(1000); // Wait for Blazor circuit
+        await Task.Delay(2000); // Wait for Blazor circuit + component rendering
     }
 
     [Then(@"I should see the ""(.*)"" selector")]
