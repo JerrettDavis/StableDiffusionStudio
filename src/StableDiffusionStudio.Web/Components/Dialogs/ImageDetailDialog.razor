@@ -119,6 +119,10 @@
                    StartIcon="@Icons.Material.Filled.Image">
             Send to img2img
         </MudButton>
+        <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="SendToLab"
+                   StartIcon="@Icons.Material.Filled.Science">
+            Send to Lab
+        </MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ReuseSettings">
             Reuse Settings
         </MudButton>
@@ -167,6 +171,7 @@
     private void Close() => MudDialog.Close();
     private void ReuseSettings() => MudDialog.Close(DialogResult.Ok("reuse"));
     private void SendToImg2Img() => MudDialog.Close(DialogResult.Ok("img2img"));
+    private void SendToLab() => MudDialog.Close(DialogResult.Ok("lab"));
 
     private async Task ToggleFavorite()
     {

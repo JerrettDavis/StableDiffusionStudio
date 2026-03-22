@@ -328,6 +328,8 @@ else
                     await OnSendToImg2Img.InvokeAsync(imageBytes);
                 }
             }
+            else if (action == "lab")
+                Nav.NavigateTo($"/lab?fromJob={job.Id}");
             else if (action == "deleted")
                 await Refresh();
         }
