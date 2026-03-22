@@ -14,7 +14,7 @@ else
         <MudText Typo="Typo.caption" Color="Color.Secondary">
             @Run.CompletedCount / @Run.TotalCombinations images
         </MudText>
-        @if (Run.Status is ExperimentRunStatus.Running or ExperimentRunStatus.Pending)
+        @if (Run.Status is ExperimentRunStatus.Running or ExperimentRunStatus.Pending || IsRunning)
         {
             <MudProgressLinear Value="@Run.CompletedCount" Max="@Run.TotalCombinations"
                                Color="Color.Primary" Striped="true" Class="flex-grow-1" />
@@ -42,8 +42,9 @@ else
                 </div>
                 @for (var col = 0; col < Axis1Values.Count; col++)
                 {
+                    var cellIndex = row * Axis1Values.Count + col;
                     var image = FindImage(col, row);
-                    @RenderImageCell(image)
+                    @RenderImageCell(image, cellIndex)
                 }
             }
         </div>
@@ -61,7 +62,7 @@ else
             @for (var col = 0; col < Axis1Values.Count; col++)
             {
                 var image = FindImage(col, 0);
-                @RenderImageCell(image)
+                @RenderImageCell(image, col)
             }
         </div>
     }
@@ -75,6 +76,8 @@ else
     [Parameter] public IReadOnlyList<string>? Axis2Values { get; set; }
     [Parameter] public EventCallback<Guid> OnWinnerToggled { get; set; }
     [Parameter] public IAppPaths? AppPaths { get; set; }
+    [Parameter] public int GeneratingCellIndex { get; set; } = -1;
+    [Parameter] public bool IsRunning { get; set; }
 
     private bool HasAxis2 => Axis2Values is not null && Axis2Values.Count > 0;
 
@@ -83,10 +86,11 @@ else
         return Run?.Images.FirstOrDefault(i => i.GridX == gridX && i.GridY == gridY);
     }
 
-    private RenderFragment RenderImageCell(ExperimentRunImageDto? image) => __builder =>
+    private RenderFragment RenderImageCell(ExperimentRunImageDto? image, int cellIndex) => __builder =>
     {
         if (image is not null)
         {
+            // Completed cell — show the generated image
             var borderStyle = image.IsWinner ? "border: 3px solid var(--mud-palette-warning);" : "";
             var imageUrl = AppPaths?.GetImageUrl(image.FilePath) ?? image.FilePath;
             <div class="grid-cell grid-image @(image.IsWinner ? "winner" : "")" style="@borderStyle cursor: pointer;"
@@ -94,8 +98,26 @@ else
                 <img src="@imageUrl" alt="Grid @(image.GridX),@(image.GridY)" loading="lazy" />
             </div>
         }
+        else if (IsRunning && cellIndex == GeneratingCellIndex)
+        {
+            // Currently generating cell — show active spinner
+            <div class="grid-cell grid-image generating">
+                <div class="generating-indicator">
+                    <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">Generating...</MudText>
+                </div>
+            </div>
+        }
+        else if (IsRunning && cellIndex > GeneratingCellIndex)
+        {
+            // Pending cell — show subtle skeleton
+            <div class="grid-cell grid-image pending">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100%" />
+            </div>
+        }
         else
         {
+            // Empty cell (run complete or not started)
             <div class="grid-cell grid-image">
                 <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100%" />
             </div>
@@ -146,9 +168,28 @@ else
         width: 100%;
         height: 100%;
         object-fit: cover;
+        display: block;
     }
 
     .grid-image.winner {
         box-shadow: 0 0 8px var(--mud-palette-warning);
+    }
+
+    .grid-image.generating {
+        border: 2px solid var(--mud-palette-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .generating-indicator {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .grid-image.pending {
+        opacity: 0.4;
     }
 </style>
