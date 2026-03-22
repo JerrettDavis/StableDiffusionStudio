@@ -16,14 +16,12 @@
                StartIcon="@Icons.Material.Filled.Add" OnClick="CreateWorkflow">
         New Workflow
     </MudButton>
-    <MudFileUpload T="IBrowserFile" Accept=".json" FilesChanged="ImportWorkflow">
-        <ActivatorContent>
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FileUpload"
-                       HtmlTag="label">
-                Import
-            </MudButton>
-        </ActivatorContent>
-    </MudFileUpload>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FileUpload"
+               HtmlTag="label" for="@_importInputId">
+        Import
+    </MudButton>
+    <InputFile id="@_importInputId" OnChange="OnImportFileSelected" accept=".json"
+               style="display:none" />
 </div>
 
 @if (_workflows is null)
@@ -66,8 +64,7 @@ else
                     </MudCardContent>
                     <MudCardActions>
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                                       Size="Size.Small" OnClick="() => DeleteWorkflow(workflow)"
-                                       OnClick:stopPropagation="true" />
+                                       Size="Size.Small" OnClick="@(() => DeleteWorkflow(workflow))" />
                     </MudCardActions>
                 </MudCard>
             </MudItem>
@@ -77,6 +74,7 @@ else
 
 @code {
     private IReadOnlyList<WorkflowListItemDto>? _workflows;
+    private readonly string _importInputId = $"import-{Guid.NewGuid():N}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -117,11 +115,11 @@ else
         }
     }
 
-    private async Task ImportWorkflow(IBrowserFile file)
+    private async Task OnImportFileSelected(InputFileChangeEventArgs e)
     {
         try
         {
-            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
             var data = await JsonSerializer.DeserializeAsync<WorkflowExportFormat>(stream);
             if (data is null)
             {
