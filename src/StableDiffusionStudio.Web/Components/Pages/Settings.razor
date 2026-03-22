@@ -177,6 +177,16 @@
 
         <MudDivider Class="my-3" />
 
+        <MudText Typo="Typo.subtitle2" Class="mb-1">Startup</MudText>
+        <div class="mb-4">
+            <MudSwitch T="bool" @bind-Value="_inferenceSettings_PreloadLastModel" Label="Preload last used model on launch" Color="Color.Primary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="margin-top:-8px; padding-left:48px">
+                Automatically load your most recently used model in the background when the app starts. Makes the first generation much faster since the model is already in memory. Uses VRAM immediately on startup.
+            </MudText>
+        </div>
+
+        <MudDivider Class="my-3" />
+
         <MudText Typo="Typo.subtitle2" Class="mb-1">GPU/CPU Offloading</MudText>
         <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
             Move parts of the model from GPU to CPU to free VRAM. Useful when your GPU doesn't have enough memory for the full model.
@@ -611,6 +621,7 @@
     private bool _inferenceSettings_KeepControlNetOnCPU;
     private bool _inferenceSettings_OffloadParamsToCPU;
     private bool _inferenceSettings_EnableMmap;
+    private bool _inferenceSettings_PreloadLastModel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -794,6 +805,7 @@
         _inferenceSettings_KeepControlNetOnCPU = settings.KeepControlNetOnCPU;
         _inferenceSettings_OffloadParamsToCPU = settings.OffloadParamsToCPU;
         _inferenceSettings_EnableMmap = settings.EnableMmap;
+        _inferenceSettings_PreloadLastModel = settings.PreloadLastModel;
     }
 
     private void ApplySettingsFromPreset(InferenceSettings preset)
@@ -808,6 +820,7 @@
         _inferenceSettings_KeepControlNetOnCPU = preset.KeepControlNetOnCPU;
         _inferenceSettings_OffloadParamsToCPU = preset.OffloadParamsToCPU;
         _inferenceSettings_EnableMmap = preset.EnableMmap;
+        _inferenceSettings_PreloadLastModel = preset.PreloadLastModel;
     }
 
     private void ApplyHighVRAM() => ApplySettingsFromPreset(InferenceSettings.HighVRAM);
@@ -827,7 +840,8 @@
             KeepVaeOnCPU = _inferenceSettings_KeepVaeOnCPU,
             KeepControlNetOnCPU = _inferenceSettings_KeepControlNetOnCPU,
             OffloadParamsToCPU = _inferenceSettings_OffloadParamsToCPU,
-            EnableMmap = _inferenceSettings_EnableMmap
+            EnableMmap = _inferenceSettings_EnableMmap,
+            PreloadLastModel = _inferenceSettings_PreloadLastModel
         };
         await InferenceSettingsProvider.SaveSettingsAsync(settings);
         Snackbar.Add("Performance settings saved. Changes will apply on next model load.", MudBlazor.Severity.Success);
