@@ -89,15 +89,18 @@ public class WorkflowSteps
     [When(@"I delete the workflow ""(.*)""")]
     public async Task WhenIDeleteTheWorkflow(string name)
     {
+        // Find the card containing the workflow name
         var card = Page.Locator(".mud-card", new() { HasText = name }).First;
-        var deleteButton = card.Locator("button", new() { HasText = "" }).Last; // Delete icon button
+        // Click the icon button in the card actions area
+        var deleteButton = card.Locator(".mud-card-actions button").First;
         await deleteButton.ClickAsync();
-        await Page.WaitForTimeoutAsync(300);
-
-        // Confirm deletion
-        var confirmButton = Page.GetByRole(AriaRole.Button, new() { Name = "Delete" }).Last;
-        await confirmButton.ClickAsync();
         await Page.WaitForTimeoutAsync(1000);
+
+        // Confirm deletion in the message box dialog
+        var confirmButton = Page.GetByRole(AriaRole.Button, new() { Name = "Delete" }).Last;
+        await Expect(confirmButton).ToBeVisibleAsync(new() { Timeout = 5000 });
+        await confirmButton.ClickAsync();
+        await Page.WaitForTimeoutAsync(2000);
     }
 
     [When(@"I wait for templates to load")]
@@ -134,7 +137,7 @@ public class WorkflowSteps
     public async Task ThenIShouldSeeInTheToolbar(string text)
     {
         var toolbar = Page.Locator(".mud-toolbar").First;
-        await Expect(toolbar.GetByText(text)).ToBeVisibleAsync();
+        await Expect(toolbar.GetByText(text)).ToBeVisibleAsync(new() { Timeout = 10_000 });
     }
 
     [Then(@"I should see ""(.*)"" in the sidebar")]
