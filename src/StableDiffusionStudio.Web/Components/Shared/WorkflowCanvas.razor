@@ -153,6 +153,7 @@
                 await JS.InvokeVoidAsync("workflowCanvas.dispose");
         }
         catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { } // SSR/prerender
         _dotnetRef?.Dispose();
     }
 }

@@ -193,13 +193,14 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Re-observe the sentinel whenever there are more results to load
-        if (_selectedSource != "local" && CurrentState.HasMore && CurrentState.Results.Count > 0)
+        if (_dotnetRef is not null && _selectedSource != "local" && CurrentState.HasMore && CurrentState.Results.Count > 0)
         {
             try
             {
                 await JS.InvokeVoidAsync("infiniteScroll.observe", _sentinelId, _dotnetRef);
             }
             catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { } // SSR/prerender
         }
     }
 
@@ -438,9 +439,11 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
     {
         try
         {
-            await JS.InvokeVoidAsync("infiniteScroll.unobserve", _sentinelId);
+            if (_dotnetRef is not null)
+                await JS.InvokeVoidAsync("infiniteScroll.unobserve", _sentinelId);
         }
         catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { } // SSR/prerender
         _dotnetRef?.Dispose();
     }
 }
