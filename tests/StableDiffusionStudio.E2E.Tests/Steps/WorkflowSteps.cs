@@ -20,30 +20,35 @@ public class WorkflowSteps
     public async Task WhenINavigateToTheWorkflowsPage()
     {
         await Page.Locator(".mud-nav-link", new() { HasText = "Workflows" }).ClickAsync();
-        await Page.WaitForTimeoutAsync(1000);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Page.WaitForTimeoutAsync(2000);
     }
 
     [When(@"I create a workflow named ""(.*)""")]
     public async Task WhenICreateAWorkflowNamed(string name)
     {
         var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
+        await Expect(newBtn).ToBeVisibleAsync(new() { Timeout = 10_000 });
         await newBtn.ClickAsync();
-        await Page.WaitForTimeoutAsync(500);
+        await Page.WaitForTimeoutAsync(1000);
         await FillDialogAndConfirm(name, "OK");
         await Page.GotoAsync($"{BaseUrl}/workflows");
-        await Page.WaitForTimeoutAsync(1000);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Page.WaitForTimeoutAsync(2000);
     }
 
     [Given(@"I have created a workflow named ""(.*)""")]
     public async Task GivenIHaveCreatedAWorkflowNamed(string name)
     {
         await Page.GotoAsync($"{BaseUrl}/workflows");
-        await Page.WaitForTimeoutAsync(1000);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Page.WaitForTimeoutAsync(2000);
         var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
+        await Expect(newBtn).ToBeVisibleAsync(new() { Timeout = 10_000 });
         await newBtn.ClickAsync();
-        await Page.WaitForTimeoutAsync(500);
-        await FillDialogAndConfirm(name, "OK");
         await Page.WaitForTimeoutAsync(1000);
+        await FillDialogAndConfirm(name, "OK");
+        await Page.WaitForTimeoutAsync(2000);
     }
 
     private async Task FillDialogAndConfirm(string text, string buttonText)
