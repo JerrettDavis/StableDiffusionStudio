@@ -34,9 +34,21 @@
 
             @if (_generationMode == Domain.Enums.GenerationMode.ImageToImage)
             {
-                <ImageUpload @bind-ImageBytes="_initImageBytes" />
+                <ImageUpload @bind-ImageBytes="_initImageBytes" OnDimensionsDetected="OnInitImageDimensions" />
                 @if (_initImageBytes is not null)
                 {
+                    @if (_suggestedResolution is not null)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                                   Size="Size.Small" Class="mb-2"
+                                   StartIcon="@Icons.Material.Filled.AspectRatio"
+                                   OnClick="ApplySuggestedResolution">
+                            Match aspect ratio → @(_suggestedResolution.Value.W)x@(_suggestedResolution.Value.H)
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">
+                                (source: @(_initImageWidth)x@(_initImageHeight))
+                            </MudText>
+                        </MudButton>
+                    }
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                Size="Size.Small" Class="mb-2"
                                StartIcon="@Icons.Material.Filled.ImageSearch"
@@ -57,9 +69,18 @@
 
             @if (_generationMode == Domain.Enums.GenerationMode.Inpainting)
             {
-                <ImageUpload @bind-ImageBytes="_initImageBytes" />
+                <ImageUpload @bind-ImageBytes="_initImageBytes" OnDimensionsDetected="OnInitImageDimensions" />
                 @if (_initImageBytes is not null)
                 {
+                    @if (_suggestedResolution is not null)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
+                                   Size="Size.Small" Class="mb-2"
+                                   StartIcon="@Icons.Material.Filled.AspectRatio"
+                                   OnClick="ApplySuggestedResolution">
+                            Match aspect ratio → @(_suggestedResolution.Value.W)x@(_suggestedResolution.Value.H)
+                        </MudButton>
+                    }
                     <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true"
                                Size="Size.Small" Class="mb-2"
                                StartIcon="@Icons.Material.Filled.ImageSearch"
@@ -263,6 +284,22 @@
     private HubConnection? _hubConnection;
     private Timer? _progressTimer;
     private bool _isInterrogating;
+    private int _initImageWidth;
+    private int _initImageHeight;
+    private (int W, int H)? _suggestedResolution;
+
+    // Standard resolution pairs for SD 1.5 and SDXL — sorted by aspect ratio
+    private static readonly (int W, int H)[] StandardResolutions =
+    [
+        (512, 512), (512, 768), (512, 896), (512, 1024),
+        (576, 1024), (640, 1536),
+        (768, 512), (768, 768), (768, 1024), (768, 1344),
+        (896, 512), (896, 1152),
+        (1024, 512), (1024, 576), (1024, 768), (1024, 1024), (1024, 1536),
+        (1152, 896),
+        (1344, 768),
+        (1536, 640), (1536, 1024),
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -722,6 +759,43 @@
         _positiveTokenCount = PromptTokenEstimator.EstimateTokens(_positivePrompt);
         _negativeTokenCount = PromptTokenEstimator.EstimateTokens(_negativePrompt);
         _tokenLimit = PromptTokenEstimator.GetTokenLimit(_currentModelFamily?.ToString());
+    }
+
+    private void OnInitImageDimensions((int Width, int Height) dims)
+    {
+        _initImageWidth = dims.Width;
+        _initImageHeight = dims.Height;
+
+        if (dims.Width <= 0 || dims.Height <= 0)
+        {
+            _suggestedResolution = null;
+            return;
+        }
+
+        var sourceRatio = (double)dims.Width / dims.Height;
+
+        // Find the standard resolution pair closest to the source aspect ratio
+        var best = StandardResolutions
+            .OrderBy(r => Math.Abs((double)r.W / r.H - sourceRatio))
+            .First();
+
+        // Only suggest if it differs from current settings
+        if (best.W != _width || best.H != _height)
+            _suggestedResolution = best;
+        else
+            _suggestedResolution = null;
+
+        StateHasChanged();
+    }
+
+    private void ApplySuggestedResolution()
+    {
+        if (_suggestedResolution is null) return;
+        _width = _suggestedResolution.Value.W;
+        _height = _suggestedResolution.Value.H;
+        _suggestedResolution = null;
+        Snackbar.Add($"Resolution set to {_width}x{_height} to match image aspect ratio", Severity.Info);
+        StateHasChanged();
     }
 
     private async Task InterrogateImage(byte[]? imageBytes)
