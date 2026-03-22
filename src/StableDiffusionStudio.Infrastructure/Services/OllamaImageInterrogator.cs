@@ -30,13 +30,14 @@ public class OllamaImageInterrogator : IImageInterrogator
         var settings = await GetSettingsAsync(ct);
         try
         {
-            _httpClient.BaseAddress = null;
-            using var response = await _httpClient.GetAsync($"{settings.OllamaUrl}/api/tags", ct);
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{settings.OllamaUrl}/api/tags");
+            using var response = await _httpClient.SendAsync(request, ct);
+            _logger.LogInformation("Ollama connection test: {StatusCode} at {Url}", response.StatusCode, settings.OllamaUrl);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Ollama not available at {Url}", settings.OllamaUrl);
+            _logger.LogWarning(ex, "Ollama not available at {Url}", settings.OllamaUrl);
             return false;
         }
     }
@@ -46,7 +47,7 @@ public class OllamaImageInterrogator : IImageInterrogator
         var settings = await GetSettingsAsync(ct);
         var base64 = Convert.ToBase64String(imageBytes);
 
-        var request = new OllamaGenerateRequest
+        var payload = new OllamaGenerateRequest
         {
             Model = settings.Model,
             Prompt = settings.SystemPrompt,
@@ -57,8 +58,11 @@ public class OllamaImageInterrogator : IImageInterrogator
         _logger.LogInformation("Interrogating image ({Size} bytes) with {Model} at {Url}",
             imageBytes.Length, settings.Model, settings.OllamaUrl);
 
-        var response = await _httpClient.PostAsJsonAsync(
-            $"{settings.OllamaUrl}/api/generate", request, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{settings.OllamaUrl}/api/generate")
+        {
+            Content = JsonContent.Create(payload)
+        };
+        using var response = await _httpClient.SendAsync(request, ct);
 
         response.EnsureSuccessStatusCode();
 
