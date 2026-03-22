@@ -113,7 +113,7 @@ public class DtoConstructionTests
     public void JobRecordDto_CanBeConstructed()
     {
         var dto = new JobRecordDto(
-            Guid.NewGuid(), "model-scan", JobStatus.Completed, 100, "Done",
+            Guid.NewGuid(), "model-scan", "{}", JobStatus.Completed, 100, "Done",
             Guid.NewGuid(), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow, null, "result");
 

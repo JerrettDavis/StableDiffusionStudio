@@ -1,10 +1,16 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Domain.Enums
+@using System.Text.Json
 @inject IJobQueue JobQueue
 @inject IDataManagementService DataManagement
+@inject IGenerationService GenerationService
+@inject IExperimentService ExperimentService
+@inject IAppPaths AppPaths
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <MudDialog>
     <TitleContent>
@@ -28,10 +34,6 @@
                 <tr>
                     <td><strong>Job ID</strong></td>
                     <td style="font-family:'JetBrains Mono',monospace; font-size:0.8rem">@Job.Id</td>
-                </tr>
-                <tr>
-                    <td><strong>Correlation ID</strong></td>
-                    <td style="font-family:'JetBrains Mono',monospace; font-size:0.8rem">@Job.CorrelationId</td>
                 </tr>
                 <tr>
                     <td><strong>Type</strong></td>
@@ -74,13 +76,6 @@
                         <td>@FormatDuration(Job.StartedAt, Job.CompletedAt)</td>
                     </tr>
                 }
-                @if (Job.ResultData is not null)
-                {
-                    <tr>
-                        <td><strong>Result</strong></td>
-                        <td>@Job.ResultData</td>
-                    </tr>
-                }
             </tbody>
         </MudSimpleTable>
 
@@ -93,6 +88,48 @@
                 </MudText>
             </MudPaper>
         }
+
+        @* Generation job images *@
+        @if (_generationImages is not null && _generationImages.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Generated Images (@_generationImages.Count)</MudText>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @foreach (var img in _generationImages)
+                {
+                    <div style="width:120px;">
+                        <div style="aspect-ratio:1; overflow:hidden; border-radius:4px; background:var(--mud-palette-background-gray);">
+                            <img src="@AppPaths.GetImageUrl(img.FilePath)" alt="Seed @img.Seed"
+                                 style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer"
+                                 @onclick="() => DownloadImage(img)" />
+                        </div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="mt-1">
+                            Seed: @img.Seed
+                        </MudText>
+                    </div>
+                }
+            </div>
+        }
+
+        @* Experiment run images *@
+        @if (_experimentImages is not null && _experimentImages.Count > 0)
+        {
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Experiment Images (@_experimentImages.Count)</MudText>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                @foreach (var img in _experimentImages)
+                {
+                    <div style="width:120px;">
+                        <div style="aspect-ratio:1; overflow:hidden; border-radius:4px; background:var(--mud-palette-background-gray); @(img.IsWinner ? "border:2px solid var(--mud-palette-warning);" : "")">
+                            <img src="@AppPaths.GetImageUrl(img.FilePath)" alt="Grid @img.GridX,@img.GridY"
+                                 style="width:100%; height:100%; object-fit:cover; display:block; cursor:pointer"
+                                 @onclick="() => DownloadExperimentImage(img)" />
+                        </div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="mt-1">
+                            @img.GridX,@img.GridY @(img.IsWinner ? "★" : "")
+                        </MudText>
+                    </div>
+                }
+            </div>
+        }
     </DialogContent>
     <DialogActions>
         @if (Job.Status is JobStatus.Pending or JobStatus.Running)
@@ -102,6 +139,11 @@
         }
         <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="DeleteJob"
                    StartIcon="@Icons.Material.Filled.Delete">Delete</MudButton>
+        @if (Job.Type == "experiment" && _experimentId is not null)
+        {
+            <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="OpenInLab"
+                       StartIcon="@Icons.Material.Filled.Science">View in Lab</MudButton>
+        }
         <MudSpacer />
         <MudButton OnClick="Close">Close</MudButton>
     </DialogActions>
@@ -110,6 +152,45 @@
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
     [Parameter] public required JobRecordDto Job { get; set; }
+
+    private IReadOnlyList<GeneratedImageDto>? _generationImages;
+    private IReadOnlyList<ExperimentRunImageDto>? _experimentImages;
+    private Guid? _experimentId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrEmpty(Job.Data)) return;
+
+        try
+        {
+            if (Job.Type == "generation")
+            {
+                var data = JsonSerializer.Deserialize<JsonElement>(Job.Data);
+                if (data.TryGetProperty("GenerationJobId", out var jobIdProp))
+                {
+                    var genJobId = jobIdProp.GetGuid();
+                    var genJob = await GenerationService.GetJobAsync(genJobId);
+                    if (genJob is not null)
+                        _generationImages = genJob.Images;
+                }
+            }
+            else if (Job.Type == "experiment")
+            {
+                var data = JsonSerializer.Deserialize<JsonElement>(Job.Data);
+                if (data.TryGetProperty("RunId", out var runIdProp))
+                {
+                    var runId = runIdProp.GetGuid();
+                    var run = await ExperimentService.GetRunAsync(runId);
+                    if (run is not null)
+                    {
+                        _experimentImages = run.Images;
+                        _experimentId = run.ExperimentId;
+                    }
+                }
+            }
+        }
+        catch { /* Non-critical — images just won't show */ }
+    }
 
     private Color StatusColor => Job.Status switch
     {
@@ -126,6 +207,42 @@
         if (start is null || end is null) return "-";
         var d = end.Value - start.Value;
         return d.TotalMinutes >= 1 ? $"{(int)d.TotalMinutes}m {d.Seconds}s" : $"{d.TotalSeconds:F1}s";
+    }
+
+    private async Task DownloadImage(GeneratedImageDto img)
+    {
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(img.FilePath);
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = Path.GetFileName(img.FilePath);
+            await JS.InvokeVoidAsync("downloadFile", fileName, "image/png", base64);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Download failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DownloadExperimentImage(ExperimentRunImageDto img)
+    {
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(img.FilePath);
+            var base64 = Convert.ToBase64String(bytes);
+            var fileName = Path.GetFileName(img.FilePath);
+            await JS.InvokeVoidAsync("downloadFile", fileName, "image/png", base64);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Download failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void OpenInLab()
+    {
+        MudDialog.Close();
+        Nav.NavigateTo($"/lab?experimentId={_experimentId}");
     }
 
     private async Task CancelJob()

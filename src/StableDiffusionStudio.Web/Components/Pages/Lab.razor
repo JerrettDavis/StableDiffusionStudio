@@ -279,9 +279,11 @@
     {
         await LoadExperiments();
 
-        // Check for fromJob query parameter
+        // Check for query parameters
         var uri = new Uri(Nav.Uri);
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        // fromJob: load generation parameters as base params
         var fromJob = query["fromJob"];
         if (Guid.TryParse(fromJob, out var jobId))
         {
@@ -290,10 +292,35 @@
                 var parameters = await GenerationService.CloneParametersAsync(jobId);
                 ApplyParameters(parameters);
             }
-            catch
+            catch { /* Job not found — ignore */ }
+        }
+
+        // experimentId: load a saved experiment and its latest run
+        var experimentIdStr = query["experimentId"];
+        if (Guid.TryParse(experimentIdStr, out var experimentId))
+        {
+            try
             {
-                // Job not found — ignore
+                var experiment = await ExperimentService.GetByIdAsync(experimentId);
+                if (experiment is not null)
+                {
+                    LoadExperiment(experiment);
+                    // Auto-select the latest run if available
+                    var latestRun = experiment.Runs
+                        .OrderByDescending(r => r.StartedAt)
+                        .FirstOrDefault();
+                    if (latestRun is not null)
+                    {
+                        var fullRun = await ExperimentService.GetRunAsync(latestRun.Id);
+                        if (fullRun is not null)
+                        {
+                            _currentRun = fullRun;
+                            _selectedRunId = fullRun.Id;
+                        }
+                    }
+                }
             }
+            catch { /* Experiment not found — ignore */ }
         }
 
         // Connect to SignalR
