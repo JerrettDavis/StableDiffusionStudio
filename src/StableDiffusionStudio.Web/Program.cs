@@ -148,15 +148,14 @@ using (var scope = app.Services.CreateScope())
             await db.Database.EnsureCreatedAsync();
             logger.LogInformation("Schema created successfully");
         }
-        else
-        {
-            // Existing database — ensure all tables and columns exist
-            // SQLite doesn't support full ALTER TABLE, so we use CREATE TABLE IF NOT EXISTS
-            // and ADD COLUMN with graceful duplicate handling
-            logger.LogInformation("Existing database detected — ensuring schema is up to date");
-            await RepairSchema(db, logger);
-            logger.LogInformation("Schema repair complete");
-        }
+
+        // Always run schema repair — ensures new tables/columns are added
+        // to existing databases without requiring a restart. All statements
+        // are idempotent (CREATE TABLE IF NOT EXISTS, ADD COLUMN with
+        // duplicate detection).
+        logger.LogInformation("Running schema repair to ensure all tables exist");
+        await RepairSchema(db, logger);
+        logger.LogInformation("Schema repair complete");
     }
     catch (Exception ex)
     {
