@@ -171,13 +171,6 @@ public class WorkflowSteps
         await Expect(element).ToBeVisibleAsync();
     }
 
-    [Then(@"I should see a success notification")]
-    public async Task ThenIShouldSeeASuccessNotification()
-    {
-        var snackbar = Page.Locator(".mud-snackbar-content-message").First;
-        await Expect(snackbar).ToBeVisibleAsync(new() { Timeout = 5000 });
-    }
-
     [Then(@"I should see ""(.*)"" in the workflow list")]
     public async Task ThenIShouldSeeInTheWorkflowList(string name)
     {
