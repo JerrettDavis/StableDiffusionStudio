@@ -254,6 +254,27 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// Serve model preview images from arbitrary disk locations (model directories)
+app.MapGet("/api/model-preview/{modelId:guid}", async (Guid modelId,
+    StableDiffusionStudio.Application.Interfaces.IModelCatalogRepository repo) =>
+{
+    var model = await repo.GetByIdAsync(modelId);
+    if (model?.PreviewImagePath is null || !File.Exists(model.PreviewImagePath))
+        return Results.NotFound();
+
+    var ext = Path.GetExtension(model.PreviewImagePath).ToLowerInvariant();
+    var contentType = ext switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".webp" => "image/webp",
+        ".gif" => "image/gif",
+        _ => "image/jpeg"
+    };
+    return Results.File(model.PreviewImagePath, contentType);
+});
+
 app.MapHub<StudioHub>("/hubs/studio");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

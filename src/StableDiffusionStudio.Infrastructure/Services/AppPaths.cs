@@ -31,8 +31,8 @@ public class AppPaths : IAppPaths
                 .Replace('\\', '/');
             return $"/assets/{relativePath}";
         }
-        // Path.GetFileName doesn't handle backslashes on Linux, so handle both separators
-        var fileName = filePath.Split('/', '\\').Last();
-        return $"/assets/{fileName}";
+        // For files outside Assets directory (e.g. model previews in model directories),
+        // return the absolute path — callers should use /api/model-preview/{id} endpoint instead
+        return filePath;
     }
 }
