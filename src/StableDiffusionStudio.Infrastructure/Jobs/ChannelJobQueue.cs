@@ -52,7 +52,7 @@ public class ChannelJobQueue : IJobQueue
     }
 
     private static JobRecordDto ToDto(JobRecord j) =>
-        new(j.Id, j.Type, j.Status, j.Progress, j.Phase,
+        new(j.Id, j.Type, j.Data, j.Status, j.Progress, j.Phase,
             j.CorrelationId, j.CreatedAt, j.StartedAt, j.CompletedAt,
             j.ErrorMessage, j.ResultData);
 }
