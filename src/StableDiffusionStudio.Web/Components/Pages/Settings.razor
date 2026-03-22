@@ -882,6 +882,8 @@
 
     private async Task TestOllamaConnection()
     {
+        // Save current form values first so the test uses what the user sees
+        await SaveInterrogationSettings();
         var available = await ImageInterrogator.IsAvailableAsync();
         if (available)
             Snackbar.Add($"Connected to Ollama at {_interrogateUrl}", MudBlazor.Severity.Success);
