@@ -97,6 +97,11 @@ builder.Services.AddSingleton<StableDiffusionCppBackend>();
 builder.Services.AddSingleton<IInferenceBackend, LazyInferenceBackend>();
 builder.Services.AddKeyedScoped<IJobHandler, GenerationJobHandler>("generation");
 
+// Parameter Lab — experiment sweep engine
+builder.Services.AddScoped<IExperimentRepository, ExperimentRepository>();
+builder.Services.AddScoped<IExperimentService, ExperimentService>();
+builder.Services.AddKeyedScoped<IJobHandler, ExperimentJobHandler>("experiment");
+
 // Plugins
 builder.Services.AddSingleton<IPluginManager, StableDiffusionStudio.Infrastructure.Plugins.PluginManager>();
 
@@ -110,6 +115,7 @@ builder.Services.AddHealthChecks()
 // SignalR
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IGenerationNotifier, SignalRGenerationNotifier>();
+builder.Services.AddScoped<IExperimentNotifier, SignalRExperimentNotifier>();
 
 // Blazor
 builder.Services.AddRazorComponents()
