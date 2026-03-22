@@ -1,0 +1,299 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
+@using StableDiffusionStudio.Domain.ValueObjects
+@inject NavigationManager Navigation
+@inject IModelCatalogService ModelCatalogService
+@inject ISettingsProvider SettingsProvider
+@inject IStorageRootProvider StorageRootProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDrawer Open="@Open" Anchor="Anchor.End" Width="450px" Elevation="2" Variant="DrawerVariant.Temporary"
+           OpenChanged="OnOpenChanged">
+    @if (Model is not null)
+    {
+        <MudDrawerHeader>
+            <div class="d-flex align-center justify-space-between" style="width: 100%;">
+                <MudText Typo="Typo.h6" Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    @Model.Title
+                </MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="Close" Size="Size.Small" />
+            </div>
+        </MudDrawerHeader>
+
+        <MudDrawerContainer Style="overflow-y: auto; padding: 0 16px 16px;">
+            @* Hero image *@
+            @if (!string.IsNullOrEmpty(Model.PreviewImageUrl))
+            {
+                <img src="@Model.PreviewImageUrl" alt="@Model.Title"
+                     style="width: 100%; max-height: 300px; object-fit: cover; border-radius: 8px; margin-bottom: 16px;" />
+            }
+
+            @* Chips *@
+            <div class="d-flex gap-2 flex-wrap mb-3">
+                <MudChip T="string" Size="Size.Small" Style="@GetFamilyStyle(Model.Family)">
+                    @GetFamilyLabel(Model.Family)
+                </MudChip>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                    @Model.Type
+                </MudChip>
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                    @Model.Format
+                </MudChip>
+                <MudChip T="string" Size="Size.Small" Color="@(Model.IsLocal ? Color.Success : Color.Info)">
+                    @Model.Source
+                </MudChip>
+            </div>
+
+            @* Local actions *@
+            @if (Model.IsLocal && LocalModel is not null)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Actions</MudText>
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.PlayArrow"
+                               OnClick="SelectForGeneration">
+                        Select for Generation
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.ContentCopy"
+                               OnClick="CopyFilePath">
+                        Copy Path
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Science"
+                               OnClick="SendToLab">
+                        Send to Lab
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Delete"
+                               OnClick="DeleteFromCatalog">
+                        Delete
+                    </MudButton>
+                </div>
+            }
+
+            @* Remote actions *@
+            @if (!Model.IsLocal && RemoteModel is not null)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Download</MudText>
+                @if (RemoteModel.Variants.Count > 1)
+                {
+                    <MudSelect T="string" Label="File variant" @bind-Value="_selectedVariant"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2">
+                        @foreach (var variant in RemoteModel.Variants)
+                        {
+                            <MudSelectItem T="string" Value="@variant.FileName">
+                                @variant.FileName (@FormatFileSize(variant.FileSize))
+                                @if (variant.Quantization is not null)
+                                {
+                                    <text> — @variant.Quantization</text>
+                                }
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                <div class="d-flex gap-2 mb-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               OnClick="DownloadModel" Disabled="_downloading">
+                        @(_downloading ? "Downloading..." : "Download")
+                    </MudButton>
+                    @if (!string.IsNullOrEmpty(RemoteModel.ProviderUrl))
+                    {
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.OpenInNew"
+                                   Href="@RemoteModel.ProviderUrl" Target="_blank">
+                            View on Provider
+                        </MudButton>
+                    }
+                </div>
+                @if (_downloading)
+                {
+                    <MudProgressLinear Value="_downloadProgress" Max="100" Color="Color.Primary" Class="mb-2" />
+                }
+            }
+
+            @* Description *@
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1 mt-2">Description</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    @Model.Description
+                </MudText>
+            }
+
+            @* Metadata table *@
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Details</MudText>
+            <MudSimpleTable Dense="true" Elevation="0" Class="mb-3">
+                <tbody>
+                    @if (Model.FileSize.HasValue)
+                    {
+                        <tr><td><strong>Size</strong></td><td>@FormatFileSize(Model.FileSize.Value)</td></tr>
+                    }
+                    <tr><td><strong>Format</strong></td><td>@Model.Format</td></tr>
+                    <tr><td><strong>Family</strong></td><td>@GetFamilyLabel(Model.Family)</td></tr>
+                    <tr><td><strong>Type</strong></td><td>@Model.Type</td></tr>
+                    @if (LocalModel is not null)
+                    {
+                        <tr><td><strong>Status</strong></td><td>@LocalModel.Status</td></tr>
+                        <tr><td><strong>Path</strong></td><td style="word-break: break-all;">@LocalModel.FilePath</td></tr>
+                        <tr><td><strong>Detected</strong></td><td>@LocalModel.DetectedAt.ToString("yyyy-MM-dd")</td></tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @* Tags / trigger words *@
+            @{
+                var tags = LocalModel?.Tags ?? RemoteModel?.Tags;
+            }
+            @if (tags is not null && tags.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Tags / Trigger Words</MudText>
+                <div class="d-flex gap-1 flex-wrap mb-3">
+                    @foreach (var tag in tags)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">@tag</MudChip>
+                    }
+                </div>
+            }
+        </MudDrawerContainer>
+    }
+</MudDrawer>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public ModelCardViewModel? Model { get; set; }
+    [Parameter] public ModelRecordDto? LocalModel { get; set; }
+    [Parameter] public RemoteModelInfo? RemoteModel { get; set; }
+    [Parameter] public EventCallback OnDeleted { get; set; }
+
+    private string? _selectedVariant;
+    private bool _downloading;
+    private double _downloadProgress;
+
+    protected override void OnParametersSet()
+    {
+        if (RemoteModel?.Variants.Count > 0)
+            _selectedVariant ??= RemoteModel.Variants[0].FileName;
+    }
+
+    private async Task OnOpenChanged(bool value)
+    {
+        Open = value;
+        await OpenChanged.InvokeAsync(value);
+    }
+
+    private async Task Close()
+    {
+        Open = false;
+        await OpenChanged.InvokeAsync(false);
+    }
+
+    private void SelectForGeneration()
+    {
+        if (LocalModel is not null)
+            Navigation.NavigateTo($"/generate?model={LocalModel.Id}");
+    }
+
+    private async Task CopyFilePath()
+    {
+        if (LocalModel is not null)
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", LocalModel.FilePath);
+            Snackbar.Add("File path copied to clipboard", MudBlazor.Severity.Info);
+        }
+    }
+
+    private void SendToLab()
+    {
+        if (LocalModel is not null)
+            Navigation.NavigateTo($"/lab?checkpoint={LocalModel.Id}");
+    }
+
+    private async Task DeleteFromCatalog()
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete from Catalog",
+            "Are you sure you want to remove this model from the catalog? The file on disk will not be deleted.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await OnDeleted.InvokeAsync();
+            await Close();
+        }
+    }
+
+    private async Task DownloadModel()
+    {
+        if (RemoteModel is null) return;
+        _downloading = true;
+        _downloadProgress = 0;
+        StateHasChanged();
+
+        try
+        {
+            var variant = _selectedVariant ?? RemoteModel.Variants.FirstOrDefault()?.FileName;
+
+            // Resolve download path via DownloadLocationSettings
+            var downloadSettings = await SettingsProvider.GetAsync<DownloadLocationSettings>("DownloadLocations")
+                                   ?? DownloadLocationSettings.Default;
+            var defaultRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "StableDiffusionStudio", "Downloads");
+            var downloadPath = downloadSettings.GetDownloadPath(Model!.Source, RemoteModel.Type, defaultRoot);
+
+            var targetRoot = new StorageRoot(downloadPath, "Downloads");
+            var request = new DownloadRequest(Model.Source, RemoteModel.ExternalId, variant, targetRoot, RemoteModel.Type);
+            await ModelCatalogService.RequestDownloadAsync(request);
+
+            // Auto-register download root as storage root if not already registered
+            var existingRoots = await StorageRootProvider.GetRootsAsync();
+            if (!existingRoots.Any(r => r.Path.Equals(downloadPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                await StorageRootProvider.AddRootAsync(new StorageRoot(downloadPath, $"Downloads ({Model.Source})"));
+            }
+
+            Snackbar.Add("Download started. Check Jobs page for progress.", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Download failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        finally
+        {
+            _downloading = false;
+        }
+    }
+
+    private static string FormatFileSize(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
+        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
+        _ => $"{bytes / 1_000.0:F1} KB"
+    };
+
+    private static string GetFamilyLabel(ModelFamily family) => family switch
+    {
+        ModelFamily.SD15 => "SD 1.5",
+        ModelFamily.SDXL => "SDXL",
+        ModelFamily.Flux => "Flux",
+        ModelFamily.Pony => "Pony",
+        ModelFamily.Illustrious => "Illustrious",
+        _ => "Unknown"
+    };
+
+    private static string GetFamilyStyle(ModelFamily family) => family switch
+    {
+        ModelFamily.SD15 => "background-color: #2196F3; color: white;",
+        ModelFamily.SDXL => "background-color: #9C27B0; color: white;",
+        ModelFamily.Flux => "background-color: #FF9800; color: white;",
+        ModelFamily.Pony => "background-color: #E91E63; color: white;",
+        ModelFamily.Illustrious => "background-color: #00BCD4; color: white;",
+        _ => ""
+    };
+}

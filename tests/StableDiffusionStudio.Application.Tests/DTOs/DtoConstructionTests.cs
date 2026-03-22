@@ -253,7 +253,7 @@ public class DtoConstructionTests
         query.Family.Should().BeNull();
         query.Sort.Should().Be(SortOrder.Relevance);
         query.Page.Should().Be(0);
-        query.PageSize.Should().Be(20);
+        query.PageSize.Should().Be(40);
     }
 
     [Fact]

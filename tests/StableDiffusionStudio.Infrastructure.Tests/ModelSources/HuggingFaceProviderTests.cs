@@ -494,4 +494,135 @@ public class HuggingFaceProviderTests
         provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.Embedding);
         provider.Capabilities.SupportedModelTypes.Should().Contain(ModelType.ControlNet);
     }
+
+    [Fact]
+    public async Task SearchAsync_DetectsLoRATypeFromTags()
+    {
+        var json = """[{"id": "user/my-lora", "tags": ["lora", "text-to-image"]}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "lora"));
+
+        result.Models[0].Type.Should().Be(ModelType.LoRA);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DetectsEmbeddingTypeFromTags()
+    {
+        var json = """[{"id": "user/my-embedding", "tags": ["textual-inversion", "text-to-image"]}]""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "embedding"));
+
+        result.Models[0].Type.Should().Be(ModelType.Embedding);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExtractsFileVariantsFromSiblings()
+    {
+        var json = """
+        [{
+            "id": "user/model-with-files",
+            "tags": ["text-to-image"],
+            "siblings": [
+                {"rfilename": "README.md"},
+                {"rfilename": "model.safetensors", "size": 2147483648},
+                {"rfilename": "model-fp16.safetensors", "size": 1073741824},
+                {"rfilename": "config.json"}
+            ]
+        }]
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].Variants.Should().HaveCount(2);
+        result.Models[0].Variants[0].FileName.Should().Be("model.safetensors");
+        result.Models[0].Variants[0].FileSize.Should().Be(2147483648);
+        result.Models[0].Variants[0].Format.Should().Be(ModelFormat.SafeTensors);
+        result.Models[0].Variants[1].FileName.Should().Be("model-fp16.safetensors");
+        result.Models[0].FileSize.Should().Be(2147483648);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DetectsGGUFFormat()
+    {
+        var json = """
+        [{
+            "id": "user/gguf-model",
+            "tags": ["text-to-image"],
+            "siblings": [
+                {"rfilename": "model-q4.gguf", "size": 4000000000}
+            ]
+        }]
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "gguf"));
+
+        result.Models[0].Format.Should().Be(ModelFormat.GGUF);
+        result.Models[0].Variants[0].Format.Should().Be(ModelFormat.GGUF);
+        result.Models[0].Variants[0].Quantization.Should().Be("Q4");
+    }
+
+    [Fact]
+    public async Task SearchAsync_ResolvesPreviewImageUrl()
+    {
+        var json = """
+        [{
+            "id": "user/model-with-thumbnail",
+            "tags": ["text-to-image"],
+            "cardData": {"thumbnail": "https://cdn.hf.co/thumb.png"}
+        }]
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].PreviewImageUrl.Should().Be("https://cdn.hf.co/thumb.png");
+    }
+
+    [Fact]
+    public async Task SearchAsync_FallsBackToSiblingImage()
+    {
+        var json = """
+        [{
+            "id": "user/model-with-image",
+            "tags": ["text-to-image"],
+            "siblings": [
+                {"rfilename": "sample.png"},
+                {"rfilename": "model.safetensors", "size": 1000}
+            ]
+        }]
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, json);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        result.Models[0].PreviewImageUrl.Should().Contain("huggingface.co/user/model-with-image/resolve/main/sample.png");
+    }
+
+    [Fact]
+    public async Task SearchAsync_IncludesExpandSiblingsParam()
+    {
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("huggingface.co/api/models", HttpStatusCode.OK, "[]");
+
+        var provider = CreateProvider(handler);
+        await provider.SearchAsync(new ModelSearchQuery("huggingface", SearchTerm: "test"));
+
+        handler.SentRequests[0].RequestUri!.ToString().Should().Contain("expand[]=siblings");
+    }
 }

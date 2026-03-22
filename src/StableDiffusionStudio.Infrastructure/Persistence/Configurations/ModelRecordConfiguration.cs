@@ -19,6 +19,10 @@ public class ModelRecordConfiguration : IEntityTypeConfiguration<ModelRecord>
         builder.Property(m => m.PreviewImagePath).HasMaxLength(1000);
         builder.Property(m => m.CompatibilityHints).HasMaxLength(2000);
         builder.Property(m => m.Checksum).HasMaxLength(128);
+        builder.Property(m => m.CivitAIModelId).HasMaxLength(200);
+        builder.Property(m => m.CivitAIUrl).HasMaxLength(500);
+        builder.Property(m => m.HuggingFaceModelId).HasMaxLength(500);
+        builder.Property(m => m.HuggingFaceUrl).HasMaxLength(500);
 
         builder.Property(m => m.Type).HasConversion<string>().HasDefaultValue(ModelType.Checkpoint);
         builder.Property(m => m.ModelFamily).HasConversion<string>();
@@ -35,6 +39,7 @@ public class ModelRecordConfiguration : IEntityTypeConfiguration<ModelRecord>
         var dateTimeOffsetConverter = new DateTimeOffsetToBinaryConverter();
         builder.Property(m => m.DetectedAt).HasConversion(dateTimeOffsetConverter);
         builder.Property(m => m.LastVerifiedAt).HasConversion(dateTimeOffsetConverter);
+        builder.Property(m => m.LastEnrichedAt).HasConversion(dateTimeOffsetConverter);
 
         builder.HasIndex(m => m.Type);
         builder.HasIndex(m => m.FilePath).IsUnique();

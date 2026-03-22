@@ -11,6 +11,7 @@ using StableDiffusionStudio.Infrastructure.Services;
 using StableDiffusionStudio.Infrastructure.Telemetry;
 using StableDiffusionStudio.Infrastructure.Inference;
 using StableDiffusionStudio.Infrastructure.Storage;
+using StableDiffusionStudio.Infrastructure.Workflows;
 using Microsoft.Extensions.FileProviders;
 using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Web.Components;
@@ -80,8 +81,24 @@ builder.Services.AddScoped<ChannelJobQueue>();
 builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueue>());
 builder.Services.AddHostedService<BackgroundJobProcessor>();
 builder.Services.AddHostedService<ModelPreloadService>();
+builder.Services.AddHostedService<ModelMetadataEnrichmentService>();
+builder.Services.AddScoped<IModelEnrichmentProvider, CivitAIEnrichmentProvider>();
+builder.Services.AddScoped<IModelEnrichmentProvider, HuggingFaceEnrichmentProvider>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
+builder.Services.AddKeyedScoped<IJobHandler, WorkflowExecutionHandler>("workflow-run");
+
+// Workflow system
+builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IWorkflowNodePlugin, GenerateNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, Img2ImgNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, OutputNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, InpaintNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, UpscaleNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, ConditionalNodePlugin>();
+builder.Services.AddScoped<IWorkflowNodePlugin, ScriptNodePlugin>();
+builder.Services.AddHostedService<WorkflowTemplateSeeder>();
 
 // Content safety
 builder.Services.AddScoped<IContentSafetyService, NsfwSpyContentSafetyService>();
@@ -117,6 +134,8 @@ builder.Services.AddHealthChecks()
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IGenerationNotifier, SignalRGenerationNotifier>();
 builder.Services.AddScoped<IExperimentNotifier, SignalRExperimentNotifier>();
+builder.Services.AddScoped<IWorkflowNotifier, SignalRWorkflowNotifier>();
+builder.Services.AddScoped<IModelEnrichmentNotifier, SignalRModelEnrichmentNotifier>();
 
 // Blazor
 builder.Services.AddRazorComponents()
@@ -331,13 +350,68 @@ public partial class Program
                 ""FilePath"" TEXT NOT NULL DEFAULT '',
                 ""Seed"" INTEGER NOT NULL DEFAULT 0,
                 ""GenerationTimeSeconds"" REAL NOT NULL DEFAULT 0,
-                ""AxisValuesJson"" TEXT NOT NULL DEFAULT '{}',
+                ""AxisValuesJson"" TEXT NOT NULL DEFAULT '{{}}',
                 ""GridX"" INTEGER NOT NULL DEFAULT 0,
                 ""GridY"" INTEGER NOT NULL DEFAULT 0,
                 ""IsWinner"" INTEGER NOT NULL DEFAULT 0,
                 ""ContentRating"" TEXT NOT NULL DEFAULT 'Unknown',
                 ""NsfwScore"" REAL NOT NULL DEFAULT 0,
                 CONSTRAINT ""FK_ExperimentRunImages_ExperimentRuns_RunId"" FOREIGN KEY (""RunId"") REFERENCES ""ExperimentRuns"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("Workflows", @"CREATE TABLE IF NOT EXISTS ""Workflows"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_Workflows"" PRIMARY KEY,
+                ""Name"" TEXT NOT NULL DEFAULT '',
+                ""Description"" TEXT,
+                ""CanvasStateJson"" TEXT,
+                ""IsTemplate"" INTEGER NOT NULL DEFAULT 0,
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""UpdatedAt"" INTEGER NOT NULL DEFAULT 0
+            )"),
+            ("WorkflowNodes", @"CREATE TABLE IF NOT EXISTS ""WorkflowNodes"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_WorkflowNodes"" PRIMARY KEY,
+                ""WorkflowId"" TEXT NOT NULL,
+                ""PluginId"" TEXT NOT NULL DEFAULT '',
+                ""Label"" TEXT NOT NULL DEFAULT '',
+                ""PositionX"" REAL NOT NULL DEFAULT 0,
+                ""PositionY"" REAL NOT NULL DEFAULT 0,
+                ""ParametersJson"" TEXT,
+                ""ConfigJson"" TEXT,
+                ""MaxIterations"" INTEGER,
+                CONSTRAINT ""FK_WorkflowNodes_Workflows_WorkflowId"" FOREIGN KEY (""WorkflowId"") REFERENCES ""Workflows"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("WorkflowEdges", @"CREATE TABLE IF NOT EXISTS ""WorkflowEdges"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_WorkflowEdges"" PRIMARY KEY,
+                ""WorkflowId"" TEXT NOT NULL,
+                ""SourceNodeId"" TEXT NOT NULL,
+                ""SourcePort"" TEXT NOT NULL DEFAULT '',
+                ""TargetNodeId"" TEXT NOT NULL,
+                ""TargetPort"" TEXT NOT NULL DEFAULT '',
+                CONSTRAINT ""FK_WorkflowEdges_Workflows_WorkflowId"" FOREIGN KEY (""WorkflowId"") REFERENCES ""Workflows"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("WorkflowRuns", @"CREATE TABLE IF NOT EXISTS ""WorkflowRuns"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_WorkflowRuns"" PRIMARY KEY,
+                ""WorkflowId"" TEXT NOT NULL,
+                ""Status"" TEXT NOT NULL DEFAULT 'Pending',
+                ""InputsJson"" TEXT,
+                ""Error"" TEXT,
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""StartedAt"" INTEGER,
+                ""CompletedAt"" INTEGER,
+                CONSTRAINT ""FK_WorkflowRuns_Workflows_WorkflowId"" FOREIGN KEY (""WorkflowId"") REFERENCES ""Workflows"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("WorkflowRunSteps", @"CREATE TABLE IF NOT EXISTS ""WorkflowRunSteps"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_WorkflowRunSteps"" PRIMARY KEY,
+                ""WorkflowRunId"" TEXT NOT NULL,
+                ""NodeId"" TEXT NOT NULL,
+                ""Status"" TEXT NOT NULL DEFAULT 'Pending',
+                ""OutputImagePath"" TEXT,
+                ""OutputDataJson"" TEXT,
+                ""Error"" TEXT,
+                ""Iteration"" INTEGER NOT NULL DEFAULT 0,
+                ""StartedAt"" INTEGER,
+                ""CompletedAt"" INTEGER,
+                ""DurationMs"" INTEGER NOT NULL DEFAULT 0,
+                CONSTRAINT ""FK_WorkflowRunSteps_WorkflowRuns_WorkflowRunId"" FOREIGN KEY (""WorkflowRunId"") REFERENCES ""WorkflowRuns"" (""Id"") ON DELETE CASCADE
             )"),
         };
 
@@ -363,6 +437,11 @@ public partial class Program
             ("GeneratedImages", "NsfwScore", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""NsfwScore"" REAL NOT NULL DEFAULT 0"),
             ("GeneratedImages", "IsRevealed", @"ALTER TABLE ""GeneratedImages"" ADD COLUMN ""IsRevealed"" INTEGER NOT NULL DEFAULT 0"),
             ("GenerationPresets", "ApplyMode", @"ALTER TABLE ""GenerationPresets"" ADD COLUMN ""ApplyMode"" TEXT NOT NULL DEFAULT 'Replace'"),
+            ("ModelRecords", "CivitAIModelId", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""CivitAIModelId"" TEXT"),
+            ("ModelRecords", "CivitAIUrl", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""CivitAIUrl"" TEXT"),
+            ("ModelRecords", "HuggingFaceModelId", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""HuggingFaceModelId"" TEXT"),
+            ("ModelRecords", "HuggingFaceUrl", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""HuggingFaceUrl"" TEXT"),
+            ("ModelRecords", "LastEnrichedAt", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""LastEnrichedAt"" INTEGER"),
         };
 
         foreach (var (table, column, alterSql) in columns)

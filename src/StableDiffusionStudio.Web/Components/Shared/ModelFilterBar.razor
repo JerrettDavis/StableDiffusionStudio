@@ -1,0 +1,127 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Domain.Enums
+
+<MudPaper Elevation="0" Class="mb-4">
+    <MudToolBar Dense="true" Class="px-0">
+        <MudTextField @bind-Value="SearchTerm" Placeholder="Search models..."
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" DebounceInterval="300"
+                      OnDebounceIntervalElapsed="() => SearchTermChanged.InvokeAsync(SearchTerm)"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="flex: 1;" />
+        <MudToggleIconButton Toggled="@_listView"
+                             Icon="@Icons.Material.Filled.GridView"
+                             ToggledIcon="@Icons.Material.Filled.ViewList"
+                             Size="Size.Medium" Color="Color.Default"
+                             Title="Toggle view" Class="mr-2"
+                             ToggledChanged="OnViewModeToggled" />
+    </MudToolBar>
+
+    <div class="d-flex gap-2 flex-wrap align-center mb-2">
+        @* Source selector *@
+        <MudChipSet T="string" SelectedValue="@SelectedSource"
+                    SelectedValueChanged="v => SelectedSourceChanged.InvokeAsync(v)"
+                    SelectionMode="SelectionMode.SingleSelection" CheckMark="false">
+            <MudChip T="string" Value="@("local")" Variant="Variant.Outlined" Color="Color.Primary">Local</MudChip>
+            <MudChip T="string" Value="@("civitai")" Variant="Variant.Outlined" Color="Color.Primary">CivitAI</MudChip>
+            <MudChip T="string" Value="@("huggingface")" Variant="Variant.Outlined" Color="Color.Primary">Hugging Face</MudChip>
+        </MudChipSet>
+
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-1" />
+
+        @* Type chips *@
+        <MudChipSet T="ModelType?" SelectedValue="@TypeFilter"
+                    SelectedValueChanged="v => TypeFilterChanged.InvokeAsync(v)"
+                    SelectionMode="SelectionMode.SingleSelection" CheckMark="false">
+            @foreach (var type in new[] { ModelType.Checkpoint, ModelType.LoRA, ModelType.VAE, ModelType.Embedding, ModelType.ControlNet })
+            {
+                <MudChip T="ModelType?" Value="@type" Variant="Variant.Text" Size="Size.Small">@type</MudChip>
+            }
+        </MudChipSet>
+
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-1" />
+
+        @* Family chips *@
+        <MudChipSet T="ModelFamily?" SelectedValue="@FamilyFilter"
+                    SelectedValueChanged="v => FamilyFilterChanged.InvokeAsync(v)"
+                    SelectionMode="SelectionMode.SingleSelection" CheckMark="false">
+            <MudChip T="ModelFamily?" Value="@ModelFamily.SD15" Variant="Variant.Text" Size="Size.Small"
+                     Style="color: #2196F3;">SD 1.5</MudChip>
+            <MudChip T="ModelFamily?" Value="@ModelFamily.SDXL" Variant="Variant.Text" Size="Size.Small"
+                     Style="color: #9C27B0;">SDXL</MudChip>
+            <MudChip T="ModelFamily?" Value="@ModelFamily.Flux" Variant="Variant.Text" Size="Size.Small"
+                     Style="color: #FF9800;">Flux</MudChip>
+            <MudChip T="ModelFamily?" Value="@ModelFamily.Pony" Variant="Variant.Text" Size="Size.Small"
+                     Style="color: #E91E63;">Pony</MudChip>
+            <MudChip T="ModelFamily?" Value="@ModelFamily.Illustrious" Variant="Variant.Text" Size="Size.Small"
+                     Style="color: #00BCD4;">Illustrious</MudChip>
+        </MudChipSet>
+    </div>
+
+    @* Advanced section (expandable) *@
+    <MudExpansionPanels Elevation="0">
+        <MudExpansionPanel Text="Advanced" IsInitiallyExpanded="false" Dense="true" HideIcon="false">
+            <div class="d-flex gap-3 align-center flex-wrap">
+                <MudSelect T="SortOrder" Label="Sort" Value="@SortOrder" ValueChanged="v => SortOrderChanged.InvokeAsync(v)"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width: 200px;">
+                    <MudSelectItem T="SortOrder" Value="SortOrder.Relevance">Relevance</MudSelectItem>
+                    <MudSelectItem T="SortOrder" Value="SortOrder.Newest">Newest</MudSelectItem>
+                    <MudSelectItem T="SortOrder" Value="SortOrder.MostDownloaded">Most Downloaded</MudSelectItem>
+                    <MudSelectItem T="SortOrder" Value="SortOrder.Name">Name</MudSelectItem>
+                </MudSelect>
+                @if (SelectedSource == "civitai")
+                {
+                    <MudAutocomplete T="string" Label="Base Model" Value="@BaseModel"
+                                     ValueChanged="v => BaseModelChanged.InvokeAsync(v)"
+                                     SearchFunc="SearchBaseModels"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense"
+                                     Style="max-width: 250px;" Clearable="true"
+                                     CoerceText="false" CoerceValue="false" />
+                }
+                <MudSwitch T="bool" Label="NSFW" @bind-Value="NsfwEnabled" Color="Color.Warning" />
+            </div>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</MudPaper>
+
+@code {
+    private bool _listView;
+
+    [Parameter] public string? SearchTerm { get; set; }
+    [Parameter] public EventCallback<string?> SearchTermChanged { get; set; }
+    [Parameter] public string SelectedSource { get; set; } = "local";
+    [Parameter] public EventCallback<string> SelectedSourceChanged { get; set; }
+    [Parameter] public ModelType? TypeFilter { get; set; }
+    [Parameter] public EventCallback<ModelType?> TypeFilterChanged { get; set; }
+    [Parameter] public ModelFamily? FamilyFilter { get; set; }
+    [Parameter] public EventCallback<ModelFamily?> FamilyFilterChanged { get; set; }
+    [Parameter] public SortOrder SortOrder { get; set; } = SortOrder.Relevance;
+    [Parameter] public EventCallback<SortOrder> SortOrderChanged { get; set; }
+    [Parameter] public bool NsfwEnabled { get; set; }
+    [Parameter] public string? BaseModel { get; set; }
+    [Parameter] public EventCallback<string?> BaseModelChanged { get; set; }
+    [Parameter] public bool ViewModeList { get; set; }
+    [Parameter] public EventCallback<bool> ViewModeListChanged { get; set; }
+    [Parameter] public EventCallback OnSearchRequested { get; set; }
+
+    private static readonly string[] _civitBaseModels =
+        StableDiffusionStudio.Infrastructure.ModelSources.CivitAIProvider.AllBaseModels;
+
+    private Task<IEnumerable<string>> SearchBaseModels(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<string>>(_civitBaseModels);
+        return Task.FromResult<IEnumerable<string>>(
+            _civitBaseModels.Where(b => b.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    protected override void OnParametersSet()
+    {
+        _listView = ViewModeList;
+    }
+
+    private async Task OnViewModeToggled(bool toggled)
+    {
+        _listView = toggled;
+        await ViewModeListChanged.InvokeAsync(toggled);
+    }
+}

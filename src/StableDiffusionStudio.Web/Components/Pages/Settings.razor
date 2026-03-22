@@ -81,6 +81,34 @@
                 }
             </MudList>
         }
+        @* Download Locations *@
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.h6" Class="mb-2">Download Locations</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Configure where downloaded models are saved for each provider.
+            Models are automatically organized into subfolders by type (Checkpoints/, LoRA/, VAE/, Embeddings/, ControlNet/).
+        </MudText>
+
+        @foreach (var provider in new[] { ("civitai", "CivitAI"), ("huggingface", "Hugging Face") })
+        {
+            <MudCard Elevation="1" Class="mb-3">
+                <MudCardContent>
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">@provider.Item2</MudText>
+                    <MudTextField Value="@GetDownloadRoot(provider.Item1)"
+                                  ValueChanged="@((string val) => SetDownloadRoot(provider.Item1, val))"
+                                  Label="Download root path"
+                                  HelperText="Leave empty to use the default downloads folder"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        Auto-created subfolders: Checkpoints/ &bull; LoRA/ &bull; VAE/ &bull; Embeddings/ &bull; ControlNet/
+                    </MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="SaveDownloadLocations">
+                        Save
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        }
     </MudTabPanel>
 
     <MudTabPanel Text="Model Sources" Icon="@Icons.Material.Filled.Cloud">
@@ -605,6 +633,10 @@
     private bool _outputAutoSave = true;
     private bool _outputSaveGrid;
 
+    // Download location settings
+    private DownloadLocationSettings _downloadLocationSettings = DownloadLocationSettings.Default;
+    private readonly Dictionary<string, string> _downloadRootValues = new();
+
     // Interrogation settings fields
     private string _interrogateUrl = "http://localhost:11434";
     private string _interrogateModel = "llava";
@@ -628,6 +660,7 @@
         try
         {
             await LoadRoots();
+            await LoadDownloadLocations();
             await LoadProviders();
             await LoadContentSafety();
             await LoadInferenceSettings();
@@ -646,6 +679,31 @@
     private async Task LoadRoots()
     {
         _roots = await StorageRootProvider.GetRootsAsync();
+    }
+
+    private async Task LoadDownloadLocations()
+    {
+        _downloadLocationSettings = await SettingsProvider.GetAsync<DownloadLocationSettings>("DownloadLocations")
+                                     ?? DownloadLocationSettings.Default;
+        _downloadRootValues.Clear();
+        foreach (var kvp in _downloadLocationSettings.ProviderRoots)
+            _downloadRootValues[kvp.Key] = kvp.Value;
+    }
+
+    private string GetDownloadRoot(string providerId)
+        => _downloadRootValues.TryGetValue(providerId, out var val) ? val : "";
+
+    private void SetDownloadRoot(string providerId, string value)
+        => _downloadRootValues[providerId] = value;
+
+    private async Task SaveDownloadLocations()
+    {
+        var roots = _downloadRootValues
+            .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value))
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Trim());
+        _downloadLocationSettings = new DownloadLocationSettings { ProviderRoots = roots };
+        await SettingsProvider.SetAsync("DownloadLocations", _downloadLocationSettings);
+        Snackbar.Add("Download locations saved.", MudBlazor.Severity.Success);
     }
 
     private async Task LoadProviders()

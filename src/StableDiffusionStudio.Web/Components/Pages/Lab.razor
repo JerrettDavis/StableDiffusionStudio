@@ -420,6 +420,17 @@
         // Load base parameters
         ApplyParameters(experiment.BaseParameters);
 
+        // Restore init image if experiment has one
+        if (!string.IsNullOrWhiteSpace(experiment.InitImagePath) && File.Exists(experiment.InitImagePath))
+        {
+            _initImageBytes = File.ReadAllBytes(experiment.InitImagePath);
+            _generationMode = GenerationMode.ImageToImage;
+        }
+        else if (_generationMode == GenerationMode.ImageToImage && experiment.InitImagePath is null)
+        {
+            _initImageBytes = null;
+        }
+
         // Load sweep axes
         if (experiment.SweepAxes.Count > 0)
         {
@@ -529,17 +540,28 @@
         var baseParams = BuildBaseParameters();
         var axes = BuildAxes();
 
+        // Save init image to disk if present (img2img mode)
+        string? initImagePath = null;
+        if (_generationMode == GenerationMode.ImageToImage && _initImageBytes is not null)
+        {
+            var initDir = Path.Combine(AppPaths.AssetsDirectory, "experiments", "init-images");
+            Directory.CreateDirectory(initDir);
+            initImagePath = Path.Combine(initDir, $"init_{Guid.NewGuid():N}.png");
+            await File.WriteAllBytesAsync(initImagePath, _initImageBytes);
+        }
+
         try
         {
             if (_currentExperimentId is not null)
             {
                 _currentExperiment = await ExperimentService.UpdateAsync(
-                    _currentExperimentId.Value, _experimentName, baseParams, axes);
+                    _currentExperimentId.Value, _experimentName, baseParams, axes,
+                    initImagePath ?? _currentExperiment?.InitImagePath);
             }
             else
             {
                 _currentExperiment = await ExperimentService.CreateAsync(
-                    _experimentName, baseParams, axes);
+                    _experimentName, baseParams, axes, initImagePath);
                 _currentExperimentId = _currentExperiment.Id;
             }
             await LoadExperiments();

@@ -355,14 +355,14 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
                     // img2img or inpainting: resize init image to match target dimensions.
                     // stable-diffusion.cpp asserts image.width == tensor->ne[0] — the init image
                     // must exactly match the generation width/height.
-                    var initImage = LoadAndResizeImage(request.InitImage, request.Width, request.Height);
+                    var initImage = LoadAndResizeImage(request.InitImage, request.Width, request.Height, request.ImageInputMode);
                     genParams = ImageGenerationParameter.ImageToImage(request.PositivePrompt, initImage);
                     genParams.Strength = (float)request.DenoisingStrength;
 
                     // If a mask is provided, set it for inpainting (white = regenerate, black = keep)
                     if (request.MaskImage is not null)
                     {
-                        genParams.MaskImage = LoadAndResizeImage(request.MaskImage, request.Width, request.Height);
+                        genParams.MaskImage = LoadAndResizeImage(request.MaskImage, request.Width, request.Height, request.ImageInputMode);
                         _logger.LogInformation("Using inpainting pipeline with mask and denoising strength {Strength}", request.DenoisingStrength);
                     }
                     else
@@ -466,11 +466,12 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
     }
 
     /// <summary>
-    /// Loads an image from bytes and resizes it to the target dimensions.
+    /// Loads an image from bytes and fits it to the target dimensions using the specified mode.
     /// stable-diffusion.cpp requires the init image to exactly match the generation
     /// width/height (asserts image.width == tensor->ne[0]).
     /// </summary>
-    private static HPPH.IImage LoadAndResizeImage(byte[] imageBytes, int targetWidth, int targetHeight)
+    private static HPPH.IImage LoadAndResizeImage(byte[] imageBytes, int targetWidth, int targetHeight,
+        Domain.Enums.ImageInputMode mode = Domain.Enums.ImageInputMode.Scale)
     {
         using var ms = new MemoryStream(imageBytes);
         using var original = new System.Drawing.Bitmap(ms);
@@ -478,8 +479,46 @@ public class StableDiffusionCppBackend : IInferenceBackend, IDisposable
         if (original.Width == targetWidth && original.Height == targetHeight)
             return original.ToImage();
 
-        using var resized = new System.Drawing.Bitmap(original, targetWidth, targetHeight);
-        return resized.ToImage();
+        using var result = new System.Drawing.Bitmap(targetWidth, targetHeight);
+        using var g = System.Drawing.Graphics.FromImage(result);
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+
+        switch (mode)
+        {
+            case Domain.Enums.ImageInputMode.Scale:
+            {
+                // Scale longest edge to fit, maintain aspect ratio, pad remainder with black
+                g.Clear(System.Drawing.Color.Black);
+                var scale = Math.Min((double)targetWidth / original.Width, (double)targetHeight / original.Height);
+                var scaledW = (int)(original.Width * scale);
+                var scaledH = (int)(original.Height * scale);
+                var offsetX = (targetWidth - scaledW) / 2;
+                var offsetY = (targetHeight - scaledH) / 2;
+                g.DrawImage(original, offsetX, offsetY, scaledW, scaledH);
+                break;
+            }
+            case Domain.Enums.ImageInputMode.CenterCrop:
+            {
+                // Scale to cover target, then center-crop the excess
+                var scale = Math.Max((double)targetWidth / original.Width, (double)targetHeight / original.Height);
+                var scaledW = (int)(original.Width * scale);
+                var scaledH = (int)(original.Height * scale);
+                var offsetX = (targetWidth - scaledW) / 2;
+                var offsetY = (targetHeight - scaledH) / 2;
+                g.DrawImage(original, offsetX, offsetY, scaledW, scaledH);
+                break;
+            }
+            case Domain.Enums.ImageInputMode.Resize:
+            default:
+            {
+                // Stretch to fit exactly — no aspect ratio preservation
+                g.DrawImage(original, 0, 0, targetWidth, targetHeight);
+                break;
+            }
+        }
+
+        return result.ToImage();
     }
 #pragma warning restore CA1416
 

@@ -5,5 +5,7 @@ public enum ModelFamily
     Unknown,
     SD15,
     SDXL,
-    Flux
+    Flux,
+    Pony,
+    Illustrious
 }

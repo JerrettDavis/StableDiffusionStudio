@@ -21,6 +21,7 @@ public class CivitAIProvider : IModelProvider
         [ModelType.LoRA] = "LORA",
         [ModelType.VAE] = "VAE",
         [ModelType.Embedding] = "TextualInversion",
+        [ModelType.ControlNet] = "Controlnet",
     };
 
     private static readonly Dictionary<string, ModelType> ReverseCivitTypeMap = new(StringComparer.OrdinalIgnoreCase)
@@ -29,7 +30,45 @@ public class CivitAIProvider : IModelProvider
         ["LORA"] = ModelType.LoRA,
         ["VAE"] = ModelType.VAE,
         ["TextualInversion"] = ModelType.Embedding,
+        ["Controlnet"] = ModelType.ControlNet,
     };
+
+    private static readonly Dictionary<SortOrder, string> CivitSortMap = new()
+    {
+        [SortOrder.Relevance] = "Most Downloaded",
+        [SortOrder.MostDownloaded] = "Most Downloaded",
+        [SortOrder.Newest] = "Newest",
+        [SortOrder.Name] = "Highest Rated",
+    };
+
+    private static readonly Dictionary<ModelFamily, string[]> CivitFamilyMap = new()
+    {
+        [ModelFamily.SD15] = ["SD 1.5"],
+        [ModelFamily.SDXL] = ["SDXL 1.0"],
+        [ModelFamily.Flux] = ["Flux.1 D", "Flux.1 S"],
+        [ModelFamily.Pony] = ["Pony"],
+        [ModelFamily.Illustrious] = ["Illustrious"],
+    };
+
+    /// <summary>All base model values supported by CivitAI's API, for the filter dropdown.</summary>
+    public static readonly string[] AllBaseModels =
+    [
+        "Aura Flow", "Chroma", "CogVideoX",
+        "Flux.1 D", "Flux.1 Frea", "Flux.1 Fontext", "Flux.1 S",
+        "Flux.2 D", "Flux.2 Klein 9B", "Flux.2 Klein 9B-base", "Flux.2 Klein 4B", "Flux.2 Klein 4B-base",
+        "HiDream", "Hunyuan 1", "Hunyuan Video",
+        "Illustrious", "Kolors",
+        "LTXV", "LTXV 2", "LTXV 2.3", "Lumina",
+        "Mochi", "NoobAI",
+        "Pony", "Pony V7",
+        "QWen",
+        "SD 1.5", "SD 3", "SD 3.5",
+        "SDXL 1.0", "SDXL Hyper", "SDXL Lightning", "SDXL Turbo",
+        "Stable Audio", "SVD",
+        "Wan Video 1.3B T2V", "Wan Video 14B T2V",
+        "Z Image Turbo",
+        "Other"
+    ];
 
     public CivitAIProvider(
         HttpClient httpClient,
@@ -59,11 +98,28 @@ public class CivitAIProvider : IModelProvider
         try
         {
             var page = query.Page + 1; // CivitAI uses 1-based pages
-            var url = $"{ApiBaseUrl}/models?query={Uri.EscapeDataString(query.SearchTerm ?? "")}" +
-                      $"&sort=Most%20Downloaded&limit={query.PageSize}&page={page}";
+            var sortParam = CivitSortMap.GetValueOrDefault(query.Sort, "Most Downloaded");
+            var url = $"{ApiBaseUrl}/models?sort={Uri.EscapeDataString(sortParam)}&limit={query.PageSize}&page={page}";
+
+            // Only add query param if search term is non-empty — CivitAI returns
+            // popular models when query is omitted, but returns nothing for empty string
+            if (!string.IsNullOrWhiteSpace(query.SearchTerm))
+                url += $"&query={Uri.EscapeDataString(query.SearchTerm)}";
 
             if (query.Type.HasValue && CivitTypeMap.TryGetValue(query.Type.Value, out var civitType))
                 url += $"&types={civitType}";
+
+            // Use explicit BaseModel filter if provided (from CivitAI-specific dropdown)
+            if (!string.IsNullOrWhiteSpace(query.BaseModel))
+            {
+                url += $"&baseModels={Uri.EscapeDataString(query.BaseModel)}";
+            }
+            // Otherwise fall back to Family enum mapping
+            else if (query.Family.HasValue && CivitFamilyMap.TryGetValue(query.Family.Value, out var baseModels))
+            {
+                foreach (var bm in baseModels)
+                    url += $"&baseModels={Uri.EscapeDataString(bm)}";
+            }
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             var token = await _credentialStore.GetTokenAsync(ProviderId, ct);
@@ -155,6 +211,8 @@ public class CivitAIProvider : IModelProvider
             ? tagsProp.EnumerateArray().Select(t => t.GetString() ?? "").Where(t => t.Length > 0).ToList()
             : new List<string>();
 
+        var providerUrl = $"https://civitai.com/models/{modelId}";
+
         // Extract version info
         string externalId = modelId;
         string? previewUrl = null;
@@ -175,9 +233,23 @@ public class CivitAIProvider : IModelProvider
                 if (firstVersion.TryGetProperty("baseModel", out var baseModel))
                 {
                     var baseModelStr = baseModel.GetString()?.ToLowerInvariant() ?? "";
-                    if (baseModelStr.Contains("flux")) family = ModelFamily.Flux;
+                    if (baseModelStr.Contains("pony")) family = ModelFamily.Pony;
+                    else if (baseModelStr.Contains("illustrious") || baseModelStr.Contains("noobai")) family = ModelFamily.Illustrious;
+                    else if (baseModelStr.Contains("flux")) family = ModelFamily.Flux;
                     else if (baseModelStr.Contains("sdxl") || baseModelStr.Contains("xl")) family = ModelFamily.SDXL;
                     else if (baseModelStr.Contains("sd 1") || baseModelStr.Contains("sd1") || baseModelStr.Contains("1.5")) family = ModelFamily.SD15;
+                }
+
+                // Extract trained words into tags
+                if (firstVersion.TryGetProperty("trainedWords", out var trainedWords) &&
+                    trainedWords.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var word in trainedWords.EnumerateArray())
+                    {
+                        var w = word.GetString();
+                        if (!string.IsNullOrEmpty(w) && !tags.Contains(w, StringComparer.OrdinalIgnoreCase))
+                            tags.Add(w);
+                    }
                 }
 
                 // Get preview image
@@ -232,7 +304,7 @@ public class CivitAIProvider : IModelProvider
             FileSize: variants.FirstOrDefault()?.FileSize,
             PreviewImageUrl: previewUrl,
             Tags: tags,
-            ProviderUrl: $"https://civitai.com/models/{modelId}",
+            ProviderUrl: providerUrl,
             Variants: variants);
     }
 
