@@ -19,9 +19,9 @@ public class WorkflowSteps
     [When(@"I navigate to the workflows page")]
     public async Task WhenINavigateToTheWorkflowsPage()
     {
-        await Page.Locator(".mud-nav-link", new() { HasText = "Workflows" }).ClickAsync();
+        await Page.GotoAsync($"{BaseUrl}/workflows");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Page.WaitForTimeoutAsync(2000);
+        await Page.WaitForTimeoutAsync(3000);
     }
 
     [When(@"I create a workflow named ""(.*)""")]
