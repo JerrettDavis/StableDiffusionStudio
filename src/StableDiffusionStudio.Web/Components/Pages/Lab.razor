@@ -190,6 +190,11 @@
                            OnClick="SendToGenerate">
                     Send to Generate
                 </MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.GridOn"
+                           OnClick="DownloadGrid" Disabled="_currentRun is null || _currentRun.Images.Count == 0">
+                    Download Grid
+                </MudButton>
             </div>
 
             @if (_currentExperiment is not null && _currentExperiment.Runs.Count > 0)
@@ -661,5 +666,22 @@
         var run = await ExperimentService.GetRunAsync(runId.Value);
         if (run is not null)
             _currentRun = run;
+    }
+
+    private async Task DownloadGrid()
+    {
+        if (_currentRun is null) return;
+        var images = _currentRun.Images
+            .Select(i => (i.FilePath, i.GridX, i.GridY))
+            .ToList();
+        var colLabels = _axis1Values?.ToList() ?? [];
+        var rowLabels = _axis2Values?.ToList() ?? [];
+
+        var pngBytes = StableDiffusionStudio.Infrastructure.Services.GridCompositor.ComposeGrid(
+            images, colLabels, rowLabels);
+
+        var base64 = Convert.ToBase64String(pngBytes);
+        await JS.InvokeVoidAsync("downloadFile", $"experiment-grid-{DateTime.Now:yyyyMMdd-HHmmss}.png", "image/png", base64);
+        Snackbar.Add("Grid image downloaded", Severity.Success);
     }
 }
