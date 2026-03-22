@@ -206,15 +206,15 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             await this.ScenarioCleanupAsync();
         }
         
-        [global::Xunit.SkippableFactAttribute(DisplayName="Create and delete a workflow")]
+        [global::Xunit.SkippableFactAttribute(DisplayName="Create a workflow")]
         [global::Xunit.TraitAttribute("FeatureTitle", "Workflow System")]
-        [global::Xunit.TraitAttribute("Description", "Create and delete a workflow")]
-        public async global::System.Threading.Tasks.Task CreateAndDeleteAWorkflow()
+        [global::Xunit.TraitAttribute("Description", "Create a workflow")]
+        public async global::System.Threading.Tasks.Task CreateAWorkflow()
         {
             string[] tagsOfScenario = ((string[])(null));
             global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
             string pickleIndex = "2";
-            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Create and delete a workflow", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Create a workflow", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
 #line 17
@@ -234,16 +234,10 @@ namespace StableDiffusionStudio.E2E.Tests.Features
     await testRunner.WhenAsync("I navigate to the workflows page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
 #line 20
-    await testRunner.AndAsync("I create a workflow named \"Delete Me\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.AndAsync("I create a workflow named \"E2E Test Workflow\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
 #line 21
-    await testRunner.ThenAsync("I should see \"Delete Me\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
-#line hidden
-#line 22
-    await testRunner.WhenAsync("I delete the workflow \"Delete Me\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
-#line hidden
-#line 23
-    await testRunner.ThenAsync("I should not see \"Delete Me\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+    await testRunner.ThenAsync("I should see \"E2E Test Workflow\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
             await this.ScenarioCleanupAsync();

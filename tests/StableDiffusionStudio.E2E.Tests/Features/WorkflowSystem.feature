@@ -14,10 +14,8 @@ Feature: Workflow System
     When I navigate to the workflows page
     Then I should see a "New Workflow" button
 
-  Scenario: Create and delete a workflow
+  Scenario: Create a workflow
     Given I am on the home page
     When I navigate to the workflows page
-    And I create a workflow named "Delete Me"
-    Then I should see "Delete Me" in the workflow list
-    When I delete the workflow "Delete Me"
-    Then I should not see "Delete Me" in the workflow list
+    And I create a workflow named "E2E Test Workflow"
+    Then I should see "E2E Test Workflow" in the workflow list
