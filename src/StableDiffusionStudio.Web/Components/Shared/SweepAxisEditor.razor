@@ -1,0 +1,175 @@
+@using StableDiffusionStudio.Domain.Enums
+@using StableDiffusionStudio.Domain.ValueObjects
+
+<MudPaper Class="pa-3 mb-3" Elevation="0" Outlined="true">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">@Label</MudText>
+
+    <MudSelect T="string" Label="Parameter" Value="ParameterName" ValueChanged="OnParameterChanged"
+               Variant="Variant.Outlined" Dense="true" Class="mb-2">
+        <MudSelectItem T="string" Value="@string.Empty">— None —</MudSelectItem>
+        @foreach (var name in _sweepableParameters)
+        {
+            <MudSelectItem T="string" Value="@name">@name</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (!string.IsNullOrEmpty(ParameterName))
+    {
+        @if (IsNumericParameter(ParameterName))
+        {
+            <div class="d-flex gap-2 mb-2">
+                <MudNumericField T="double" Label="Start" Value="_numStart" ValueChanged="v => { _numStart = v; ExpandNumeric(); }"
+                                 Variant="Variant.Outlined" Dense="true" Step="1" />
+                <MudNumericField T="double" Label="End" Value="_numEnd" ValueChanged="v => { _numEnd = v; ExpandNumeric(); }"
+                                 Variant="Variant.Outlined" Dense="true" Step="1" />
+                <MudNumericField T="double" Label="Step" Value="_numStep" ValueChanged="v => { _numStep = v; ExpandNumeric(); }"
+                                 Variant="Variant.Outlined" Dense="true" Step="1" Min="0.001" />
+            </div>
+        }
+        else if (ParameterName == "Sampler")
+        {
+            <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" SelectedValues="_selectedEnumValues" SelectedValuesChanged="OnEnumSelectionChanged" Class="mb-2">
+                @foreach (var val in Enum.GetNames<Sampler>())
+                {
+                    <MudChip T="string" Value="@val" Variant="Variant.Outlined" Color="Color.Primary">@val</MudChip>
+                }
+            </MudChipSet>
+        }
+        else if (ParameterName == "Scheduler")
+        {
+            <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" SelectedValues="_selectedEnumValues" SelectedValuesChanged="OnEnumSelectionChanged" Class="mb-2">
+                @foreach (var val in Enum.GetNames<Scheduler>())
+                {
+                    <MudChip T="string" Value="@val" Variant="Variant.Outlined" Color="Color.Primary">@val</MudChip>
+                }
+            </MudChipSet>
+        }
+        else if (ParameterName == "HiresFixEnabled")
+        {
+            <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" SelectedValues="_selectedEnumValues" SelectedValuesChanged="OnEnumSelectionChanged" Class="mb-2">
+                <MudChip T="string" Value="@("True")" Variant="Variant.Outlined" Color="Color.Primary">True</MudChip>
+                <MudChip T="string" Value="@("False")" Variant="Variant.Outlined" Color="Color.Primary">False</MudChip>
+            </MudChipSet>
+        }
+        else if (ParameterName == "CheckpointModelId")
+        {
+            <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">Select models in the left panel</MudAlert>
+        }
+        else if (ParameterName is "PositivePrompt" or "NegativePrompt")
+        {
+            <MudTextField T="string" Label="One variation per line" Lines="4" Value="_textAreaValue"
+                          ValueChanged="OnTextAreaChanged" Variant="Variant.Outlined" Class="mb-2" />
+        }
+
+        @if (Values.Count > 0)
+        {
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                @foreach (var val in Values.Take(10))
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Default">@val</MudChip>
+                }
+                @if (Values.Count > 10)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Default">...</MudChip>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@Values.Count values</MudText>
+        }
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="mt-2"
+                   StartIcon="@Icons.Material.Filled.Clear" OnClick="Clear">
+            Clear
+        </MudButton>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public string ParameterName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ParameterNameChanged { get; set; }
+    [Parameter] public List<string> Values { get; set; } = [];
+    [Parameter] public EventCallback<List<string>> ValuesChanged { get; set; }
+    [Parameter] public EventCallback OnCleared { get; set; }
+    [Parameter] public string Label { get; set; } = "Axis";
+
+    private double _numStart;
+    private double _numEnd = 10;
+    private double _numStep = 1;
+    private string _textAreaValue = string.Empty;
+    private IReadOnlyCollection<string> _selectedEnumValues = new List<string>();
+
+    private static readonly string[] _sweepableParameters =
+    [
+        "Steps", "CfgScale", "DenoisingStrength", "ClipSkip", "Eta",
+        "Sampler", "Scheduler", "Seed",
+        "Width", "Height", "BatchSize", "BatchCount",
+        "HiresFixEnabled", "HiresUpscaleFactor", "HiresSteps", "HiresDenoisingStrength",
+        "PositivePrompt", "NegativePrompt", "CheckpointModelId"
+    ];
+
+    private static readonly HashSet<string> _numericParameters = new(StringComparer.Ordinal)
+    {
+        "Steps", "CfgScale", "DenoisingStrength", "ClipSkip", "Eta",
+        "Width", "Height", "BatchSize", "BatchCount", "Seed",
+        "HiresUpscaleFactor", "HiresSteps", "HiresDenoisingStrength"
+    };
+
+    private static bool IsNumericParameter(string name) => _numericParameters.Contains(name);
+
+    private async Task OnParameterChanged(string value)
+    {
+        ParameterName = value;
+        await ParameterNameChanged.InvokeAsync(value);
+        // Reset state
+        _numStart = 0;
+        _numEnd = 10;
+        _numStep = 1;
+        _textAreaValue = string.Empty;
+        _selectedEnumValues = new List<string>();
+        Values = [];
+        await ValuesChanged.InvokeAsync(Values);
+    }
+
+    private async void ExpandNumeric()
+    {
+        if (_numStep <= 0 || _numStart > _numEnd) return;
+        try
+        {
+            var axis = SweepAxis.Numeric(ParameterName, _numStart, _numEnd, _numStep);
+            Values = axis.Values.ToList();
+            await ValuesChanged.InvokeAsync(Values);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Invalid range — ignore until user fixes input
+        }
+    }
+
+    private async Task OnEnumSelectionChanged(IReadOnlyCollection<string> selected)
+    {
+        _selectedEnumValues = selected;
+        Values = selected.ToList();
+        await ValuesChanged.InvokeAsync(Values);
+    }
+
+    private async Task OnTextAreaChanged(string value)
+    {
+        _textAreaValue = value;
+        Values = value.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        await ValuesChanged.InvokeAsync(Values);
+    }
+
+    private async Task Clear()
+    {
+        ParameterName = string.Empty;
+        await ParameterNameChanged.InvokeAsync(string.Empty);
+        Values = [];
+        await ValuesChanged.InvokeAsync(Values);
+        _numStart = 0;
+        _numEnd = 10;
+        _numStep = 1;
+        _textAreaValue = string.Empty;
+        _selectedEnumValues = new List<string>();
+        await OnCleared.InvokeAsync();
+    }
+}

@@ -1,0 +1,665 @@
+@page "/lab"
+
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
+@using StableDiffusionStudio.Domain.ValueObjects
+@using Microsoft.AspNetCore.SignalR.Client
+
+@inject IExperimentService ExperimentService
+@inject IGenerationService GenerationService
+@inject IModelCatalogService ModelCatalogService
+@inject IAppPaths AppPaths
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<MudGrid>
+    <!-- Left Panel: Base parameters -->
+    <MudItem xs="12" md="4">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.h4" Class="mb-3">Parameter Lab</MudText>
+
+            <MudTextField T="string" Label="Experiment Name" @bind-Value="_experimentName"
+                          Variant="Variant.Outlined" Dense="true" Class="mb-2" />
+
+            <div class="d-flex gap-2 mb-3">
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save" OnClick="SaveExperiment"
+                           Disabled="@string.IsNullOrWhiteSpace(_experimentName)">
+                    Save
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CloneExperiment"
+                           Disabled="@(_currentExperimentId is null)">
+                    Clone
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteExperiment"
+                           Disabled="@(_currentExperimentId is null)">
+                    Delete
+                </MudButton>
+            </div>
+
+            <MudSelect T="Guid?" Label="Load Experiment" Value="_selectedExperimentId"
+                       ValueChanged="OnExperimentSelected" Variant="Variant.Outlined" Dense="true"
+                       Class="mb-3" Clearable="true">
+                @foreach (var exp in _experiments)
+                {
+                    <MudSelectItem T="Guid?" Value="@((Guid?)exp.Id)">@exp.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudDivider Class="mb-3" />
+
+            <MudToggleGroup T="GenerationMode" @bind-Value="_generationMode" Class="mb-3"
+                            Color="Color.Primary" Outlined="true" Dense="true">
+                <MudToggleItem T="GenerationMode" Value="GenerationMode.TextToImage">txt2img</MudToggleItem>
+                <MudToggleItem T="GenerationMode" Value="GenerationMode.ImageToImage">img2img</MudToggleItem>
+            </MudToggleGroup>
+
+            @if (_generationMode == GenerationMode.ImageToImage)
+            {
+                <ImageUpload @bind-ImageBytes="_initImageBytes" />
+            }
+
+            <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
+                           SelectedModelId="_checkpointId" SelectedModelIdChanged="v => _checkpointId = v"
+                           Required="true" />
+
+            <div class="mt-2">
+                <ModelSelector Label="VAE (optional)" ModelTypeFilter="ModelType.VAE"
+                               SelectedModelId="_vaeId" SelectedModelIdChanged="v => _vaeId = v" />
+            </div>
+
+            <div class="mt-2">
+                <LoraSelector SelectedLoras="_loras" SelectedLorasChanged="v => _loras = v" />
+            </div>
+
+            <MudTextField T="string" Label="Positive Prompt" Lines="3" @bind-Value="_positivePrompt"
+                          Variant="Variant.Outlined" Class="mt-3"
+                          Placeholder="Describe what you want to generate..." />
+
+            <MudTextField T="string" Label="Negative Prompt" Lines="2" @bind-Value="_negativePrompt"
+                          Variant="Variant.Outlined" Class="mt-2"
+                          Placeholder="What to avoid..." />
+
+            <MudExpansionPanels Class="mt-3" Dense="true">
+                <MudExpansionPanel Text="Parameters">
+                    <ParameterPanel Params_Sampler="_sampler" Params_SamplerChanged="v => _sampler = v"
+                                    Params_Scheduler="_scheduler" Params_SchedulerChanged="v => _scheduler = v"
+                                    Params_Steps="_steps" Params_StepsChanged="v => _steps = v"
+                                    Params_CfgScale="_cfgScale" Params_CfgScaleChanged="v => _cfgScale = v"
+                                    Params_Seed="_seed" Params_SeedChanged="v => _seed = v"
+                                    Params_Width="_width" Params_WidthChanged="v => _width = v"
+                                    Params_Height="_height" Params_HeightChanged="v => _height = v"
+                                    Params_BatchSize="_batchSize" Params_BatchSizeChanged="v => _batchSize = v"
+                                    Params_ClipSkip="_clipSkip" Params_ClipSkipChanged="v => _clipSkip = v"
+                                    Params_BatchCount="_batchCount" Params_BatchCountChanged="v => _batchCount = v"
+                                    Params_Eta="_eta" Params_EtaChanged="v => _eta = v"
+                                    Params_DenoisingStrength="_denoisingStrength" Params_DenoisingStrengthChanged="v => _denoisingStrength = v"
+                                    Params_HiresFixEnabled="_hiresFixEnabled" Params_HiresFixEnabledChanged="v => _hiresFixEnabled = v"
+                                    Params_HiresUpscaleFactor="_hiresUpscaleFactor" Params_HiresUpscaleFactorChanged="v => _hiresUpscaleFactor = v"
+                                    Params_HiresSteps="_hiresSteps" Params_HiresStepsChanged="v => _hiresSteps = v"
+                                    Params_HiresDenoisingStrength="_hiresDenoisingStrength" Params_HiresDenoisingStrengthChanged="v => _hiresDenoisingStrength = v" />
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+
+            <div class="d-flex align-center gap-2 mt-3">
+                <MudNumericField T="long" Label="Seed" @bind-Value="_seed" Variant="Variant.Outlined" Dense="true" />
+                <MudSwitch T="bool" @bind-Value="_useFixedSeed" Label="Fixed seed" Color="Color.Primary" />
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <!-- Middle Panel: Sweep axes -->
+    <MudItem xs="12" md="2">
+        <MudPaper Class="pa-4" Elevation="1">
+            <MudText Typo="Typo.subtitle1" Class="mb-3">Sweep Axes</MudText>
+
+            <SweepAxisEditor Label="Axis 1 (columns)"
+                             @bind-ParameterName="_axis1Parameter"
+                             @bind-Values="_axis1Values"
+                             OnCleared="() => { _axis1Parameter = string.Empty; _axis1Values = []; }" />
+
+            <MudDivider Class="my-2" />
+
+            <SweepAxisEditor Label="Axis 2 (rows) — optional"
+                             @bind-ParameterName="_axis2Parameter"
+                             @bind-Values="_axis2Values"
+                             OnCleared="() => { _axis2Parameter = string.Empty; _axis2Values = []; }" />
+
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-3 mb-2">
+                Total combinations: @TotalCombinations
+            </MudText>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Class="mb-2"
+                       StartIcon="@Icons.Material.Filled.AutoAwesome"
+                       Disabled="@(_isRunning || TotalCombinations == 0 || _checkpointId is null)"
+                       OnClick="RunExperiment">
+                @if (_isRunning)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    @:Running...
+                }
+                else
+                {
+                    @:Run Experiment
+                }
+            </MudButton>
+
+            @if (_isRunning)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true"
+                           OnClick="CancelRun">
+                    Cancel
+                </MudButton>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <!-- Right Panel: Results grid -->
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4" Elevation="1">
+            <ExperimentGrid Run="_currentRun"
+                            Axis1Label="@_axis1Parameter"
+                            Axis2Label="@(string.IsNullOrEmpty(_axis2Parameter) ? null : _axis2Parameter)"
+                            Axis1Values="_axis1Values"
+                            Axis2Values="@(string.IsNullOrEmpty(_axis2Parameter) ? null : _axis2Values)"
+                            OnWinnerToggled="ToggleWinner"
+                            AppPaths="AppPaths" />
+
+            <div class="d-flex gap-2 mt-3">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.CheckCircle"
+                           Disabled="@(!HasWinner)"
+                           OnClick="ApplyWinner">
+                    Apply Winner
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           Disabled="@(!HasWinner)"
+                           OnClick="SaveWinnerAsPreset">
+                    Save as Preset
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Tertiary" Size="Size.Small"
+                           StartIcon="@Icons.Material.Filled.Send"
+                           Disabled="@(!HasWinner)"
+                           OnClick="SendToGenerate">
+                    Send to Generate
+                </MudButton>
+            </div>
+
+            @if (_currentExperiment is not null && _currentExperiment.Runs.Count > 0)
+            {
+                <MudSelect T="Guid?" Label="Run History" Value="_selectedRunId" ValueChanged="OnRunSelected"
+                           Variant="Variant.Outlined" Dense="true" Class="mt-3">
+                    @foreach (var run in _currentExperiment.Runs.OrderByDescending(r => r.StartedAt))
+                    {
+                        <MudSelectItem T="Guid?" Value="@((Guid?)run.Id)">
+                            @(run.StartedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Pending") — @run.Status
+                        </MudSelectItem>
+                    }
+                </MudSelect>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    // Base generation parameters
+    private Guid? _checkpointId;
+    private Guid? _vaeId;
+    private List<LoraReference> _loras = [];
+    private string _positivePrompt = string.Empty;
+    private string _negativePrompt = string.Empty;
+    private Sampler _sampler = Sampler.EulerA;
+    private Scheduler _scheduler = Scheduler.Normal;
+    private int _steps = 20;
+    private double _cfgScale = 7.0;
+    private long _seed = -1;
+    private int _width = 512;
+    private int _height = 512;
+    private int _batchSize = 1;
+    private int _clipSkip = 1;
+    private int _batchCount = 1;
+    private double _eta = 0.0;
+    private double _denoisingStrength = 1.0;
+    private bool _hiresFixEnabled;
+    private double _hiresUpscaleFactor = 2.0;
+    private int _hiresSteps;
+    private double _hiresDenoisingStrength = 0.55;
+    private GenerationMode _generationMode = GenerationMode.TextToImage;
+    private byte[]? _initImageBytes;
+    private bool _useFixedSeed = true;
+
+    // Sweep axis state
+    private string _axis1Parameter = string.Empty;
+    private List<string> _axis1Values = [];
+    private string _axis2Parameter = string.Empty;
+    private List<string> _axis2Values = [];
+
+    // Experiment state
+    private string _experimentName = $"Experiment — {DateTime.Now:yyyy-MM-dd HH:mm}";
+    private Guid? _currentExperimentId;
+    private Guid? _selectedExperimentId;
+    private ExperimentDto? _currentExperiment;
+    private ExperimentRunDto? _currentRun;
+    private Guid? _selectedRunId;
+    private IReadOnlyList<ExperimentDto> _experiments = [];
+    private bool _isRunning;
+
+    // SignalR
+    private HubConnection? _hubConnection;
+
+    private int TotalCombinations
+    {
+        get
+        {
+            var count1 = _axis1Values.Count > 0 ? _axis1Values.Count : 0;
+            var count2 = _axis2Values.Count > 0 ? _axis2Values.Count : 0;
+            if (count1 == 0) return 0;
+            return count2 > 0 ? count1 * count2 : count1;
+        }
+    }
+
+    private bool HasWinner => _currentRun?.Images.Any(i => i.IsWinner) == true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExperiments();
+
+        // Check for fromJob query parameter
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var fromJob = query["fromJob"];
+        if (Guid.TryParse(fromJob, out var jobId))
+        {
+            try
+            {
+                var parameters = await GenerationService.CloneParametersAsync(jobId);
+                ApplyParameters(parameters);
+            }
+            catch
+            {
+                // Job not found — ignore
+            }
+        }
+
+        // Connect to SignalR
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Nav.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<string, int, int>("ExperimentProgress",
+                (runId, completed, total) =>
+                {
+                    if (_currentRun is not null && _currentRun.Id.ToString() == runId)
+                    {
+                        _currentRun = _currentRun with { CompletedCount = completed };
+                        InvokeAsync(StateHasChanged);
+                    }
+                });
+
+            _hubConnection.On<string>("ExperimentComplete",
+                async runId =>
+                {
+                    if (_currentRun is not null && _currentRun.Id.ToString() == runId)
+                    {
+                        var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
+                        if (updated is not null)
+                        {
+                            _currentRun = updated;
+                        }
+                        _isRunning = false;
+                        await InvokeAsync(() =>
+                        {
+                            Snackbar.Add("Experiment complete", Severity.Success);
+                            StateHasChanged();
+                        });
+                    }
+                });
+
+            _hubConnection.On<string, string>("ExperimentFailed",
+                (runId, error) =>
+                {
+                    if (_currentRun is not null && _currentRun.Id.ToString() == runId)
+                    {
+                        _isRunning = false;
+                        InvokeAsync(() =>
+                        {
+                            Snackbar.Add($"Experiment failed: {error}", Severity.Error);
+                            StateHasChanged();
+                        });
+                    }
+                });
+
+            await _hubConnection.StartAsync();
+        }
+        catch
+        {
+            // SignalR connection failed — continue without real-time updates
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+            await _hubConnection.DisposeAsync();
+    }
+
+    private async Task LoadExperiments()
+    {
+        _experiments = await ExperimentService.ListAsync();
+    }
+
+    private async Task OnExperimentSelected(Guid? experimentId)
+    {
+        _selectedExperimentId = experimentId;
+        if (experimentId is null) return;
+
+        var experiment = await ExperimentService.GetByIdAsync(experimentId.Value);
+        if (experiment is null) return;
+
+        LoadExperiment(experiment);
+    }
+
+    private void LoadExperiment(ExperimentDto experiment)
+    {
+        _currentExperiment = experiment;
+        _currentExperimentId = experiment.Id;
+        _experimentName = experiment.Name;
+
+        // Load base parameters
+        ApplyParameters(experiment.BaseParameters);
+
+        // Load sweep axes
+        if (experiment.SweepAxes.Count > 0)
+        {
+            _axis1Parameter = experiment.SweepAxes[0].ParameterName;
+            _axis1Values = experiment.SweepAxes[0].Values.ToList();
+        }
+        if (experiment.SweepAxes.Count > 1)
+        {
+            _axis2Parameter = experiment.SweepAxes[1].ParameterName;
+            _axis2Values = experiment.SweepAxes[1].Values.ToList();
+        }
+
+        // Load latest run
+        var latestRun = experiment.Runs
+            .OrderByDescending(r => r.StartedAt)
+            .FirstOrDefault();
+        if (latestRun is not null)
+        {
+            _currentRun = latestRun;
+            _selectedRunId = latestRun.Id;
+        }
+    }
+
+    private void ApplyParameters(GenerationParameters p)
+    {
+        _checkpointId = p.CheckpointModelId;
+        _vaeId = p.VaeModelId;
+        _loras = p.Loras.Select(l => new LoraReference(l.ModelId, l.Weight)).ToList();
+        _positivePrompt = p.PositivePrompt;
+        _negativePrompt = p.NegativePrompt;
+        _sampler = p.Sampler;
+        _scheduler = p.Scheduler;
+        _steps = p.Steps;
+        _cfgScale = p.CfgScale;
+        _seed = p.Seed;
+        _width = p.Width;
+        _height = p.Height;
+        _batchSize = p.BatchSize;
+        _clipSkip = p.ClipSkip;
+        _batchCount = p.BatchCount;
+        _eta = p.Eta;
+        _denoisingStrength = p.DenoisingStrength;
+        _generationMode = p.Mode;
+        _hiresFixEnabled = p.HiresFixEnabled;
+        _hiresUpscaleFactor = p.HiresUpscaleFactor;
+        _hiresSteps = p.HiresSteps;
+        _hiresDenoisingStrength = p.HiresDenoisingStrength;
+    }
+
+    private GenerationParameters BuildBaseParameters()
+    {
+        return new GenerationParameters
+        {
+            PositivePrompt = _positivePrompt,
+            NegativePrompt = _negativePrompt,
+            CheckpointModelId = _checkpointId ?? Guid.Empty,
+            VaeModelId = _vaeId,
+            Loras = _loras,
+            Sampler = _sampler,
+            Scheduler = _scheduler,
+            Steps = _steps,
+            CfgScale = _cfgScale,
+            Seed = _seed,
+            Width = _width,
+            Height = _height,
+            BatchSize = _batchSize,
+            ClipSkip = _clipSkip,
+            BatchCount = _batchCount,
+            Eta = _eta,
+            DenoisingStrength = _denoisingStrength,
+            Mode = _generationMode,
+            HiresFixEnabled = _hiresFixEnabled,
+            HiresUpscaleFactor = _hiresUpscaleFactor,
+            HiresSteps = _hiresSteps,
+            HiresDenoisingStrength = _hiresDenoisingStrength
+        };
+    }
+
+    private List<SweepAxis> BuildAxes()
+    {
+        var axes = new List<SweepAxis>();
+        if (!string.IsNullOrEmpty(_axis1Parameter) && _axis1Values.Count > 0)
+        {
+            axes.Add(new SweepAxis
+            {
+                ParameterName = _axis1Parameter,
+                Values = _axis1Values,
+                Label = "Axis 1 (columns)"
+            });
+        }
+        if (!string.IsNullOrEmpty(_axis2Parameter) && _axis2Values.Count > 0)
+        {
+            axes.Add(new SweepAxis
+            {
+                ParameterName = _axis2Parameter,
+                Values = _axis2Values,
+                Label = "Axis 2 (rows)"
+            });
+        }
+        return axes;
+    }
+
+    private async Task SaveExperiment()
+    {
+        if (string.IsNullOrWhiteSpace(_experimentName)) return;
+
+        var baseParams = BuildBaseParameters();
+        var axes = BuildAxes();
+
+        try
+        {
+            if (_currentExperimentId is not null)
+            {
+                _currentExperiment = await ExperimentService.UpdateAsync(
+                    _currentExperimentId.Value, _experimentName, baseParams, axes);
+            }
+            else
+            {
+                _currentExperiment = await ExperimentService.CreateAsync(
+                    _experimentName, baseParams, axes);
+                _currentExperimentId = _currentExperiment.Id;
+            }
+            await LoadExperiments();
+            Snackbar.Add("Experiment saved", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CloneExperiment()
+    {
+        if (_currentExperimentId is null) return;
+
+        try
+        {
+            var cloned = await ExperimentService.CloneAsync(
+                _currentExperimentId.Value, $"{_experimentName} (copy)");
+            LoadExperiment(cloned);
+            await LoadExperiments();
+            Snackbar.Add("Experiment cloned", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to clone: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteExperiment()
+    {
+        if (_currentExperimentId is null) return;
+
+        try
+        {
+            await ExperimentService.DeleteAsync(_currentExperimentId.Value);
+            _currentExperimentId = null;
+            _currentExperiment = null;
+            _currentRun = null;
+            _selectedRunId = null;
+            _experimentName = $"Experiment — {DateTime.Now:yyyy-MM-dd HH:mm}";
+            await LoadExperiments();
+            Snackbar.Add("Experiment deleted", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to delete: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RunExperiment()
+    {
+        if (TotalCombinations == 0 || _checkpointId is null) return;
+
+        try
+        {
+            // Save first
+            await SaveExperiment();
+            if (_currentExperimentId is null) return;
+
+            _isRunning = true;
+            StateHasChanged();
+
+            _currentRun = await ExperimentService.StartRunAsync(
+                _currentExperimentId.Value, _seed, _useFixedSeed);
+            _selectedRunId = _currentRun.Id;
+        }
+        catch (Exception ex)
+        {
+            _isRunning = false;
+            Snackbar.Add($"Failed to start experiment: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void CancelRun()
+    {
+        _isRunning = false;
+        Snackbar.Add("Run cancelled", Severity.Warning);
+    }
+
+    private async Task ToggleWinner(Guid imageId)
+    {
+        try
+        {
+            await ExperimentService.ToggleWinnerAsync(imageId);
+            // Refresh current run to reflect winner state
+            if (_currentRun is not null)
+            {
+                var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
+                if (updated is not null)
+                    _currentRun = updated;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to toggle winner: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ApplyWinner()
+    {
+        var winner = _currentRun?.Images.FirstOrDefault(i => i.IsWinner);
+        if (winner is null) return;
+
+        try
+        {
+            var winnerParams = await ExperimentService.GetWinnerParametersAsync(winner.Id);
+            ApplyParameters(winnerParams);
+            Snackbar.Add("Winner parameters applied to base settings", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to apply winner: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SaveWinnerAsPreset()
+    {
+        var winner = _currentRun?.Images.FirstOrDefault(i => i.IsWinner);
+        if (winner is null) return;
+
+        try
+        {
+            var winnerParams = await ExperimentService.GetWinnerParametersAsync(winner.Id);
+            var parameters = new DialogParameters<Dialogs.SavePresetDialog>
+            {
+                { x => x.ModelId, winnerParams.CheckpointModelId },
+                { x => x.PositivePrompt, winnerParams.PositivePrompt },
+                { x => x.NegativePrompt, winnerParams.NegativePrompt },
+                { x => x.Sampler, winnerParams.Sampler },
+                { x => x.Scheduler, winnerParams.Scheduler },
+                { x => x.Steps, winnerParams.Steps },
+                { x => x.CfgScale, winnerParams.CfgScale },
+                { x => x.Width, winnerParams.Width },
+                { x => x.Height, winnerParams.Height },
+                { x => x.BatchSize, winnerParams.BatchSize },
+                { x => x.ClipSkip, winnerParams.ClipSkip }
+            };
+            await DialogService.ShowAsync<Dialogs.SavePresetDialog>("Save Preset", parameters);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save preset: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void SendToGenerate()
+    {
+        Nav.NavigateTo("/generate");
+    }
+
+    private async Task OnRunSelected(Guid? runId)
+    {
+        _selectedRunId = runId;
+        if (runId is null)
+        {
+            _currentRun = null;
+            return;
+        }
+
+        var run = await ExperimentService.GetRunAsync(runId.Value);
+        if (run is not null)
+            _currentRun = run;
+    }
+}

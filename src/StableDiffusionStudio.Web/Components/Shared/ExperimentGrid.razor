@@ -1,0 +1,154 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
+
+@if (Run is null)
+{
+    <EmptyState Icon="@Icons.Material.Filled.Science"
+                Title="No experiment run"
+                Subtitle="Configure sweep axes and run an experiment" />
+}
+else
+{
+    <div class="mb-2 d-flex align-center gap-2">
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            @Run.CompletedCount / @Run.TotalCombinations images
+        </MudText>
+        @if (Run.Status is ExperimentRunStatus.Running or ExperimentRunStatus.Pending)
+        {
+            <MudProgressLinear Value="@Run.CompletedCount" Max="@Run.TotalCombinations"
+                               Color="Color.Primary" Striped="true" Class="flex-grow-1" />
+        }
+    </div>
+
+    @if (HasAxis2)
+    {
+        <!-- Two-axis grid -->
+        <div class="experiment-grid" style="grid-template-columns: auto repeat(@Axis1Values.Count, 1fr);">
+            <!-- Header row: empty corner + column headers -->
+            <div class="grid-cell grid-corner"></div>
+            @foreach (var col in Axis1Values)
+            {
+                <div class="grid-cell grid-header">
+                    <MudText Typo="Typo.caption" Align="Align.Center">@col</MudText>
+                </div>
+            }
+
+            <!-- Data rows -->
+            @for (var row = 0; row < Axis2Values!.Count; row++)
+            {
+                <div class="grid-cell grid-row-header">
+                    <MudText Typo="Typo.caption">@Axis2Values[row]</MudText>
+                </div>
+                @for (var col = 0; col < Axis1Values.Count; col++)
+                {
+                    var image = FindImage(col, row);
+                    @RenderImageCell(image)
+                }
+            }
+        </div>
+    }
+    else
+    {
+        <!-- Single-axis grid -->
+        <div class="experiment-grid" style="grid-template-columns: repeat(@Axis1Values.Count, 1fr);">
+            @foreach (var col in Axis1Values)
+            {
+                <div class="grid-cell grid-header">
+                    <MudText Typo="Typo.caption" Align="Align.Center">@col</MudText>
+                </div>
+            }
+            @for (var col = 0; col < Axis1Values.Count; col++)
+            {
+                var image = FindImage(col, 0);
+                @RenderImageCell(image)
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public ExperimentRunDto? Run { get; set; }
+    [Parameter] public string Axis1Label { get; set; } = string.Empty;
+    [Parameter] public string? Axis2Label { get; set; }
+    [Parameter] public IReadOnlyList<string> Axis1Values { get; set; } = [];
+    [Parameter] public IReadOnlyList<string>? Axis2Values { get; set; }
+    [Parameter] public EventCallback<Guid> OnWinnerToggled { get; set; }
+    [Parameter] public IAppPaths? AppPaths { get; set; }
+
+    private bool HasAxis2 => Axis2Values is not null && Axis2Values.Count > 0;
+
+    private ExperimentRunImageDto? FindImage(int gridX, int gridY)
+    {
+        return Run?.Images.FirstOrDefault(i => i.GridX == gridX && i.GridY == gridY);
+    }
+
+    private RenderFragment RenderImageCell(ExperimentRunImageDto? image) => __builder =>
+    {
+        if (image is not null)
+        {
+            var borderStyle = image.IsWinner ? "border: 3px solid var(--mud-palette-warning);" : "";
+            var imageUrl = AppPaths?.GetImageUrl(image.FilePath) ?? image.FilePath;
+            <div class="grid-cell grid-image @(image.IsWinner ? "winner" : "")" style="@borderStyle cursor: pointer;"
+                 @onclick="() => OnWinnerToggled.InvokeAsync(image.Id)">
+                <img src="@imageUrl" alt="Grid @(image.GridX),@(image.GridY)" loading="lazy" />
+            </div>
+        }
+        else
+        {
+            <div class="grid-cell grid-image">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100%" />
+            </div>
+        }
+    };
+}
+
+<style>
+    .experiment-grid {
+        display: grid;
+        gap: 4px;
+        width: 100%;
+    }
+
+    .grid-cell {
+        min-width: 0;
+    }
+
+    .grid-corner {
+        /* empty top-left corner */
+    }
+
+    .grid-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+        background: var(--mud-palette-surface);
+        border-radius: 4px;
+    }
+
+    .grid-row-header {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        background: var(--mud-palette-surface);
+        border-radius: 4px;
+    }
+
+    .grid-image {
+        aspect-ratio: 1;
+        overflow: hidden;
+        border-radius: 4px;
+        background: var(--mud-palette-background-gray);
+    }
+
+    .grid-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .grid-image.winner {
+        box-shadow: 0 0 8px var(--mud-palette-warning);
+    }
+</style>
