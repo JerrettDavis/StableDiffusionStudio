@@ -43,6 +43,22 @@
                 <ImageUpload @bind-ImageBytes="_initImageBytes" OnDimensionsDetected="OnInitImageDimensions" />
                 @if (_initImageBytes is not null)
                 {
+                    <div class="d-flex gap-2 mb-2">
+                        <MudSelect T="Domain.Enums.ImageInputMode" Label="Input mode" @bind-Value="_imageInputMode"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1">
+                            <MudSelectItem T="Domain.Enums.ImageInputMode" Value="Domain.Enums.ImageInputMode.Scale">Scale (fit + pad)</MudSelectItem>
+                            <MudSelectItem T="Domain.Enums.ImageInputMode" Value="Domain.Enums.ImageInputMode.CenterCrop">Center Crop</MudSelectItem>
+                            <MudSelectItem T="Domain.Enums.ImageInputMode" Value="Domain.Enums.ImageInputMode.Resize">Resize (stretch)</MudSelectItem>
+                        </MudSelect>
+                    </div>
+                    @if (_showHelp)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2" Style="margin-top:-4px">
+                            <strong>Scale</strong> fits the image to the target size preserving aspect ratio and pads the rest.
+                            <strong>Center Crop</strong> crops from the center to fill the target exactly.
+                            <strong>Resize</strong> stretches to the target dimensions ignoring aspect ratio.
+                        </MudText>
+                    }
                     @if (_suggestedResolution is not null)
                     {
                         <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true"
@@ -299,6 +315,7 @@
     private int _hiresSteps;
     private double _hiresDenoisingStrength = 0.55;
     private Domain.Enums.GenerationMode _generationMode = Domain.Enums.GenerationMode.TextToImage;
+    private Domain.Enums.ImageInputMode _imageInputMode = Domain.Enums.ImageInputMode.Scale;
     private byte[]? _initImageBytes;
     private InpaintCanvas? _inpaintCanvas;
     private bool _isGenerating;
@@ -607,6 +624,7 @@
                 Eta = _eta,
                 DenoisingStrength = _denoisingStrength,
                 Mode = _generationMode,
+                ImageInputMode = _imageInputMode,
                 HiresFixEnabled = _hiresFixEnabled,
                 HiresUpscaleFactor = _hiresUpscaleFactor,
                 HiresSteps = _hiresSteps,
@@ -740,6 +758,7 @@
         _hiresSteps = job.Parameters.HiresSteps;
         _hiresDenoisingStrength = job.Parameters.HiresDenoisingStrength;
         _generationMode = job.Parameters.Mode;
+        _imageInputMode = job.Parameters.ImageInputMode;
         // Clear init image when reusing — the user must re-upload or use Send to img2img
         _initImageBytes = null;
         RecalculateTokenCounts();

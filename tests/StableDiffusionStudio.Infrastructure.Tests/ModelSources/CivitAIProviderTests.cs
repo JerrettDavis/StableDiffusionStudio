@@ -676,4 +676,119 @@ public class CivitAIProviderTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public async Task SearchAsync_MapsControlNetType()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 400,
+                    "name": "ControlNet Canny",
+                    "type": "Controlnet",
+                    "tags": [],
+                    "modelVersions": [
+                        {
+                            "id": 401,
+                            "baseModel": "SD 1.5",
+                            "images": [],
+                            "files": [{"id": 402, "name": "canny.safetensors", "sizeKB": 500000}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "controlnet"));
+
+        result.Models[0].Type.Should().Be(ModelType.ControlNet);
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithControlNetTypeFilter_IncludesTypeInQuery()
+    {
+        var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 1, "totalPages": 0}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Type: ModelType.ControlNet);
+        await provider.SearchAsync(query);
+
+        handler.SentRequests[0].RequestUri!.ToString().Should().Contain("types=Controlnet");
+    }
+
+    [Theory]
+    [InlineData(SortOrder.Relevance, "Most Downloaded")]
+    [InlineData(SortOrder.MostDownloaded, "Most Downloaded")]
+    [InlineData(SortOrder.Newest, "Newest")]
+    [InlineData(SortOrder.Name, "Highest Rated")]
+    public async Task SearchAsync_MapsSortOrder(SortOrder sort, string expectedParam)
+    {
+        var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 1, "totalPages": 0}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Sort: sort);
+        await provider.SearchAsync(query);
+
+        handler.SentRequests[0].RequestUri!.ToString().Should().Contain($"sort={expectedParam}");
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithFamilyFilter_IncludesBaseModelsParam()
+    {
+        var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 1, "totalPages": 0}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Family: ModelFamily.SD15);
+        await provider.SearchAsync(query);
+
+        handler.SentRequests[0].RequestUri!.ToString().Should().Contain("baseModels=SD 1.5");
+    }
+
+    [Fact]
+    public async Task SearchAsync_ExtractsTrainedWords()
+    {
+        var response = """
+        {
+            "items": [
+                {
+                    "id": 500,
+                    "name": "LoRA with Triggers",
+                    "type": "LORA",
+                    "tags": ["style"],
+                    "modelVersions": [
+                        {
+                            "id": 501,
+                            "baseModel": "SDXL 1.0",
+                            "trainedWords": ["trigger_word", "activation"],
+                            "images": [],
+                            "files": [{"id": 502, "name": "lora.safetensors", "sizeKB": 100}]
+                        }
+                    ]
+                }
+            ],
+            "metadata": {"totalItems": 1, "currentPage": 1, "totalPages": 1}
+        }
+        """;
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var result = await provider.SearchAsync(new ModelSearchQuery("civitai", SearchTerm: "lora"));
+
+        result.Models[0].Tags.Should().Contain("style");
+        result.Models[0].Tags.Should().Contain("trigger_word");
+        result.Models[0].Tags.Should().Contain("activation");
+    }
 }

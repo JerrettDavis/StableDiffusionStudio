@@ -4,10 +4,14 @@
 @using StableDiffusionStudio.Application.Services
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Domain.Enums
+@using Microsoft.JSInterop
 @inject IModelCatalogService ModelCatalogService
+@inject IAppPaths AppPaths
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 @inject ILogger<Models> Logger
+@implements IAsyncDisposable
 
 @if (_loadError is not null)
 {
@@ -19,191 +23,165 @@
 
 <MudText Typo="Typo.h4" Class="mb-4">Models</MudText>
 
-<MudTabs Elevation="1" Rounded="true" @bind-ActivePanelIndex="_activeTabIndex">
-    <MudTabPanel Text="Local Catalog" Icon="@Icons.Material.Filled.Folder">
-        @* Local catalog toolbar *@
-        <MudToolBar Dense="true" Class="mb-4 mt-3 px-0">
-            <MudTextField @bind-Value="_searchTerm" Placeholder="Search models..."
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Immediate="true" DebounceInterval="300" OnDebounceIntervalElapsed="LoadModels"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" />
-            <MudSelect T="ModelFamily?" Label="Family" Value="_familyFilter" ValueChanged="OnFamilyChanged"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="max-width: 180px;"
-                       Clearable="true">
-                @foreach (var family in Enum.GetValues<ModelFamily>())
-                {
-                    <MudSelectItem T="ModelFamily?" Value="@family">@family</MudSelectItem>
-                }
-            </MudSelect>
-            <MudSelect T="ModelType?" Label="Type" Value="_typeFilter" ValueChanged="OnTypeChanged"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="max-width: 180px;"
-                       Clearable="true">
-                @foreach (var type in Enum.GetValues<ModelType>())
-                {
-                    <MudSelectItem T="ModelType?" Value="@type">@type</MudSelectItem>
-                }
-            </MudSelect>
-            <MudSpacer />
-            <MudButton Variant="Variant.Outlined" Color="Color.Default"
-                       StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="AddDirectory" Class="mr-2">
-                Add Directory
-            </MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       StartIcon="@Icons.Material.Filled.Refresh" OnClick="ScanNow" Disabled="_scanning">
-                @if (_scanning)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    <span>Scanning...</span>
-                }
-                else
-                {
-                    <span>Scan Now</span>
-                }
-            </MudButton>
-        </MudToolBar>
+@* Filter bar *@
+<ModelFilterBar SearchTerm="@_searchTerm" SearchTermChanged="OnSearchTermChanged"
+               SelectedSource="@_selectedSource" SelectedSourceChanged="OnSourceChanged"
+               TypeFilter="@CurrentState.TypeFilter" TypeFilterChanged="OnTypeChanged"
+               FamilyFilter="@CurrentState.FamilyFilter" FamilyFilterChanged="OnFamilyChanged"
+               SortOrder="@CurrentState.SortOrder" SortOrderChanged="OnSortChanged"
+               BaseModel="@CurrentState.BaseModel" BaseModelChanged="OnBaseModelChanged"
+               ViewModeList="@_listView" ViewModeListChanged="v => { _listView = v; StateHasChanged(); }" />
 
-        @if (_scanning && _models is null)
-        {
-            <MudProgressLinear Indeterminate="true" />
-        }
-        else if (_models is null || _models.Count == 0)
-        {
-            <EmptyState Title="No models discovered"
-                        Subtitle="Add a model directory and scan to discover your models"
-                        Icon="@Icons.Material.Filled.ViewInAr"
-                        ActionText="Add Directory"
-                        OnAction="AddDirectory" />
-        }
-        else
-        {
-            <MudGrid>
-                @foreach (var model in _models)
-                {
-                    <MudItem xs="12" sm="6" md="4" lg="3">
-                        <ModelCard Model="model" OnClick="ShowModelDetail" />
-                    </MudItem>
-                }
-            </MudGrid>
-        }
-    </MudTabPanel>
+@* Local source toolbar *@
+@if (_selectedSource == "local")
+{
+    <MudToolBar Dense="true" Class="mb-3 px-0">
+        <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="AddDirectory" Class="mr-2">
+            Add Directory
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh" OnClick="ScanNow" Disabled="_scanning">
+            @if (_scanning)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Scanning...</span>
+            }
+            else
+            {
+                <span>Scan Now</span>
+            }
+        </MudButton>
+    </MudToolBar>
+}
 
-    @if (_remoteProviders is not null)
+@* Loading indicator *@
+@if (CurrentState.IsLoading)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+
+@* Results area *@
+@if (CurrentState.Results.Count == 0 && !CurrentState.IsLoading)
+{
+    @if (_selectedSource == "local")
     {
-        @foreach (var provider in _remoteProviders)
-        {
-            <MudTabPanel Text="@provider.DisplayName" Icon="@Icons.Material.Filled.Cloud">
-                <MudToolBar Dense="true" Class="mb-4 mt-3 px-0">
-                    <MudTextField @bind-Value="_remoteSearchTerm" Placeholder="@($"Search {provider.DisplayName}...")"
-                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2"
-                                  OnKeyDown="@(async (e) => { if (e.Key == "Enter") await SearchRemote(provider.ProviderId); })" />
-                    <MudSelect T="ModelType?" Label="Type" Value="_remoteTypeFilter" ValueChanged="OnRemoteTypeChanged"
-                               Variant="Variant.Outlined" Margin="Margin.Dense" Class="mr-2" Style="max-width: 180px;"
-                               Clearable="true">
-                        @foreach (var type in Enum.GetValues<ModelType>())
-                        {
-                            <MudSelectItem T="ModelType?" Value="@type">@type</MudSelectItem>
-                        }
-                    </MudSelect>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.Search"
-                               OnClick="() => SearchRemote(provider.ProviderId)"
-                               Disabled="_remoteSearching">
-                        Search
-                    </MudButton>
-                </MudToolBar>
-
-                @if (_remoteSearching)
-                {
-                    <MudProgressLinear Indeterminate="true" />
-                }
-                else if (_remoteResults is null || _remoteResults.Count == 0)
-                {
-                    <EmptyState Title="No results"
-                                Subtitle="@($"Search {provider.DisplayName} to find models")"
-                                Icon="@Icons.Material.Filled.CloudDownload" />
-                }
-                else
-                {
-                    <MudGrid>
-                        @foreach (var model in _remoteResults)
-                        {
-                            <MudItem xs="12" sm="6" md="4" lg="3">
-                                <MudCard Elevation="1">
-                                    <MudCardContent>
-                                        <MudText Typo="Typo.subtitle1" Class="mb-1">@model.Title</MudText>
-                                        <div class="d-flex gap-2 flex-wrap mb-2">
-                                            <MudChip T="string" Size="Size.Small" Color="Color.Tertiary">@model.Type</MudChip>
-                                            <MudChip T="string" Size="Size.Small" Color="Color.Primary">@model.Family</MudChip>
-                                            <MudChip T="string" Size="Size.Small" Color="Color.Secondary">@model.Format</MudChip>
-                                        </div>
-                                        @if (!string.IsNullOrWhiteSpace(model.Description))
-                                        {
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2"
-                                                     Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                                                @model.Description
-                                            </MudText>
-                                        }
-                                        @if (model.FileSize.HasValue)
-                                        {
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                                @FormatFileSize(model.FileSize.Value)
-                                            </MudText>
-                                        }
-                                    </MudCardContent>
-                                    <MudCardActions>
-                                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                                   StartIcon="@Icons.Material.Filled.Download" Size="Size.Small"
-                                                   OnClick="() => OpenDownloadDialog(model, provider.ProviderId)">
-                                            Download
-                                        </MudButton>
-                                    </MudCardActions>
-                                </MudCard>
-                            </MudItem>
-                        }
-                    </MudGrid>
-                    @if (_remoteHasMore)
-                    {
-                        <div class="d-flex justify-center mt-4">
-                            <MudButton Variant="Variant.Outlined" OnClick="() => LoadMoreRemote(provider.ProviderId)">
-                                Load More
-                            </MudButton>
-                        </div>
-                    }
-                }
-            </MudTabPanel>
-        }
+        <EmptyState Title="No models discovered"
+                    Subtitle="Add a model directory and scan to discover your models"
+                    Icon="@Icons.Material.Filled.ViewInAr"
+                    ActionText="Add Directory"
+                    OnAction="AddDirectory" />
     }
-</MudTabs>
+    else
+    {
+        <EmptyState Title="No results"
+                    Subtitle="Search to find models from this source"
+                    Icon="@Icons.Material.Filled.CloudDownload" />
+    }
+}
+else if (!_listView)
+{
+    @* Card grid view *@
+    <MudGrid>
+        @foreach (var model in CurrentState.Results)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <ModelCardUnified Model="model" OnClick="OnModelClicked" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    @* List view *@
+    <MudTable Items="CurrentState.Results" Dense="true" Hover="true" Elevation="1">
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Title</MudTh>
+            <MudTh>Family</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Format</MudTh>
+            <MudTh>Size</MudTh>
+            <MudTh>Source</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <ModelListRow Model="context" OnClick="OnModelClicked" />
+        </RowTemplate>
+    </MudTable>
+}
+
+@* Infinite scroll sentinel for remote sources *@
+@if (_selectedSource != "local" && CurrentState.HasMore && CurrentState.Results.Count > 0)
+{
+    <div id="@_sentinelId" class="d-flex justify-center pa-4">
+        @if (CurrentState.IsLoading)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+        }
+    </div>
+}
+else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Results.Count > 0)
+{
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Align="Align.Center" Class="pa-4">
+        All results loaded
+    </MudText>
+}
+
+@* Detail drawer *@
+<ModelDetailDrawer Open="@_drawerOpen" OpenChanged="v => _drawerOpen = v"
+                  Model="@_selectedModel" LocalModel="@_selectedLocalModel" RemoteModel="@_selectedRemoteModel"
+                  OnDeleted="OnModelDeleted" />
 
 @code {
-    // Local catalog state
-    private IReadOnlyList<ModelRecordDto>? _models;
+    // Per-source state
+    private class SourceState
+    {
+        public string? SearchTerm { get; set; }
+        public ModelType? TypeFilter { get; set; }
+        public ModelFamily? FamilyFilter { get; set; }
+        public SortOrder SortOrder { get; set; } = SortOrder.Relevance;
+        public string? BaseModel { get; set; }
+        public List<ModelCardViewModel> Results { get; set; } = [];
+        public int Page { get; set; }
+        public bool HasMore { get; set; }
+        public bool IsLoading { get; set; }
+    }
+
+    private readonly Dictionary<string, SourceState> _sourceStates = new()
+    {
+        ["local"] = new(),
+        ["civitai"] = new() { SortOrder = SortOrder.MostDownloaded },
+        ["huggingface"] = new() { SortOrder = SortOrder.MostDownloaded }
+    };
+
+    private string _selectedSource = "local";
     private string? _searchTerm;
-    private ModelFamily? _familyFilter;
-    private ModelType? _typeFilter;
+    private bool _listView;
     private bool _scanning;
     private string? _loadError;
+    private readonly string _sentinelId = $"scroll-sentinel-{Guid.NewGuid():N}";
+    private DotNetObjectReference<Models>? _dotnetRef;
+    private bool _isLoadingMore;
 
-    // Tab state
-    private int _activeTabIndex;
-    private IReadOnlyList<ModelProviderInfo>? _remoteProviders;
+    // Drawer state
+    private bool _drawerOpen;
+    private ModelCardViewModel? _selectedModel;
+    private ModelRecordDto? _selectedLocalModel;
+    private RemoteModelInfo? _selectedRemoteModel;
 
-    // Remote search state
-    private string? _remoteSearchTerm;
-    private ModelType? _remoteTypeFilter;
-    private bool _remoteSearching;
-    private IReadOnlyList<RemoteModelInfo>? _remoteResults;
-    private bool _remoteHasMore;
-    private int _remotePage;
+    // Cached remote results for detail lookups
+    private readonly Dictionary<string, RemoteModelInfo> _remoteModelCache = new();
+    private readonly Dictionary<Guid, ModelRecordDto> _localModelCache = new();
+
+    private SourceState CurrentState => _sourceStates[_selectedSource];
 
     protected override async Task OnInitializedAsync()
     {
+        _dotnetRef = DotNetObjectReference.Create(this);
         try
         {
-            var providers = ModelCatalogService.GetProviders();
-            _remoteProviders = providers.Where(p => p.Capabilities.CanSearch).ToList();
-            await LoadModels();
+            await LoadLocalModels();
         }
         catch (Exception ex)
         {
@@ -212,65 +190,184 @@
         }
     }
 
-    private async Task LoadModels()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _models = await ModelCatalogService.ListAsync(
-            new ModelFilter(SearchTerm: _searchTerm, Family: _familyFilter, Type: _typeFilter));
+        // Re-observe the sentinel whenever there are more results to load
+        if (_dotnetRef is not null && _selectedSource != "local" && CurrentState.HasMore && CurrentState.Results.Count > 0)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("infiniteScroll.observe", _sentinelId, _dotnetRef);
+            }
+            catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { } // SSR/prerender
+        }
     }
 
-    private async Task OnFamilyChanged(ModelFamily? family)
+    [JSInvokable]
+    public async Task OnSentinelVisible()
     {
-        _familyFilter = family;
-        await LoadModels();
+        if (_isLoadingMore || !CurrentState.HasMore || CurrentState.IsLoading)
+            return;
+
+        _isLoadingMore = true;
+        try
+        {
+            await LoadMore();
+        }
+        finally
+        {
+            _isLoadingMore = false;
+        }
+    }
+
+    private async Task OnSourceChanged(string source)
+    {
+        _selectedSource = source;
+        _searchTerm = CurrentState.SearchTerm;
+
+        if (source == "local" && CurrentState.Results.Count == 0)
+            await LoadLocalModels();
+        else if (source != "local" && CurrentState.Results.Count == 0)
+            await SearchRemote();
+    }
+
+    private async Task OnSearchTermChanged(string? term)
+    {
+        _searchTerm = term;
+        CurrentState.SearchTerm = term;
+
+        if (_selectedSource == "local")
+            await LoadLocalModels();
+        else
+            await SearchRemote();
     }
 
     private async Task OnTypeChanged(ModelType? type)
     {
-        _typeFilter = type;
-        await LoadModels();
+        CurrentState.TypeFilter = type;
+        if (_selectedSource == "local")
+            await LoadLocalModels();
+        else
+            await SearchRemote();
     }
 
-    private async Task OnRemoteTypeChanged(ModelType? type)
+    private async Task OnFamilyChanged(ModelFamily? family)
     {
-        _remoteTypeFilter = type;
+        CurrentState.FamilyFilter = family;
+        if (_selectedSource == "local")
+            await LoadLocalModels();
+        else
+            await SearchRemote();
     }
 
-    private async Task SearchRemote(string providerId)
+    private async Task OnSortChanged(SortOrder sort)
     {
-        _remoteSearching = true;
-        _remotePage = 0;
+        CurrentState.SortOrder = sort;
+        if (_selectedSource != "local")
+            await SearchRemote();
+    }
+
+    private async Task OnBaseModelChanged(string? baseModel)
+    {
+        CurrentState.BaseModel = baseModel;
+        if (_selectedSource != "local")
+            await SearchRemote();
+    }
+
+    private async Task LoadLocalModels()
+    {
+        var state = _sourceStates["local"];
+        state.IsLoading = true;
         StateHasChanged();
+
         try
         {
-            var query = new ModelSearchQuery(providerId, _remoteSearchTerm, _remoteTypeFilter, Page: _remotePage);
+            var filter = new ModelFilter(
+                SearchTerm: state.SearchTerm,
+                Family: state.FamilyFilter,
+                Type: state.TypeFilter);
+            var models = await ModelCatalogService.ListAsync(filter);
+
+            _localModelCache.Clear();
+            foreach (var m in models)
+                _localModelCache[m.Id] = m;
+
+            state.Results = models.Select(m => ModelCardViewModel.FromLocal(m, AppPaths)).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load models: {ex.Message}", MudBlazor.Severity.Error);
+        }
+        finally
+        {
+            state.IsLoading = false;
+        }
+    }
+
+    private async Task SearchRemote()
+    {
+        var state = CurrentState;
+        state.Page = 0;
+        state.IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var query = new ModelSearchQuery(
+                _selectedSource,
+                state.SearchTerm,
+                state.TypeFilter,
+                state.FamilyFilter,
+                Sort: state.SortOrder,
+                Page: 0,
+                BaseModel: state.BaseModel);
             var result = await ModelCatalogService.SearchAsync(query);
-            _remoteResults = result.Models;
-            _remoteHasMore = result.HasMore;
+
+            foreach (var m in result.Models)
+                _remoteModelCache[m.ExternalId] = m;
+
+            state.Results = result.Models
+                .Select(m => ModelCardViewModel.FromRemote(m, _selectedSource))
+                .ToList();
+            state.HasMore = result.HasMore;
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Search failed: {ex.Message}", MudBlazor.Severity.Error);
-            _remoteResults = null;
+            state.Results = [];
         }
         finally
         {
-            _remoteSearching = false;
+            state.IsLoading = false;
         }
     }
 
-    private async Task LoadMoreRemote(string providerId)
+    private async Task LoadMore()
     {
-        _remotePage++;
-        _remoteSearching = true;
+        var state = CurrentState;
+        state.Page++;
+        state.IsLoading = true;
         StateHasChanged();
+
         try
         {
-            var query = new ModelSearchQuery(providerId, _remoteSearchTerm, _remoteTypeFilter, Page: _remotePage);
+            var query = new ModelSearchQuery(
+                _selectedSource,
+                state.SearchTerm,
+                state.TypeFilter,
+                state.FamilyFilter,
+                Sort: state.SortOrder,
+                Page: state.Page,
+                BaseModel: state.BaseModel);
             var result = await ModelCatalogService.SearchAsync(query);
-            var combined = new List<RemoteModelInfo>(_remoteResults ?? []);
-            combined.AddRange(result.Models);
-            _remoteResults = combined;
-            _remoteHasMore = result.HasMore;
+
+            foreach (var m in result.Models)
+                _remoteModelCache[m.ExternalId] = m;
+
+            state.Results.AddRange(
+                result.Models.Select(m => ModelCardViewModel.FromRemote(m, _selectedSource)));
+            state.HasMore = result.HasMore;
         }
         catch (Exception ex)
         {
@@ -278,23 +375,34 @@
         }
         finally
         {
-            _remoteSearching = false;
+            state.IsLoading = false;
         }
     }
 
-    private async Task OpenDownloadDialog(RemoteModelInfo model, string providerId)
+    private async Task OnModelClicked(ModelCardViewModel model)
     {
-        var parameters = new DialogParameters<Dialogs.DownloadModelDialog>
+        _selectedModel = model;
+        _selectedLocalModel = null;
+        _selectedRemoteModel = null;
+
+        if (model.IsLocal && Guid.TryParse(model.Id, out var id))
         {
-            { x => x.Model, model },
-            { x => x.ProviderId, providerId }
-        };
-        var dialog = await DialogService.ShowAsync<Dialogs.DownloadModelDialog>($"Download: {model.Title}", parameters);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-        {
-            // Download was started successfully
+            _localModelCache.TryGetValue(id, out _selectedLocalModel);
+            _selectedLocalModel ??= await ModelCatalogService.GetByIdAsync(id);
         }
+        else
+        {
+            _remoteModelCache.TryGetValue(model.Id, out _selectedRemoteModel);
+        }
+
+        _drawerOpen = true;
+    }
+
+    private async Task OnModelDeleted()
+    {
+        _drawerOpen = false;
+        await LoadLocalModels();
+        Snackbar.Add("Model removed from catalog.", MudBlazor.Severity.Info);
     }
 
     private async Task AddDirectory()
@@ -314,7 +422,7 @@
         try
         {
             var result = await ModelCatalogService.ScanAsync(new ScanModelsCommand(null));
-            await LoadModels();
+            await LoadLocalModels();
             Snackbar.Add($"Scan complete: {result.NewCount} new, {result.UpdatedCount} updated", MudBlazor.Severity.Success);
         }
         catch (Exception ex)
@@ -327,19 +435,15 @@
         }
     }
 
-    private async Task ShowModelDetail(ModelRecordDto model)
+    public async ValueTask DisposeAsync()
     {
-        var parameters = new DialogParameters<Dialogs.ModelDetailDialog>
+        try
         {
-            { x => x.Model, model }
-        };
-        await DialogService.ShowAsync<Dialogs.ModelDetailDialog>(model.Title, parameters);
+            if (_dotnetRef is not null)
+                await JS.InvokeVoidAsync("infiniteScroll.unobserve", _sentinelId);
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { } // SSR/prerender
+        _dotnetRef?.Dispose();
     }
-
-    private static string FormatFileSize(long bytes) => bytes switch
-    {
-        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
-        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
-        _ => $"{bytes / 1_000.0:F1} KB"
-    };
 }

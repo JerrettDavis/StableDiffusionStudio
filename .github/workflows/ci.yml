@@ -96,12 +96,17 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  release:
+  # ---------------------------------------------------------------------------
+  # Release pipeline: test -> publish (per-platform) -> create GitHub Release
+  # ---------------------------------------------------------------------------
+  release-test:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.gitversion.outputs.majorMinorPatch }}
+      assembly-version: ${{ steps.gitversion.outputs.assemblySemVer }}
+      file-version: ${{ steps.gitversion.outputs.assemblySemFileVer }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -128,12 +133,6 @@ jobs:
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4
 
-      - name: Set version env vars
-        run: |
-          echo "PACKAGE_VERSION=${{ steps.gitversion.outputs.majorMinorPatch }}" >> $GITHUB_ENV
-          echo "ASSEMBLY_VERSION=${{ steps.gitversion.outputs.assemblySemVer }}" >> $GITHUB_ENV
-          echo "FILE_VERSION=${{ steps.gitversion.outputs.assemblySemFileVer }}" >> $GITHUB_ENV
-
       - name: Restore
         run: dotnet restore StableDiffusionStudio.slnx
 
@@ -143,14 +142,14 @@ jobs:
           --configuration Release
           --no-restore
           /p:ContinuousIntegrationBuild=true
-          /p:Version=${{ env.PACKAGE_VERSION }}
-          /p:AssemblyVersion=${{ env.ASSEMBLY_VERSION }}
-          /p:FileVersion=${{ env.FILE_VERSION }}
+          /p:Version=${{ steps.gitversion.outputs.majorMinorPatch }}
+          /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+          /p:FileVersion=${{ steps.gitversion.outputs.assemblySemFileVer }}
 
       - name: Clean stale test results
         run: find . -path "*/TestResults" -type d -exec rm -rf {} + 2>/dev/null || true
 
-      - name: Test with coverage (Release)
+      - name: Test (Release)
         timeout-minutes: 10
         run: |
           dotnet test StableDiffusionStudio.slnx \
@@ -163,7 +162,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*,[StableDiffusionStudio.Web]*,[StableDiffusionStudio.AppHost]*,[StableDiffusionStudio.ServiceDefaults]*" \
             -- RunConfiguration.TestSessionTimeout=300000
 
-      - name: Upload coverage to Codecov (Release)
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: |
@@ -174,22 +173,111 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+  release-publish:
+    needs: release-test
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact: StableDiffusionStudio-win-x64
+            archive-ext: zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: StableDiffusionStudio-linux-x64
+            archive-ext: tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            artifact: StableDiffusionStudio-osx-arm64
+            archive-ext: tar.gz
+          - os: macos-latest
+            rid: osx-x64
+            artifact: StableDiffusionStudio-osx-x64
+            archive-ext: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Aspire workload
+        run: dotnet workload install aspire
+
+      - name: Publish self-contained
+        run: >
+          dotnet publish src/StableDiffusionStudio.Web/StableDiffusionStudio.Web.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained
+          -p:Version=${{ needs.release-test.outputs.version }}
+          -p:AssemblyVersion=${{ needs.release-test.outputs.assembly-version }}
+          -p:FileVersion=${{ needs.release-test.outputs.file-version }}
+          -o publish/${{ matrix.artifact }}
+
+      - name: Create archive (Windows)
+        if: matrix.archive-ext == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "publish/${{ matrix.artifact }}/*" `
+            -DestinationPath "${{ matrix.artifact }}-v${{ needs.release-test.outputs.version }}.zip"
+
+      - name: Create archive (Linux/macOS)
+        if: matrix.archive-ext == 'tar.gz'
+        run: |
+          tar -czf "${{ matrix.artifact }}-v${{ needs.release-test.outputs.version }}.tar.gz" \
+            -C publish "${{ matrix.artifact }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}-v${{ needs.release-test.outputs.version }}.${{ matrix.archive-ext }}
+          retention-days: 5
+
+  release-create:
+    needs: [release-test, release-publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: release-assets
+          pattern: StableDiffusionStudio-*
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -lh release-assets/
+
       - name: Create and push git tag
         shell: bash
         run: |
           set -euo pipefail
+          VERSION="${{ needs.release-test.outputs.version }}"
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          if git rev-parse "v${PACKAGE_VERSION}" >/dev/null 2>&1; then
-            echo "Tag v${PACKAGE_VERSION} already exists. Skipping tag push."
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists. Skipping tag push."
           else
-            git tag "v${PACKAGE_VERSION}"
-            git push origin "v${PACKAGE_VERSION}"
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
           fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.PACKAGE_VERSION }}
-          name: Release v${{ env.PACKAGE_VERSION }}
+          tag_name: v${{ needs.release-test.outputs.version }}
+          name: Release v${{ needs.release-test.outputs.version }}
           generate_release_notes: true
+          files: release-assets/*

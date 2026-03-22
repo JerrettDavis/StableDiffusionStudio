@@ -1,0 +1,159 @@
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@inject IJSRuntime JS
+
+<div id="@_canvasId" style="width: 100%; height: 100%; min-height: 500px;"></div>
+
+@code {
+    [Parameter] public IReadOnlyList<WorkflowNodeDto> Nodes { get; set; } = [];
+    [Parameter] public IReadOnlyList<WorkflowEdgeDto> Edges { get; set; } = [];
+    [Parameter] public IReadOnlyList<WorkflowNodePluginDto> Plugins { get; set; } = [];
+    [Parameter] public EventCallback<(string NodeId, double X, double Y)> OnNodeMoved { get; set; }
+    [Parameter] public EventCallback<(string SourceId, string SourcePort, string TargetId, string TargetPort)> OnEdgeCreated { get; set; }
+    [Parameter] public EventCallback<string> OnEdgeDeleted { get; set; }
+    [Parameter] public EventCallback<string> OnNodeSelected { get; set; }
+    [Parameter] public EventCallback<string> OnNodeDeleted { get; set; }
+
+    private readonly string _canvasId = $"workflow-canvas-{Guid.NewGuid():N}";
+    private DotNetObjectReference<WorkflowCanvas>? _dotnetRef;
+    private bool _initialized;
+
+    // Plugin port definitions cache for node rendering
+    private Dictionary<string, WorkflowNodePluginDto> _pluginMap = new();
+
+    protected override void OnParametersSet()
+    {
+        _pluginMap = Plugins.ToDictionary(p => p.PluginId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _dotnetRef = DotNetObjectReference.Create(this);
+            var nodesJson = SerializeNodes();
+            var edgesJson = SerializeEdges();
+            await JS.InvokeVoidAsync("workflowCanvas.init", _canvasId, _dotnetRef, nodesJson, edgesJson);
+            _initialized = true;
+        }
+    }
+
+    public async Task RefreshCanvas()
+    {
+        if (!_initialized) return;
+        var nodesJson = SerializeNodes();
+        var edgesJson = SerializeEdges();
+        await JS.InvokeVoidAsync("workflowCanvas.updateCanvas", nodesJson, edgesJson);
+    }
+
+    public async Task HighlightNode(string nodeId, string color = "#4CAF50")
+    {
+        if (_initialized)
+            await JS.InvokeVoidAsync("workflowCanvas.highlightNode", nodeId, color);
+    }
+
+    [JSInvokable("OnNodeMoved")]
+    public async Task HandleNodeMovedJs(string nodeId, double x, double y)
+    {
+        await OnNodeMoved.InvokeAsync((nodeId, x, y));
+    }
+
+    [JSInvokable("OnEdgeCreated")]
+    public async Task HandleEdgeCreatedJs(string sourceId, string sourcePort, string targetId, string targetPort)
+    {
+        await OnEdgeCreated.InvokeAsync((sourceId, sourcePort, targetId, targetPort));
+    }
+
+    [JSInvokable("OnEdgeDeleted")]
+    public async Task HandleEdgeDeletedJs(string edgeId)
+    {
+        await OnEdgeDeleted.InvokeAsync(edgeId);
+    }
+
+    [JSInvokable("OnNodeSelected")]
+    public async Task HandleNodeSelectedJs(string nodeId)
+    {
+        await OnNodeSelected.InvokeAsync(nodeId);
+    }
+
+    [JSInvokable("OnNodeDeleted")]
+    public async Task HandleNodeDeletedJs(string nodeId)
+    {
+        await OnNodeDeleted.InvokeAsync(nodeId);
+    }
+
+    private string SerializeNodes()
+    {
+        // Resolve plugin port info for each node
+        var allPlugins = Plugins.ToDictionary(p => p.PluginId);
+        var rfNodes = Nodes.Select(n =>
+        {
+            // We need actual port definitions — get from the DI-registered plugins
+            // For now, use standard ports based on plugin ID
+            var inputPorts = GetInputPorts(n.PluginId);
+            var outputPorts = GetOutputPorts(n.PluginId);
+
+            return new
+            {
+                id = n.Id.ToString(),
+                type = "workflowNode",
+                position = new { x = n.PositionX, y = n.PositionY },
+                data = new
+                {
+                    label = n.Label,
+                    pluginId = n.PluginId,
+                    inputPorts = inputPorts,
+                    outputPorts = outputPorts,
+                }
+            };
+        });
+        return JsonSerializer.Serialize(rfNodes);
+    }
+
+    private string SerializeEdges()
+    {
+        var rfEdges = Edges.Select(e => new
+        {
+            id = e.Id.ToString(),
+            source = e.SourceNodeId.ToString(),
+            sourceHandle = e.SourcePort,
+            target = e.TargetNodeId.ToString(),
+            targetHandle = e.TargetPort,
+            animated = true,
+        });
+        return JsonSerializer.Serialize(rfEdges);
+    }
+
+    private static object[] GetInputPorts(string pluginId) => pluginId switch
+    {
+        "core.generate" => [new { name = "image", required = false }],
+        "core.img2img" => [new { name = "image", required = true }],
+        "core.inpaint" => [new { name = "image", required = true }, new { name = "mask", required = true }],
+        "core.upscale" => [new { name = "image", required = true }],
+        "core.controlnet" => [new { name = "image", required = true }],
+        "core.conditional" => [new { name = "image", required = true }],
+        "core.output" => [new { name = "image", required = true }],
+        _ => [new { name = "image", required = false }],
+    };
+
+    private static object[] GetOutputPorts(string pluginId) => pluginId switch
+    {
+        "core.output" => [],
+        "core.conditional" => [new { name = "pass" }, new { name = "fail" }],
+        _ => [new { name = "image" }],
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_initialized)
+                await JS.InvokeVoidAsync("workflowCanvas.dispose");
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { } // SSR/prerender
+        _dotnetRef?.Dispose();
+    }
+}

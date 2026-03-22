@@ -24,6 +24,7 @@ public sealed record GenerationParameters
     public GenerationMode Mode { get; init; } = GenerationMode.TextToImage;
     public string? InitImagePath { get; init; }
     public string? MaskImagePath { get; init; }
+    public ImageInputMode ImageInputMode { get; init; } = ImageInputMode.Scale;
     public bool HiresFixEnabled { get; init; }
     public double HiresUpscaleFactor { get; init; } = 2.0;
     public int HiresSteps { get; init; } = 0; // 0 = use main steps

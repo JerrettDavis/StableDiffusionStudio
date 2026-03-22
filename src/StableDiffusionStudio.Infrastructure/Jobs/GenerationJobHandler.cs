@@ -183,7 +183,8 @@ public class GenerationJobHandler : IJobHandler
                     parameters.Eta,
                     initImageBytes,
                     parameters.DenoisingStrength,
-                    maskImageBytes
+                    maskImageBytes,
+                    parameters.ImageInputMode
                 );
 
                 // Send an immediate "step 0" event so the UI skeleton card appears right away.

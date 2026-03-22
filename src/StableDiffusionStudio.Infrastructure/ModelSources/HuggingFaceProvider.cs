@@ -46,7 +46,8 @@ public class HuggingFaceProvider : IModelProvider
             var offset = query.Page * query.PageSize;
             var url = $"{ApiBaseUrl}/models?search={Uri.EscapeDataString(query.SearchTerm ?? "")}" +
                       $"&pipeline_tag=text-to-image&library=diffusers&sort=downloads" +
-                      $"&limit={query.PageSize}&offset={offset}";
+                      $"&limit={query.PageSize}&offset={offset}" +
+                      $"&expand[]=siblings";
 
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             var token = await _credentialStore.GetTokenAsync(ProviderId, ct);
@@ -66,20 +67,52 @@ public class HuggingFaceProvider : IModelProvider
                 var title = id.Contains('/') ? id.Split('/').Last() : id;
                 var tags = ParseTags(model);
                 var family = InferFamilyFromModel(id, tags);
+                var modelType = InferTypeFromTags(tags);
+
+                // Extract file variants from siblings
+                var variants = new List<ModelFileVariant>();
+                if (model.TryGetProperty("siblings", out var siblings) && siblings.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var sibling in siblings.EnumerateArray())
+                    {
+                        var rfilename = sibling.TryGetProperty("rfilename", out var rfn) ? rfn.GetString() ?? "" : "";
+                        if (IsModelFile(rfilename))
+                        {
+                            var format = InferFormatFromFileName(rfilename);
+                            var size = sibling.TryGetProperty("size", out var sz) && sz.ValueKind == JsonValueKind.Number
+                                ? sz.GetInt64() : 0L;
+                            var quantization = rfilename.Contains("q4", StringComparison.OrdinalIgnoreCase) ? "Q4"
+                                : rfilename.Contains("q5", StringComparison.OrdinalIgnoreCase) ? "Q5"
+                                : rfilename.Contains("q8", StringComparison.OrdinalIgnoreCase) ? "Q8"
+                                : null;
+                            variants.Add(new ModelFileVariant(rfilename, size, format, quantization));
+                        }
+                    }
+                }
+
+                var primaryFormat = variants.Count > 0 ? variants[0].Format : ModelFormat.SafeTensors;
+                var primarySize = variants.Count > 0 && variants[0].FileSize > 0 ? (long?)variants[0].FileSize : null;
+
+                // Resolve preview image URL
+                var previewUrl = ResolvePreviewUrl(id, model);
 
                 results.Add(new RemoteModelInfo(
                     ExternalId: id,
                     Title: title,
                     Description: TruncateDescription(model),
-                    Type: ModelType.Checkpoint,
+                    Type: modelType,
                     Family: family,
-                    Format: ModelFormat.SafeTensors,
-                    FileSize: null,
-                    PreviewImageUrl: null,
+                    Format: primaryFormat,
+                    FileSize: primarySize,
+                    PreviewImageUrl: previewUrl,
                     Tags: tags,
                     ProviderUrl: $"{SiteBaseUrl}/{id}",
-                    Variants: []));
+                    Variants: variants));
             }
+
+            // Client-side family filter (HF API doesn't support filtering by base model family)
+            if (query.Family.HasValue)
+                results = results.Where(r => r.Family == query.Family.Value).ToList();
 
             return new SearchResult(results, results.Count, results.Count == query.PageSize);
         }
@@ -146,5 +179,64 @@ public class HuggingFaceProvider : IModelProvider
         if (combined.Contains("sdxl") || combined.Contains("stable-diffusion-xl")) return ModelFamily.SDXL;
         if (combined.Contains("sd-1") || combined.Contains("sd1") || combined.Contains("stable-diffusion-v1")) return ModelFamily.SD15;
         return ModelFamily.Unknown;
+    }
+
+    private static ModelType InferTypeFromTags(IReadOnlyList<string> tags)
+    {
+        var lower = tags.Select(t => t.ToLowerInvariant()).ToHashSet();
+        if (lower.Contains("lora")) return ModelType.LoRA;
+        if (lower.Contains("textual-inversion") || lower.Contains("embedding")) return ModelType.Embedding;
+        if (lower.Contains("controlnet")) return ModelType.ControlNet;
+        if (lower.Contains("vae")) return ModelType.VAE;
+        return ModelType.Checkpoint;
+    }
+
+    private static bool IsModelFile(string filename)
+    {
+        var ext = Path.GetExtension(filename).ToLowerInvariant();
+        return ext is ".safetensors" or ".ckpt" or ".gguf" or ".bin" or ".pt";
+    }
+
+    private static ModelFormat InferFormatFromFileName(string fileName)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        return ext switch
+        {
+            ".safetensors" => ModelFormat.SafeTensors,
+            ".ckpt" => ModelFormat.CKPT,
+            ".gguf" => ModelFormat.GGUF,
+            _ => ModelFormat.Unknown
+        };
+    }
+
+    private static string? ResolvePreviewUrl(string modelId, JsonElement model)
+    {
+        // Check for card thumbnail in cardData
+        if (model.TryGetProperty("cardData", out var cardData) &&
+            cardData.TryGetProperty("thumbnail", out var thumb))
+        {
+            var thumbnailUrl = thumb.GetString();
+            if (!string.IsNullOrEmpty(thumbnailUrl))
+                return thumbnailUrl;
+        }
+
+        // Fallback: resolve from known image patterns in siblings
+        if (model.TryGetProperty("siblings", out var siblings) && siblings.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var sibling in siblings.EnumerateArray())
+            {
+                var rfilename = sibling.TryGetProperty("rfilename", out var rfn) ? rfn.GetString() ?? "" : "";
+                if (IsImageFile(rfilename))
+                    return $"{SiteBaseUrl}/{modelId}/resolve/main/{rfilename}";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsImageFile(string filename)
+    {
+        var ext = Path.GetExtension(filename).ToLowerInvariant();
+        return ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif";
     }
 }

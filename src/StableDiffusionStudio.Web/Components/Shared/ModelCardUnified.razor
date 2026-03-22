@@ -1,0 +1,108 @@
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Domain.Enums
+
+<MudCard Elevation="1" Class="cursor-pointer model-card-unified" @onclick="() => OnClick.InvokeAsync(Model)"
+         Style="height: 100%; display: flex; flex-direction: column;">
+    @* Hero image *@
+    <div style="position: relative; aspect-ratio: 4/3; overflow: hidden; background: var(--mud-palette-surface);">
+        @if (!string.IsNullOrEmpty(Model.PreviewImageUrl))
+        {
+            <img src="@Model.PreviewImageUrl" alt="@Model.Title"
+                 style="width: 100%; height: 100%; object-fit: cover;"
+                 loading="lazy" />
+        }
+        else
+        {
+            <div class="d-flex align-center justify-center" style="width: 100%; height: 100%;">
+                <MudIcon Icon="@GetFamilyIcon(Model.Family)" Size="Size.Large" Color="Color.Default" />
+            </div>
+        }
+        @if (Model.IsLocal)
+        {
+            <MudIcon Icon="@(Model.IsAvailable ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"
+                     Color="@(Model.IsAvailable ? Color.Success : Color.Error)"
+                     Size="Size.Small"
+                     Style="position: absolute; top: 8px; right: 8px;" />
+        }
+    </div>
+
+    <MudCardContent Style="flex: 1; display: flex; flex-direction: column;">
+        @* Title *@
+        <MudText Typo="Typo.subtitle2" Class="mb-1"
+                 Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            @Model.Title
+        </MudText>
+
+        @* Chips *@
+        <div class="d-flex gap-1 flex-wrap mb-2">
+            <MudChip T="string" Size="Size.Small" Style="@GetFamilyStyle(Model.Family)">
+                @GetFamilyLabel(Model.Family)
+            </MudChip>
+            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default">
+                @Model.Type
+            </MudChip>
+        </div>
+
+        <MudSpacer />
+
+        @* Footer *@
+        <div class="d-flex align-center justify-space-between">
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                @if (Model.FileSize.HasValue)
+                {
+                    @FormatFileSize(Model.FileSize.Value)
+                }
+            </MudText>
+            <MudIcon Icon="@GetSourceIcon(Model.Source)" Size="Size.Small" Color="Color.Secondary"
+                     Title="@Model.Source" />
+        </div>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter, EditorRequired] public required ModelCardViewModel Model { get; set; }
+    [Parameter] public EventCallback<ModelCardViewModel> OnClick { get; set; }
+
+    private static string FormatFileSize(long bytes) => bytes switch
+    {
+        >= 1_000_000_000 => $"{bytes / 1_000_000_000.0:F1} GB",
+        >= 1_000_000 => $"{bytes / 1_000_000.0:F1} MB",
+        _ => $"{bytes / 1_000.0:F1} KB"
+    };
+
+    private static string GetFamilyIcon(ModelFamily family) => family switch
+    {
+        ModelFamily.SD15 => Icons.Material.Filled.AutoAwesome,
+        ModelFamily.SDXL => Icons.Material.Filled.HighQuality,
+        ModelFamily.Flux => Icons.Material.Filled.Bolt,
+        _ => Icons.Material.Filled.ViewInAr
+    };
+
+    private static string GetFamilyLabel(ModelFamily family) => family switch
+    {
+        ModelFamily.SD15 => "SD 1.5",
+        ModelFamily.SDXL => "SDXL",
+        ModelFamily.Flux => "Flux",
+        ModelFamily.Pony => "Pony",
+        ModelFamily.Illustrious => "Illustrious",
+        _ => "Unknown"
+    };
+
+    private static string GetFamilyStyle(ModelFamily family) => family switch
+    {
+        ModelFamily.SD15 => "background-color: #2196F3; color: white;",
+        ModelFamily.SDXL => "background-color: #9C27B0; color: white;",
+        ModelFamily.Flux => "background-color: #FF9800; color: white;",
+        ModelFamily.Pony => "background-color: #E91E63; color: white;",
+        ModelFamily.Illustrious => "background-color: #00BCD4; color: white;",
+        _ => ""
+    };
+
+    private static string GetSourceIcon(string source) => source switch
+    {
+        "local" => Icons.Material.Filled.Folder,
+        "civitai" => Icons.Material.Filled.Cloud,
+        "huggingface" => Icons.Material.Filled.Hub,
+        _ => Icons.Material.Filled.Language
+    };
+}

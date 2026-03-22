@@ -106,7 +106,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
         
         private static global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages InitializeCucumberMessages()
         {
-            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/FullWorkflow.feature.ndjson", 9);
+            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/FullWorkflow.feature.ndjson", 10);
         }
         
         async global::System.Threading.Tasks.Task global::Xunit.IAsyncLifetime.InitializeAsync()
@@ -362,15 +362,15 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             await this.ScenarioCleanupAsync();
         }
         
-        [global::Xunit.SkippableFactAttribute(DisplayName="Settings page has all configuration tabs")]
+        [global::Xunit.SkippableFactAttribute(DisplayName="Parameter Lab page loads")]
         [global::Xunit.TraitAttribute("FeatureTitle", "Full Generation Workflow")]
-        [global::Xunit.TraitAttribute("Description", "Settings page has all configuration tabs")]
-        public async global::System.Threading.Tasks.Task SettingsPageHasAllConfigurationTabs()
+        [global::Xunit.TraitAttribute("Description", "Parameter Lab page loads")]
+        public async global::System.Threading.Tasks.Task ParameterLabPageLoads()
         {
             string[] tagsOfScenario = ((string[])(null));
             global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
             string pickleIndex = "6";
-            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Settings page has all configuration tabs", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Parameter Lab page loads", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
 #line 44
@@ -387,24 +387,61 @@ namespace StableDiffusionStudio.E2E.Tests.Features
     await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 46
-    await testRunner.WhenAsync("I navigate to the settings page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
+    await testRunner.WhenAsync("I navigate to the parameter lab page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
 #line 47
-    await testRunner.ThenAsync("I should see the \"Storage Roots\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+    await testRunner.ThenAsync("I should see the \"Parameter Lab\" heading", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
 #line 48
-    await testRunner.AndAsync("I should see the \"Model Sources\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.AndAsync("the page should not have any error messages", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 49
-    await testRunner.AndAsync("I should see the \"Performance / Backend\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
-#line hidden
+            }
+            await this.ScenarioCleanupAsync();
+        }
+        
+        [global::Xunit.SkippableFactAttribute(DisplayName="Settings page has all configuration tabs")]
+        [global::Xunit.TraitAttribute("FeatureTitle", "Full Generation Workflow")]
+        [global::Xunit.TraitAttribute("Description", "Settings page has all configuration tabs")]
+        public async global::System.Threading.Tasks.Task SettingsPageHasAllConfigurationTabs()
+        {
+            string[] tagsOfScenario = ((string[])(null));
+            global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
+            string pickleIndex = "7";
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Settings page has all configuration tabs", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            string[] tagsOfRule = ((string[])(null));
+            global::Reqnroll.RuleInfo ruleInfo = null;
 #line 50
-    await testRunner.AndAsync("I should see the \"Content Safety\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+  this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
+            if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
+            {
+                await testRunner.SkipScenarioAsync();
+            }
+            else
+            {
+                await this.ScenarioStartAsync();
 #line 51
-    await testRunner.AndAsync("I should see the \"Data Management\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 52
+    await testRunner.WhenAsync("I navigate to the settings page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
+#line hidden
+#line 53
+    await testRunner.ThenAsync("I should see the \"Storage Roots\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+#line hidden
+#line 54
+    await testRunner.AndAsync("I should see the \"Model Sources\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 55
+    await testRunner.AndAsync("I should see the \"Performance / Backend\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 56
+    await testRunner.AndAsync("I should see the \"Content Safety\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 57
+    await testRunner.AndAsync("I should see the \"Data Management\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 58
     await testRunner.AndAsync("I should see the \"Output\" tab", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }

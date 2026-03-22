@@ -16,6 +16,11 @@ public class AppDbContext : DbContext
     public DbSet<Experiment> Experiments => Set<Experiment>();
     public DbSet<ExperimentRun> ExperimentRuns => Set<ExperimentRun>();
     public DbSet<ExperimentRunImage> ExperimentRunImages => Set<ExperimentRunImage>();
+    public DbSet<Workflow> Workflows => Set<Workflow>();
+    public DbSet<WorkflowNode> WorkflowNodes => Set<WorkflowNode>();
+    public DbSet<WorkflowEdge> WorkflowEdges => Set<WorkflowEdge>();
+    public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
+    public DbSet<WorkflowRunStep> WorkflowRunSteps => Set<WorkflowRunStep>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

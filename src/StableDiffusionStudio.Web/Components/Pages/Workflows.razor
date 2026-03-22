@@ -1,0 +1,152 @@
+@page "/workflows"
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.Json
+@using StableDiffusionStudio.Application.DTOs
+@inject IWorkflowService WorkflowService
+@inject IDialogService DialogService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" Class="mb-4">Workflows</MudText>
+
+<div class="d-flex gap-2 mb-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="CreateWorkflow">
+        New Workflow
+    </MudButton>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FileUpload"
+               HtmlTag="label" for="@_importInputId">
+        Import
+    </MudButton>
+    <InputFile id="@_importInputId" OnChange="OnImportFileSelected" accept=".json"
+               style="display:none" />
+</div>
+
+@if (_workflows is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_workflows.Count == 0)
+{
+    <EmptyState Title="No workflows yet"
+                Subtitle="Create a workflow to chain multiple generation steps together"
+                Icon="@Icons.Material.Filled.AccountTree" />
+}
+else
+{
+    <MudGrid>
+        @foreach (var workflow in _workflows)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudCard Elevation="1" Class="cursor-pointer" @onclick="() => OpenWorkflow(workflow.Id)">
+                    <MudCardContent>
+                        <div class="d-flex align-center justify-space-between mb-2">
+                            <MudText Typo="Typo.subtitle1">@workflow.Name</MudText>
+                            @if (workflow.IsTemplate)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">Template</MudChip>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(workflow.Description))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2"
+                                     Style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                @workflow.Description
+                            </MudText>
+                        }
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Updated @workflow.UpdatedAt.ToString("MMM d, yyyy")
+                        </MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <div @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           Size="Size.Small" OnClick="@(() => DeleteWorkflow(workflow))" />
+                        </div>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private IReadOnlyList<WorkflowListItemDto>? _workflows;
+    private readonly string _importInputId = $"import-{Guid.NewGuid():N}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflows();
+    }
+
+    private async Task LoadWorkflows()
+    {
+        _workflows = await WorkflowService.ListAsync();
+    }
+
+    private async Task CreateWorkflow()
+    {
+        var name = await PromptForName("New Workflow", "Enter a name for your workflow");
+        if (name is null) return;
+
+        var workflow = await WorkflowService.CreateAsync(name);
+        Navigation.NavigateTo($"/workflows/{workflow.Id}");
+    }
+
+    private void OpenWorkflow(Guid id)
+    {
+        Navigation.NavigateTo($"/workflows/{id}");
+    }
+
+    private async Task DeleteWorkflow(WorkflowListItemDto workflow)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Workflow",
+            $"Are you sure you want to delete '{workflow.Name}'? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            await WorkflowService.DeleteAsync(workflow.Id);
+            await LoadWorkflows();
+            Snackbar.Add($"'{workflow.Name}' deleted.", MudBlazor.Severity.Info);
+        }
+    }
+
+    private async Task OnImportFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var data = await JsonSerializer.DeserializeAsync<WorkflowExportFormat>(stream);
+            if (data is null)
+            {
+                Snackbar.Add("Invalid workflow file.", MudBlazor.Severity.Error);
+                return;
+            }
+            var workflow = await WorkflowService.ImportAsync(data);
+            await LoadWorkflows();
+            Snackbar.Add($"Imported '{workflow.Name}'.", MudBlazor.Severity.Success);
+            Navigation.NavigateTo($"/workflows/{workflow.Id}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+    }
+
+    private async Task<string?> PromptForName(string title, string message)
+    {
+        var parameters = new DialogParameters<Dialogs.InputDialog>
+        {
+            { x => x.ContentText, message },
+            { x => x.InputLabel, "Name" }
+        };
+        var dialog = await DialogService.ShowAsync<Dialogs.InputDialog>(title, parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return null;
+        return result.Data as string;
+    }
+}

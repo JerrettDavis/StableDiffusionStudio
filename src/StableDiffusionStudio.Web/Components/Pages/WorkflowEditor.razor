@@ -1,0 +1,586 @@
+@page "/workflows/{WorkflowId:guid}"
+@using System.Text.Json
+@using Microsoft.AspNetCore.SignalR.Client
+@using StableDiffusionStudio.Application.DTOs
+@using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.ValueObjects
+@using Microsoft.JSInterop
+@inject IWorkflowService WorkflowService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<WorkflowEditor> Logger
+@implements IAsyncDisposable
+
+@if (_workflow is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    @* Toolbar *@
+    <MudToolBar Dense="true" Class="mb-2">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Navigation.NavigateTo("/workflows"))" />
+        <MudText Typo="Typo.h6" Class="mr-4">@_workflow.Name</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mr-2"
+                   StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="DuplicateWorkflow">
+            Duplicate
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mr-2"
+                   StartIcon="@Icons.Material.Filled.FileDownload" OnClick="ExportWorkflow">
+            Export
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mr-2"
+                   StartIcon="@Icons.Material.Filled.Save" OnClick="Save">
+            Save
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="RunWorkflow"
+                   Disabled="_isRunning">
+            @(_isRunning ? "Running..." : "Run")
+        </MudButton>
+    </MudToolBar>
+
+    @* Run status bar *@
+    @if (_isRunning || _runStatus is not null)
+    {
+        <MudAlert Severity="@_runSeverity" Dense="true" Class="mb-1" ShowCloseIcon="@(!_isRunning)"
+                  CloseIconClicked="() => _runStatus = null">
+            @if (_isRunning)
+            {
+                <div class="d-flex align-center gap-2">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <span>@(_runStatus ?? "Starting workflow...")</span>
+                </div>
+            }
+            else
+            {
+                @_runStatus
+            }
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="0" Style="height: calc(100vh - 140px);">
+        @* Left: Node Palette *@
+        <MudItem xs="2" Style="height: 100%; overflow-y: auto; border-right: 1px solid var(--mud-palette-lines-default);">
+            <MudText Typo="Typo.subtitle2" Class="pa-3 pb-1">Node Palette</MudText>
+            @foreach (var group in _plugins.GroupBy(p => p.Category))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-3 pt-2">@group.Key</MudText>
+                @foreach (var plugin in group)
+                {
+                    <MudButton Variant="Variant.Text" FullWidth="true" Size="Size.Small"
+                               Class="justify-start px-3"
+                               OnClick="() => AddNode(plugin)">
+                        <MudText Typo="Typo.body2">@plugin.DisplayName</MudText>
+                    </MudButton>
+                }
+            }
+        </MudItem>
+
+        @* Center: Canvas *@
+        <MudItem xs="7" Style="height: 100%;">
+            <WorkflowCanvas @ref="_canvas"
+                           Nodes="_nodes" Edges="_edges" Plugins="_plugins"
+                           OnNodeMoved="HandleNodeMoved"
+                           OnEdgeCreated="HandleEdgeCreated"
+                           OnEdgeDeleted="HandleEdgeDeleted"
+                           OnNodeSelected="HandleNodeSelected"
+                           OnNodeDeleted="HandleNodeDeleted" />
+        </MudItem>
+
+        @* Right: Property Panel / Run History *@
+        <MudItem xs="3" Style="height: 100%; overflow-y: auto; border-left: 1px solid var(--mud-palette-lines-default);">
+            @if (_selectedNode is not null)
+            {
+                <div class="pa-3">
+                    <div class="d-flex align-center justify-space-between mb-2">
+                        <MudText Typo="Typo.subtitle1">@_selectedNode.Label</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                       OnClick="() => _selectedNode = null" />
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">@_selectedNode.PluginId</MudText>
+
+                    <MudTextField @bind-Value="_editLabel" Label="Label" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" Class="mb-3" />
+
+                    @if (IsGenerationNode(_selectedNode.PluginId))
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Generation Parameters</MudText>
+                        <MudTextField @bind-Value="_editPositivePrompt" Label="Positive Prompt"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Class="mb-2" />
+                        <MudTextField @bind-Value="_editNegativePrompt" Label="Negative Prompt"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" Class="mb-2" />
+                        <MudNumericField T="int" @bind-Value="_editSteps" Label="Steps"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="150" Class="mb-2" />
+                        <MudNumericField T="double" @bind-Value="_editCfgScale" Label="CFG Scale"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="30" Step="0.5" Class="mb-2" />
+                        <div class="d-flex gap-2 mb-2">
+                            <MudNumericField T="int" @bind-Value="_editWidth" Label="Width"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
+                            <MudNumericField T="int" @bind-Value="_editHeight" Label="Height"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
+                        </div>
+                        @if (_selectedNode.PluginId is "core.img2img" or "core.inpaint")
+                        {
+                            <MudNumericField T="double" @bind-Value="_editDenoisingStrength" Label="Denoising Strength"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="1" Step="0.05" Class="mb-2" />
+                        }
+                    }
+
+                    @if (_selectedNode.MaxIterations.HasValue || _selectedNode.PluginId == "core.conditional")
+                    {
+                        <MudNumericField T="int?" @bind-Value="_editMaxIterations" Label="Max Iterations"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="100" Class="mb-2" />
+                    }
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                               OnClick="SaveNodeConfig" Class="mt-2">
+                        Apply Changes
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                @* Run History *@
+                <div class="pa-3">
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Run History</MudText>
+                    @if (_lastRun is not null)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                            Last run: @_lastRun.Status — @_lastRun.CreatedAt.ToString("MMM d, HH:mm")
+                        </MudText>
+                        @foreach (var step in _lastRun.Steps.OrderBy(s => s.StartedAt))
+                        {
+                            var nodeName = _nodes.FirstOrDefault(n => n.Id == step.NodeId)?.Label ?? "Unknown";
+                            <MudCard Elevation="0" Class="mb-2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                                <MudCardContent Class="pa-2">
+                                    <div class="d-flex align-center justify-space-between">
+                                        <MudText Typo="Typo.body2">@nodeName</MudText>
+                                        <MudChip T="string" Size="Size.Small"
+                                                 Color="@GetStepStatusColor(step.Status)">
+                                            @step.Status
+                                        </MudChip>
+                                    </div>
+                                    @if (step.DurationMs > 0)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @($"{step.DurationMs / 1000.0:F1}")s
+                                        </MudText>
+                                    }
+                                    @if (!string.IsNullOrEmpty(step.OutputImagePath))
+                                    {
+                                        <img src="@GetImageUrl(step.OutputImagePath)" alt=""
+                                             style="max-width:100%; border-radius:4px; margin-top:4px;" loading="lazy" />
+                                    }
+                                    @if (!string.IsNullOrEmpty(step.Error))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Error">@step.Error</MudText>
+                                    }
+                                </MudCardContent>
+                            </MudCard>
+                        }
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No runs yet. Click a node to configure it, then click Run.
+                        </MudText>
+                    }
+
+                    @* Entry point info *@
+                    @if (_entryPointNodes.Count > 0)
+                    {
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-1">Entry Points</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                            These nodes need input images when running:
+                        </MudText>
+                        @foreach (var node in _entryPointNodes)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="mb-1">
+                                @node.Label
+                            </MudChip>
+                        }
+                    }
+                </div>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    private WorkflowCanvas? _canvas;
+    private WorkflowDto? _workflow;
+    private List<WorkflowNodeDto> _nodes = [];
+    private List<WorkflowEdgeDto> _edges = [];
+    private IReadOnlyList<WorkflowNodePluginDto> _plugins = [];
+    private bool _isRunning;
+    private string? _runStatus;
+    private MudBlazor.Severity _runSeverity = MudBlazor.Severity.Info;
+    private HubConnection? _hubConnection;
+    private Guid? _activeRunId;
+
+    // Property panel state
+    private WorkflowNodeDto? _selectedNode;
+    private string _editLabel = "";
+    private string _editPositivePrompt = "";
+    private string _editNegativePrompt = "";
+    private int _editSteps = 20;
+    private double _editCfgScale = 7.0;
+    private int _editWidth = 512;
+    private int _editHeight = 512;
+    private double _editDenoisingStrength = 0.75;
+    private int? _editMaxIterations;
+
+    // Run history
+    private WorkflowRunDto? _lastRun;
+    private List<WorkflowNodeDto> _entryPointNodes = [];
+
+    // Tracks next node position for auto-placement
+    private double _nextNodeX = 100;
+    private double _nextNodeY = 100;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _plugins = WorkflowService.GetAvailablePlugins();
+        var workflow = await WorkflowService.GetByIdAsync(WorkflowId);
+        if (workflow is null)
+        {
+            Snackbar.Add("Workflow not found.", MudBlazor.Severity.Error);
+            Navigation.NavigateTo("/workflows");
+            return;
+        }
+        _workflow = workflow;
+        _nodes = workflow.Nodes.ToList();
+        _edges = workflow.Edges.ToList();
+
+        ComputeEntryPoints();
+
+        // Set next position based on existing nodes
+        if (_nodes.Count > 0)
+        {
+            _nextNodeX = _nodes.Max(n => n.PositionX) + 250;
+            _nextNodeY = _nodes.Average(n => n.PositionY);
+        }
+
+        // Connect SignalR for live workflow progress
+        await ConnectSignalR();
+    }
+
+    private async Task ConnectSignalR()
+    {
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/studio"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            var wfId = WorkflowId.ToString();
+
+            _hubConnection.On<string, string, string, string>("WorkflowStepStarted",
+                (workflowId, runId, nodeId, nodeLabel) =>
+                {
+                    if (workflowId != wfId) return;
+                    _runStatus = $"Running: {nodeLabel}...";
+                    InvokeAsync(async () =>
+                    {
+                        if (_canvas is not null) await _canvas.HighlightNode(nodeId, "#FFC107");
+                        StateHasChanged();
+                    });
+                });
+
+            _hubConnection.On<string, string, string, int, int, string>("WorkflowStepProgress",
+                (workflowId, runId, nodeId, step, totalSteps, phase) =>
+                {
+                    if (workflowId != wfId) return;
+                    var nodeName = _nodes.FirstOrDefault(n => n.Id.ToString() == nodeId)?.Label ?? "Node";
+                    _runStatus = $"{nodeName}: {phase} ({step}/{totalSteps})";
+                    InvokeAsync(StateHasChanged);
+                });
+
+            _hubConnection.On<string, string, string, string, long>("WorkflowStepCompleted",
+                (workflowId, runId, nodeId, imageUrl, durationMs) =>
+                {
+                    if (workflowId != wfId) return;
+                    InvokeAsync(async () =>
+                    {
+                        if (_canvas is not null) await _canvas.HighlightNode(nodeId, "#4CAF50");
+                        StateHasChanged();
+                    });
+                });
+
+            _hubConnection.On<string, string, string, string>("WorkflowStepFailed",
+                (workflowId, runId, nodeId, error) =>
+                {
+                    if (workflowId != wfId) return;
+                    InvokeAsync(async () =>
+                    {
+                        if (_canvas is not null) await _canvas.HighlightNode(nodeId, "#F44336");
+                        StateHasChanged();
+                    });
+                });
+
+            _hubConnection.On<string, string>("WorkflowRunCompleted",
+                (workflowId, runId) =>
+                {
+                    if (workflowId != wfId) return;
+                    _isRunning = false;
+                    _runStatus = "Workflow completed successfully.";
+                    _runSeverity = MudBlazor.Severity.Success;
+                    _activeRunId = null;
+                    InvokeAsync(StateHasChanged);
+                });
+
+            _hubConnection.On<string, string, string>("WorkflowRunFailed",
+                (workflowId, runId, error) =>
+                {
+                    if (workflowId != wfId) return;
+                    _isRunning = false;
+                    _runStatus = $"Workflow failed: {error}";
+                    _runSeverity = MudBlazor.Severity.Error;
+                    _activeRunId = null;
+                    InvokeAsync(StateHasChanged);
+                });
+
+            await _hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to connect SignalR for workflow progress");
+        }
+    }
+
+    private async Task AddNode(WorkflowNodePluginDto plugin)
+    {
+        var node = await WorkflowService.AddNodeAsync(WorkflowId, plugin.PluginId,
+            plugin.DisplayName, _nextNodeX, _nextNodeY);
+        _nodes.Add(node);
+        _nextNodeX += 250;
+        if (_canvas is not null) await _canvas.RefreshCanvas();
+    }
+
+    private async Task HandleNodeMoved((string NodeId, double X, double Y) args)
+    {
+        if (Guid.TryParse(args.NodeId, out var nodeId))
+        {
+            await WorkflowService.UpdateNodePositionAsync(WorkflowId, nodeId, args.X, args.Y);
+            var idx = _nodes.FindIndex(n => n.Id == nodeId);
+            if (idx >= 0)
+                _nodes[idx] = _nodes[idx] with { PositionX = args.X, PositionY = args.Y };
+        }
+    }
+
+    private async Task HandleEdgeCreated((string SourceId, string SourcePort, string TargetId, string TargetPort) args)
+    {
+        if (Guid.TryParse(args.SourceId, out var sourceId) && Guid.TryParse(args.TargetId, out var targetId))
+        {
+            try
+            {
+                var edge = await WorkflowService.AddEdgeAsync(WorkflowId, sourceId, args.SourcePort, targetId, args.TargetPort);
+                _edges.Add(edge);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add(ex.Message, MudBlazor.Severity.Error);
+                if (_canvas is not null) await _canvas.RefreshCanvas();
+            }
+        }
+    }
+
+    private async Task HandleEdgeDeleted(string edgeIdStr)
+    {
+        if (Guid.TryParse(edgeIdStr, out var edgeId))
+        {
+            await WorkflowService.RemoveEdgeAsync(WorkflowId, edgeId);
+            _edges.RemoveAll(e => e.Id == edgeId);
+        }
+    }
+
+    private void HandleNodeSelected(string nodeIdStr)
+    {
+        if (Guid.TryParse(nodeIdStr, out var nodeId))
+        {
+            _selectedNode = _nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (_selectedNode is not null)
+                LoadNodeIntoEditor(_selectedNode);
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleNodeDeleted(string nodeIdStr)
+    {
+        if (Guid.TryParse(nodeIdStr, out var nodeId))
+        {
+            await WorkflowService.RemoveNodeAsync(WorkflowId, nodeId);
+            _nodes.RemoveAll(n => n.Id == nodeId);
+            _edges.RemoveAll(e => e.SourceNodeId == nodeId || e.TargetNodeId == nodeId);
+            if (_selectedNode?.Id == nodeId) _selectedNode = null;
+        }
+    }
+
+    private void LoadNodeIntoEditor(WorkflowNodeDto node)
+    {
+        _editLabel = node.Label;
+        _editMaxIterations = node.MaxIterations;
+
+        if (IsGenerationNode(node.PluginId) && !string.IsNullOrWhiteSpace(node.ParametersJson))
+        {
+            try
+            {
+                var p = JsonSerializer.Deserialize<GenerationParameters>(node.ParametersJson);
+                if (p is not null)
+                {
+                    _editPositivePrompt = p.PositivePrompt;
+                    _editNegativePrompt = p.NegativePrompt;
+                    _editSteps = p.Steps;
+                    _editCfgScale = p.CfgScale;
+                    _editWidth = p.Width;
+                    _editHeight = p.Height;
+                    _editDenoisingStrength = p.DenoisingStrength;
+                }
+            }
+            catch { /* use defaults */ }
+        }
+    }
+
+    private async Task SaveNodeConfig()
+    {
+        if (_selectedNode is null) return;
+
+        string? parametersJson = null;
+        if (IsGenerationNode(_selectedNode.PluginId))
+        {
+            // Build a minimal parameters JSON
+            var paramsObj = new
+            {
+                PositivePrompt = _editPositivePrompt,
+                NegativePrompt = _editNegativePrompt,
+                CheckpointModelId = Guid.Empty, // Will need to be set by user
+                Steps = _editSteps,
+                CfgScale = _editCfgScale,
+                Width = _editWidth,
+                Height = _editHeight,
+                DenoisingStrength = _editDenoisingStrength,
+                Seed = -1L,
+                BatchSize = 1,
+                ClipSkip = 1,
+                BatchCount = 1,
+            };
+            parametersJson = JsonSerializer.Serialize(paramsObj);
+        }
+
+        await WorkflowService.UpdateNodeAsync(WorkflowId, _selectedNode.Id,
+            _editLabel, parametersJson, _selectedNode.ConfigJson, _editMaxIterations);
+
+        // Update local state
+        var idx = _nodes.FindIndex(n => n.Id == _selectedNode.Id);
+        if (idx >= 0)
+        {
+            _nodes[idx] = _nodes[idx] with { Label = _editLabel, ParametersJson = parametersJson, MaxIterations = _editMaxIterations };
+            _selectedNode = _nodes[idx];
+        }
+
+        if (_canvas is not null) await _canvas.RefreshCanvas();
+        Snackbar.Add("Node updated.", MudBlazor.Severity.Success);
+    }
+
+    private async Task Save()
+    {
+        if (_workflow is null) return;
+        await WorkflowService.UpdateAsync(WorkflowId, _workflow.Name, _workflow.Description, null);
+        Snackbar.Add("Workflow saved.", MudBlazor.Severity.Success);
+    }
+
+    private async Task RunWorkflow()
+    {
+        _isRunning = true;
+        _runStatus = "Starting workflow...";
+        _runSeverity = MudBlazor.Severity.Info;
+        StateHasChanged();
+        try
+        {
+            _activeRunId = await WorkflowService.StartRunAsync(WorkflowId);
+            // Status updates come via SignalR — don't set _isRunning = false here
+        }
+        catch (Exception ex)
+        {
+            _isRunning = false;
+            _runStatus = $"Failed to start: {ex.Message}";
+            _runSeverity = MudBlazor.Severity.Error;
+        }
+    }
+
+    private async Task ExportWorkflow()
+    {
+        try
+        {
+            var exportData = await WorkflowService.ExportAsync(WorkflowId);
+            var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
+            // Download via JS interop
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("fileDownload.download",
+                $"{_workflow?.Name ?? "workflow"}.json", "application/json", base64);
+            Snackbar.Add("Workflow exported.", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+    }
+
+    private async Task DuplicateWorkflow()
+    {
+        try
+        {
+            var duplicate = await WorkflowService.DuplicateAsync(WorkflowId);
+            Navigation.NavigateTo($"/workflows/{duplicate.Id}");
+            Snackbar.Add($"Duplicated as '{duplicate.Name}'.", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Duplicate failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+    }
+
+    private static bool IsGenerationNode(string pluginId) =>
+        pluginId is "core.generate" or "core.img2img" or "core.inpaint" or "core.controlnet";
+
+    private void ComputeEntryPoints()
+    {
+        var connectedInputs = new HashSet<Guid>(_edges.Select(e => e.TargetNodeId));
+        _entryPointNodes = _nodes
+            .Where(n => !connectedInputs.Contains(n.Id) && n.PluginId is "core.img2img" or "core.inpaint")
+            .ToList();
+    }
+
+    private static MudBlazor.Color GetStepStatusColor(Domain.Enums.WorkflowStepStatus status) => status switch
+    {
+        Domain.Enums.WorkflowStepStatus.Completed => MudBlazor.Color.Success,
+        Domain.Enums.WorkflowStepStatus.Failed => MudBlazor.Color.Error,
+        Domain.Enums.WorkflowStepStatus.Running => MudBlazor.Color.Warning,
+        Domain.Enums.WorkflowStepStatus.Skipped => MudBlazor.Color.Default,
+        _ => MudBlazor.Color.Default,
+    };
+
+    private string GetImageUrl(string path)
+    {
+        // Simple relative URL for workflow output images
+        var fileName = Path.GetFileName(path);
+        return $"/assets/workflows/{_activeRunId ?? _lastRun?.Id}/{fileName}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            try { await _hubConnection.DisposeAsync(); }
+            catch { /* Blazor disconnect */ }
+        }
+    }
+}

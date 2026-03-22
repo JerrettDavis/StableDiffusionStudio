@@ -17,6 +17,11 @@ public class ModelRecord
     public string? Description { get; private set; }
     public string? PreviewImagePath { get; private set; }
     public string? CompatibilityHints { get; private set; }
+    public string? CivitAIModelId { get; private set; }
+    public string? CivitAIUrl { get; private set; }
+    public string? HuggingFaceModelId { get; private set; }
+    public string? HuggingFaceUrl { get; private set; }
+    public DateTimeOffset? LastEnrichedAt { get; private set; }
     public DateTimeOffset DetectedAt { get; private set; }
     public DateTimeOffset? LastVerifiedAt { get; private set; }
     public ModelStatus Status { get; private set; }
@@ -68,5 +73,15 @@ public class ModelRecord
         if (compatibilityHints is not null) CompatibilityHints = compatibilityHints;
         if (type.HasValue) Type = type.Value;
         LastVerifiedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void UpdateEnrichment(string? civitAIModelId = null, string? civitAIUrl = null,
+        string? huggingFaceModelId = null, string? huggingFaceUrl = null)
+    {
+        if (civitAIModelId is not null) CivitAIModelId = civitAIModelId;
+        if (civitAIUrl is not null) CivitAIUrl = civitAIUrl;
+        if (huggingFaceModelId is not null) HuggingFaceModelId = huggingFaceModelId;
+        if (huggingFaceUrl is not null) HuggingFaceUrl = huggingFaceUrl;
+        LastEnrichedAt = DateTimeOffset.UtcNow;
     }
 }

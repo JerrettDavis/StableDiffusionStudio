@@ -17,4 +17,5 @@ public sealed record InferenceRequest(
     double Eta = 0.0,
     byte[]? InitImage = null,
     double DenoisingStrength = 1.0,
-    byte[]? MaskImage = null);
+    byte[]? MaskImage = null,
+    ImageInputMode ImageInputMode = ImageInputMode.Scale);

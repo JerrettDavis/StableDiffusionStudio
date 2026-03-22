@@ -1,0 +1,24 @@
+<MudDialog>
+    <DialogContent>
+        <MudText Class="mb-3">@ContentText</MudText>
+        <MudTextField @bind-Value="_value" Label="@InputLabel" Variant="Variant.Outlined"
+                      Immediate="true" AutoFocus="true"
+                      OnKeyDown="@((e) => { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_value)) Submit(); })" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="string.IsNullOrWhiteSpace(_value)">OK</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string ContentText { get; set; } = "";
+    [Parameter] public string InputLabel { get; set; } = "Value";
+
+    private string _value = "";
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_value.Trim()));
+}
