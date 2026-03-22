@@ -2,17 +2,93 @@
 @using StableDiffusionStudio.Application.Interfaces
 @using StableDiffusionStudio.Domain.Enums
 
-@if (_lightboxImage is not null)
+@* ── Comparison overlay ── *@
+@if (_compareA is not null && _compareB is not null)
+{
+    <div class="lightbox-overlay" @onclick="CloseComparison">
+        <div class="comparison-content" @onclick:stopPropagation="true">
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudText Typo="Typo.h6" Style="color:white">Compare Images</MudText>
+                <MudToggleGroup T="string" @bind-Value="_compareMode" Color="Color.Primary" Dense="true">
+                    <MudToggleItem T="string" Value="@("side-by-side")">Side by Side</MudToggleItem>
+                    <MudToggleItem T="string" Value="@("wiper")">Wiper</MudToggleItem>
+                    <MudToggleItem T="string" Value="@("overlay")">Overlay</MudToggleItem>
+                </MudToggleGroup>
+            </div>
+
+            @if (_compareMode == "side-by-side")
+            {
+                <div class="compare-side-by-side">
+                    <div class="compare-panel">
+                        <img src="@GetUrl(_compareA)" alt="Image A" />
+                        <div class="compare-label">
+                            <MudText Typo="Typo.caption" Style="color:white">A: @FormatAxisValues(_compareA.AxisValuesJson)</MudText>
+                        </div>
+                    </div>
+                    <div class="compare-panel">
+                        <img src="@GetUrl(_compareB)" alt="Image B" />
+                        <div class="compare-label">
+                            <MudText Typo="Typo.caption" Style="color:white">B: @FormatAxisValues(_compareB.AxisValuesJson)</MudText>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (_compareMode == "wiper")
+            {
+                <div class="compare-wiper" style="position:relative; width:100%; max-width:800px; margin:0 auto; aspect-ratio:1; overflow:hidden; border-radius:8px;">
+                    <img src="@GetUrl(_compareA)" style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain" alt="A" />
+                    <div style="position:absolute; top:0; bottom:0; right:0; overflow:hidden; width:@((100 - _wiperPercent).ToString("F1"))%">
+                        <img src="@GetUrl(_compareB)"
+                             style="position:absolute; top:0; right:0; width:@(100.0 * 100.0 / Math.Max(100 - _wiperPercent, 0.1))%; max-width:none; height:100%; object-fit:contain"
+                             alt="B" />
+                    </div>
+                    <div style="position:absolute; top:0; bottom:0; left:@(_wiperPercent.ToString("F1"))%; width:2px; background:white; box-shadow:0 0 6px rgba(0,0,0,0.7); z-index:5; pointer-events:none"></div>
+                    <input type="range" min="0" max="100" value="@_wiperPercent"
+                           @oninput="e => { if (double.TryParse(e.Value?.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var v)) _wiperPercent = v; }"
+                           style="position:absolute; bottom:12px; left:10%; width:80%; z-index:10; opacity:0.8" />
+                </div>
+                <div class="d-flex justify-space-between mt-1" style="max-width:800px; margin:0 auto;">
+                    <MudText Typo="Typo.caption" Style="color:#ccc">A: @FormatAxisValues(_compareA.AxisValuesJson)</MudText>
+                    <MudText Typo="Typo.caption" Style="color:#ccc">B: @FormatAxisValues(_compareB.AxisValuesJson)</MudText>
+                </div>
+            }
+            else @* overlay *@
+            {
+                <div style="position:relative; width:100%; max-width:800px; margin:0 auto; aspect-ratio:1; overflow:hidden; border-radius:8px;">
+                    <img src="@GetUrl(_compareA)" style="width:100%; height:100%; object-fit:contain; display:block;" alt="A" />
+                    <img src="@GetUrl(_compareB)"
+                         style="position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:@(_overlayOpacity.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));"
+                         alt="B" />
+                </div>
+                <div style="max-width:800px; margin:8px auto 0;">
+                    <MudSlider T="double" @bind-Value="_overlayOpacity" Min="0" Max="1" Step="0.05" Color="Color.Primary">
+                        <MudText Typo="Typo.caption" Style="color:#ccc">
+                            Overlay opacity: @(_overlayOpacity.ToString("P0")) — A: @FormatAxisValues(_compareA.AxisValuesJson) | B: @FormatAxisValues(_compareB.AxisValuesJson)
+                        </MudText>
+                    </MudSlider>
+                </div>
+            }
+
+            <div class="d-flex gap-2 mt-3 justify-center">
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Default" OnClick="CloseComparison">Close</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default" OnClick="SwapCompareImages"
+                           StartIcon="@Icons.Material.Filled.SwapHoriz">Swap A/B</MudButton>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Single image lightbox ── *@
+@if (_lightboxImage is not null && _compareA is null)
 {
     <div class="lightbox-overlay" @onclick="CloseLightbox">
         <div class="lightbox-content" @onclick:stopPropagation="true">
             <div class="lightbox-image-wrapper">
-                <img src="@(AppPaths?.GetImageUrl(_lightboxImage.FilePath) ?? _lightboxImage.FilePath)"
-                     alt="Full size" />
+                <img src="@GetUrl(_lightboxImage)" alt="Full size" />
             </div>
             <div class="lightbox-info">
-                <div class="d-flex align-center gap-2 mb-2">
-                    <MudText Typo="Typo.subtitle2">Grid position: @_lightboxImage.GridX, @_lightboxImage.GridY</MudText>
+                <div class="d-flex align-center gap-2 flex-wrap mb-2">
+                    <MudText Typo="Typo.subtitle2">Grid @_lightboxImage.GridX, @_lightboxImage.GridY</MudText>
                     <MudChip T="string" Size="Size.Small"
                              Color="@(_lightboxImage.IsWinner ? Color.Warning : Color.Default)"
                              OnClick="() => ToggleWinnerFromLightbox(_lightboxImage.Id)">
@@ -28,9 +104,7 @@
                         @FormatAxisValues(_lightboxImage.AxisValuesJson)
                     </MudText>
                 }
-                <div class="d-flex gap-2 mt-3">
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
-                               OnClick="CloseLightbox">Close</MudButton>
+                <div class="d-flex gap-2 mt-3 flex-wrap">
                     <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
                                StartIcon="@Icons.Material.Filled.ArrowBack"
                                Disabled="_lightboxIndex <= 0"
@@ -39,12 +113,29 @@
                                StartIcon="@Icons.Material.Filled.ArrowForward"
                                Disabled="_lightboxIndex >= (Run?.Images.Count ?? 0) - 1"
                                OnClick="NextImage">Next</MudButton>
+                    <MudSpacer />
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info"
+                               StartIcon="@Icons.Material.Filled.Compare"
+                               OnClick="() => SetCompareA(_lightboxImage)">
+                        @(_pendingCompareA is null ? "Set as Compare A" : "Compare A set — pick B")
+                    </MudButton>
+                    @if (_pendingCompareA is not null && _pendingCompareA.Id != _lightboxImage.Id)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Info"
+                                   StartIcon="@Icons.Material.Filled.Compare"
+                                   OnClick="() => SetCompareB(_lightboxImage)">
+                            Set as Compare B
+                        </MudButton>
+                    }
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                               OnClick="CloseLightbox">Close</MudButton>
                 </div>
             </div>
         </div>
     </div>
 }
 
+@* ── Grid ── *@
 @if (Run is null)
 {
     <EmptyState Icon="@Icons.Material.Filled.Science"
@@ -66,9 +157,7 @@ else
 
     @if (HasAxis2)
     {
-        <!-- Two-axis grid -->
         <div class="experiment-grid" style="grid-template-columns: auto repeat(@Axis1Values.Count, 1fr);">
-            <!-- Header row: empty corner + column headers -->
             <div class="grid-cell grid-corner"></div>
             @foreach (var col in Axis1Values)
             {
@@ -76,8 +165,6 @@ else
                     <MudText Typo="Typo.caption" Align="Align.Center">@col</MudText>
                 </div>
             }
-
-            <!-- Data rows -->
             @for (var row = 0; row < Axis2Values!.Count; row++)
             {
                 <div class="grid-cell grid-row-header">
@@ -94,7 +181,6 @@ else
     }
     else
     {
-        <!-- Single-axis grid -->
         <div class="experiment-grid" style="grid-template-columns: repeat(@Axis1Values.Count, 1fr);">
             @foreach (var col in Axis1Values)
             {
@@ -123,8 +209,22 @@ else
     [Parameter] public bool IsRunning { get; set; }
 
     private bool HasAxis2 => Axis2Values is not null && Axis2Values.Count > 0;
+
+    // Lightbox state
     private ExperimentRunImageDto? _lightboxImage;
     private int _lightboxIndex = -1;
+
+    // Comparison state
+    private ExperimentRunImageDto? _pendingCompareA;
+    private ExperimentRunImageDto? _compareA;
+    private ExperimentRunImageDto? _compareB;
+    private string _compareMode = "side-by-side";
+    private double _wiperPercent = 50;
+    private double _overlayOpacity = 0.5;
+
+    private string GetUrl(ExperimentRunImageDto img) => AppPaths?.GetImageUrl(img.FilePath) ?? img.FilePath;
+
+    // ── Lightbox ──
 
     private void OpenLightbox(ExperimentRunImageDto image)
     {
@@ -136,6 +236,7 @@ else
     {
         _lightboxImage = null;
         _lightboxIndex = -1;
+        _pendingCompareA = null;
     }
 
     private void PreviousImage()
@@ -155,9 +256,45 @@ else
     private async Task ToggleWinnerFromLightbox(Guid imageId)
     {
         await OnWinnerToggled.InvokeAsync(imageId);
-        // Update the lightbox image's winner state locally for immediate feedback
         if (_lightboxImage is not null && _lightboxImage.Id == imageId)
             _lightboxImage = _lightboxImage with { IsWinner = !_lightboxImage.IsWinner };
+    }
+
+    // ── Comparison ──
+
+    private void SetCompareA(ExperimentRunImageDto image)
+    {
+        _pendingCompareA = image;
+    }
+
+    private void SetCompareB(ExperimentRunImageDto image)
+    {
+        if (_pendingCompareA is null) return;
+        _compareA = _pendingCompareA;
+        _compareB = image;
+        _lightboxImage = null; // Close single lightbox
+        _pendingCompareA = null;
+        _wiperPercent = 50;
+        _overlayOpacity = 0.5;
+    }
+
+    private void CloseComparison()
+    {
+        _compareA = null;
+        _compareB = null;
+        _pendingCompareA = null;
+    }
+
+    private void SwapCompareImages()
+    {
+        (_compareA, _compareB) = (_compareB, _compareA);
+    }
+
+    // ── Grid helpers ──
+
+    private ExperimentRunImageDto? FindImage(int gridX, int gridY)
+    {
+        return Run?.Images.FirstOrDefault(i => i.GridX == gridX && i.GridY == gridY);
     }
 
     private static string FormatAxisValues(string axisValuesJson)
@@ -171,18 +308,12 @@ else
         catch { return ""; }
     }
 
-    private ExperimentRunImageDto? FindImage(int gridX, int gridY)
-    {
-        return Run?.Images.FirstOrDefault(i => i.GridX == gridX && i.GridY == gridY);
-    }
-
     private RenderFragment RenderImageCell(ExperimentRunImageDto? image, int cellIndex) => __builder =>
     {
         if (image is not null)
         {
-            // Completed cell — show the generated image, click to open lightbox
             var borderStyle = image.IsWinner ? "border: 3px solid var(--mud-palette-warning);" : "";
-            var imageUrl = AppPaths?.GetImageUrl(image.FilePath) ?? image.FilePath;
+            var imageUrl = GetUrl(image);
             <div class="grid-cell grid-image @(image.IsWinner ? "winner" : "")" style="@borderStyle cursor: pointer;"
                  @onclick="() => OpenLightbox(image)">
                 <img src="@imageUrl" alt="Grid @(image.GridX),@(image.GridY)" loading="lazy" />
@@ -190,7 +321,6 @@ else
         }
         else if (IsRunning && cellIndex == GeneratingCellIndex)
         {
-            // Currently generating cell — show active spinner
             <div class="grid-cell grid-image generating">
                 <div class="generating-indicator">
                     <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
@@ -200,14 +330,12 @@ else
         }
         else if (IsRunning && cellIndex > GeneratingCellIndex)
         {
-            // Pending cell — show subtle skeleton
             <div class="grid-cell grid-image pending">
                 <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100%" />
             </div>
         }
         else
         {
-            // Empty cell (run complete or not started)
             <div class="grid-cell grid-image">
                 <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100%" />
             </div>
@@ -222,13 +350,7 @@ else
         width: 100%;
     }
 
-    .grid-cell {
-        min-width: 0;
-    }
-
-    .grid-corner {
-        /* empty top-left corner */
-    }
+    .grid-cell { min-width: 0; }
 
     .grid-header {
         display: flex;
@@ -261,9 +383,7 @@ else
         display: block;
     }
 
-    .grid-image.winner {
-        box-shadow: 0 0 8px var(--mud-palette-warning);
-    }
+    .grid-image.winner { box-shadow: 0 0 8px var(--mud-palette-warning); }
 
     .grid-image.generating {
         border: 2px solid var(--mud-palette-primary);
@@ -279,16 +399,14 @@ else
         justify-content: center;
     }
 
-    .grid-image.pending {
-        opacity: 0.4;
-    }
+    .grid-image.pending { opacity: 0.4; }
 
-    /* Lightbox overlay */
+    /* ── Lightbox ── */
     .lightbox-overlay {
         position: fixed;
         inset: 0;
         z-index: 9999;
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.88);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -308,13 +426,13 @@ else
         display: flex;
         align-items: center;
         justify-content: center;
-        max-height: 75vh;
+        max-height: 70vh;
         overflow: hidden;
     }
 
     .lightbox-image-wrapper img {
         max-width: 90vw;
-        max-height: 75vh;
+        max-height: 70vh;
         object-fit: contain;
         border-radius: 4px;
     }
@@ -324,7 +442,47 @@ else
         padding: 12px 16px;
         background: var(--mud-palette-surface);
         border-radius: 8px;
-        min-width: 300px;
-        text-align: center;
+        min-width: 400px;
+        max-width: 90vw;
+    }
+
+    /* ── Comparison ── */
+    .comparison-content {
+        max-width: 95vw;
+        max-height: 95vh;
+        cursor: default;
+        padding: 16px;
+    }
+
+    .compare-side-by-side {
+        display: flex;
+        gap: 8px;
+        max-height: 75vh;
+    }
+
+    .compare-panel {
+        flex: 1;
+        position: relative;
+        max-height: 75vh;
+        overflow: hidden;
+        border-radius: 8px;
+        background: var(--mud-palette-background-gray);
+    }
+
+    .compare-panel img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+        max-height: 75vh;
+    }
+
+    .compare-label {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 4px 8px;
+        background: rgba(0, 0, 0, 0.6);
     }
 </style>
