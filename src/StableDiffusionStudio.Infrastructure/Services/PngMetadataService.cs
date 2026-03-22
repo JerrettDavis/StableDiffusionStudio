@@ -28,7 +28,13 @@ public static class PngMetadataService
     public static string FormatA1111Parameters(
         string positivePrompt, string negativePrompt,
         int steps, string sampler, double cfgScale, long seed,
-        int width, int height, string? modelName, int clipSkip)
+        int width, int height, string? modelName, int clipSkip,
+        string? scheduler = null, double denoisingStrength = 1.0,
+        string? mode = null, double eta = 0.0,
+        int batchSize = 1, int batchCount = 1,
+        bool hiresFixEnabled = false, double hiresUpscaleFactor = 2.0,
+        int hiresSteps = 0, double hiresDenoisingStrength = 0.55,
+        string? vaeName = null, IReadOnlyList<string>? loraNames = null)
     {
         var sb = new StringBuilder();
         sb.Append(positivePrompt);
@@ -37,8 +43,31 @@ public static class PngMetadataService
         sb.Append($"\nSteps: {steps}, Sampler: {sampler}, CFG scale: {cfgScale}, Seed: {seed}, Size: {width}x{height}");
         if (modelName is not null)
             sb.Append($", Model: {modelName}");
+        if (!string.IsNullOrWhiteSpace(scheduler) && scheduler != "Normal")
+            sb.Append($", Schedule type: {scheduler}");
         if (clipSkip > 1)
             sb.Append($", Clip skip: {clipSkip}");
+        if (mode is not null && mode != "TextToImage")
+            sb.Append($", Mode: {mode}");
+        if (denoisingStrength < 1.0)
+            sb.Append($", Denoising strength: {denoisingStrength}");
+        if (eta > 0)
+            sb.Append($", Eta: {eta}");
+        if (batchSize > 1)
+            sb.Append($", Batch size: {batchSize}");
+        if (batchCount > 1)
+            sb.Append($", Batch count: {batchCount}");
+        if (!string.IsNullOrWhiteSpace(vaeName))
+            sb.Append($", VAE: {vaeName}");
+        if (loraNames is not null && loraNames.Count > 0)
+            sb.Append($", Lora: {string.Join(", ", loraNames)}");
+        if (hiresFixEnabled)
+        {
+            sb.Append($", Hires fix: {hiresUpscaleFactor:F2}x");
+            if (hiresSteps > 0)
+                sb.Append($", Hires steps: {hiresSteps}");
+            sb.Append($", Hires denoising: {hiresDenoisingStrength}");
+        }
         return sb.ToString();
     }
 
