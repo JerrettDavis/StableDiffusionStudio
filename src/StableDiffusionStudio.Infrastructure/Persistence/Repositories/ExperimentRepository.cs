@@ -39,11 +39,30 @@ public class ExperimentRepository : IExperimentRepository
 
     public async Task UpdateAsync(Experiment experiment, CancellationToken ct = default)
     {
+        // Clear any previously tracked instance with the same key to avoid conflicts
+        // (common when reading with AsNoTracking then updating in the same scope)
+        var tracked = _context.ChangeTracker.Entries<Experiment>()
+            .FirstOrDefault(e => e.Entity.Id == experiment.Id);
+        if (tracked is not null && tracked.Entity != experiment)
+            tracked.State = EntityState.Detached;
+
         var entry = _context.Entry(experiment);
         if (entry.State == EntityState.Detached)
         {
             _context.Experiments.Attach(experiment);
             entry.State = EntityState.Modified;
+        }
+
+        // Handle child runs that may be new
+        foreach (var run in experiment.Runs)
+        {
+            var runEntry = _context.Entry(run);
+            if (runEntry.State is EntityState.Detached)
+            {
+                var runExists = await _context.ExperimentRuns.AsNoTracking().AnyAsync(r => r.Id == run.Id, ct);
+                _context.ExperimentRuns.Attach(run);
+                runEntry.State = runExists ? EntityState.Modified : EntityState.Added;
+            }
         }
 
         await _context.SaveChangesAsync(ct);
@@ -69,6 +88,11 @@ public class ExperimentRepository : IExperimentRepository
 
     public async Task UpdateRunAsync(ExperimentRun run, CancellationToken ct = default)
     {
+        var tracked = _context.ChangeTracker.Entries<ExperimentRun>()
+            .FirstOrDefault(e => e.Entity.Id == run.Id);
+        if (tracked is not null && tracked.Entity != run)
+            tracked.State = EntityState.Detached;
+
         var entry = _context.Entry(run);
         if (entry.State == EntityState.Detached)
         {
