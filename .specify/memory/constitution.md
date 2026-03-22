@@ -15,9 +15,9 @@ Added sections:
   - Development Workflow
   - Governance
 Templates requiring updates:
-  - .specify/templates/plan-template.md ⚠ pending (align constitution checks)
-  - .specify/templates/spec-template.md ⚠ pending (align scope constraints)
-  - .specify/templates/tasks-template.md ⚠ pending (align task categories)
+  - .specify/templates/plan-template.md ✅ updated (constitution check table, quality gates, project structure)
+  - .specify/templates/spec-template.md ✅ updated (constitution alignment section, architectural requirements, quality gate checklist)
+  - .specify/templates/tasks-template.md ✅ updated (layer-based phases, constitution markers, subagent guidance, SDS path conventions)
 Follow-up TODOs: none
 -->
 
