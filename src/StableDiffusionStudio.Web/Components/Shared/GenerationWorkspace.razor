@@ -31,6 +31,12 @@
                 <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.ImageToImage">img2img</MudToggleItem>
                 <MudToggleItem T="Domain.Enums.GenerationMode" Value="Domain.Enums.GenerationMode.Inpainting">Inpaint</MudToggleItem>
             </MudToggleGroup>
+            @if (_showHelp)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2" Style="margin-top:-8px">
+                    <strong>txt2img</strong> creates images from text alone. <strong>img2img</strong> transforms an uploaded image guided by your prompt. <strong>Inpaint</strong> lets you paint a mask on an image to regenerate only that area.
+                </MudText>
+            }
 
             @if (_generationMode == Domain.Enums.GenerationMode.ImageToImage)
             {
@@ -111,6 +117,12 @@
             <ModelSelector Label="Checkpoint" ModelTypeFilter="ModelType.Checkpoint"
                            SelectedModelId="_checkpointId" SelectedModelIdChanged="OnCheckpointChanged"
                            Required="true" />
+            @if (_showHelp)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                    The base model that determines your image style and capabilities. <strong>SD 1.5</strong> models are fast and work at 512px. <strong>SDXL</strong> models produce higher quality at 1024px. <strong>Flux</strong> models are the newest and most capable. Each model has its own strengths — realistic, anime, artistic, etc.
+                </MudText>
+            }
 
             @if (_activePreset is not null)
             {
@@ -127,10 +139,22 @@
             <div class="mt-3">
                 <ModelSelector Label="VAE (optional)" ModelTypeFilter="ModelType.VAE"
                                SelectedModelId="_vaeId" SelectedModelIdChanged="v => _vaeId = v" />
+                @if (_showHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        The Variational Autoencoder converts between pixel space and latent space. Most checkpoints have a built-in VAE. Only override if colors look washed out or you want a specific VAE (e.g., vae-ft-mse for better faces).
+                    </MudText>
+                }
             </div>
 
             <div class="mt-3">
                 <LoraSelector SelectedLoras="_loras" SelectedLorasChanged="v => _loras = v" />
+                @if (_showHelp)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                        LoRAs (Low-Rank Adaptations) are small add-on models that fine-tune the checkpoint for specific subjects, styles, or concepts. They stack — you can use multiple LoRAs at once. Weight controls influence strength (0.5-0.8 is typical).
+                    </MudText>
+                }
             </div>
 
             <MudTextField T="string" Label="Prompt" Lines="4" Value="_positivePrompt"
@@ -141,6 +165,12 @@
                      Color="@(_positiveTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
                 <span class="param-value">@_positiveTokenCount</span>/@_tokenLimit tokens
             </MudText>
+            @if (_showHelp)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Describe the image you want. Be specific — include subject, style, lighting, composition. Comma-separated tags work well: "portrait of a woman, oil painting, dramatic lighting, detailed face". More specific = closer to what you want.
+                </MudText>
+            }
 
             <MudTextField T="string" Label="Negative Prompt" Lines="2" Value="_negativePrompt"
                           ValueChanged="OnNegativePromptChanged"
@@ -150,6 +180,12 @@
                      Color="@(_negativeTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
                 <span class="param-value">@_negativeTokenCount</span>/@_tokenLimit tokens
             </MudText>
+            @if (_showHelp)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Things to exclude from the image. Common: "blurry, low quality, deformed hands, extra fingers, watermark, text". Helps avoid common AI artifacts. Flux models generally ignore negative prompts — leave blank for Flux.
+                </MudText>
+            }
 
             <NegativePromptHelper NegativePrompt="_negativePrompt"
                                   NegativePromptChanged="v => { _negativePrompt = v; StateHasChanged(); }" />
@@ -276,6 +312,7 @@
     private ModelFamily? _currentModelFamily;
     private DotNetObjectReference<GenerationWorkspace>? _dotNetRef;
     private RecentModelsBar? _recentModelsBar;
+    [CascadingParameter(Name = "ShowHelpText")] private bool _showHelp { get; set; }
     private CancellationTokenSource? _generationCts;
     private Guid? _currentJobId;
     private int _positiveTokenCount;
