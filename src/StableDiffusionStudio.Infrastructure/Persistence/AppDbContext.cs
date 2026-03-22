@@ -13,6 +13,9 @@ public class AppDbContext : DbContext
     public DbSet<GeneratedImage> GeneratedImages => Set<GeneratedImage>();
     public DbSet<GenerationPresetEntity> GenerationPresets => Set<GenerationPresetEntity>();
     public DbSet<PromptHistory> PromptHistories => Set<PromptHistory>();
+    public DbSet<Experiment> Experiments => Set<Experiment>();
+    public DbSet<ExperimentRun> ExperimentRuns => Set<ExperimentRun>();
+    public DbSet<ExperimentRunImage> ExperimentRunImages => Set<ExperimentRunImage>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
