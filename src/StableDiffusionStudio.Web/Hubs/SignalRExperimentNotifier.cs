@@ -20,6 +20,11 @@ public class SignalRExperimentNotifier : IExperimentNotifier
         await _hubContext.Clients.All.SendAsync("ExperimentProgress", runId, completedIndex, totalCount, axisValuesJson, imageUrl);
     }
 
+    public async Task SendStepPreviewAsync(string runId, int gridX, int gridY, string phase, byte[]? previewBytes)
+    {
+        await _hubContext.Clients.All.SendAsync("ExperimentStepPreview", runId, gridX, gridY, phase, previewBytes);
+    }
+
     public async Task SendCompletedAsync(string runId)
     {
         await _hubContext.Clients.All.SendAsync("ExperimentComplete", runId);
