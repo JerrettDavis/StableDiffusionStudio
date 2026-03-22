@@ -296,6 +296,43 @@ public partial class Program
                 ""UsedAt"" INTEGER NOT NULL DEFAULT 0,
                 ""UseCount"" INTEGER NOT NULL DEFAULT 0
             )"),
+            ("Experiments", @"CREATE TABLE IF NOT EXISTS ""Experiments"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_Experiments"" PRIMARY KEY,
+                ""Name"" TEXT NOT NULL DEFAULT '',
+                ""Description"" TEXT,
+                ""BaseParametersJson"" TEXT NOT NULL DEFAULT '',
+                ""InitImagePath"" TEXT,
+                ""SweepAxesJson"" TEXT NOT NULL DEFAULT '[]',
+                ""CreatedAt"" INTEGER NOT NULL DEFAULT 0,
+                ""UpdatedAt"" INTEGER NOT NULL DEFAULT 0
+            )"),
+            ("ExperimentRuns", @"CREATE TABLE IF NOT EXISTS ""ExperimentRuns"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_ExperimentRuns"" PRIMARY KEY,
+                ""ExperimentId"" TEXT NOT NULL,
+                ""FixedSeed"" INTEGER NOT NULL DEFAULT 0,
+                ""UseFixedSeed"" INTEGER NOT NULL DEFAULT 1,
+                ""TotalCombinations"" INTEGER NOT NULL DEFAULT 0,
+                ""CompletedCount"" INTEGER NOT NULL DEFAULT 0,
+                ""Status"" TEXT NOT NULL DEFAULT 'Pending',
+                ""ErrorMessage"" TEXT,
+                ""StartedAt"" INTEGER,
+                ""CompletedAt"" INTEGER,
+                CONSTRAINT ""FK_ExperimentRuns_Experiments_ExperimentId"" FOREIGN KEY (""ExperimentId"") REFERENCES ""Experiments"" (""Id"") ON DELETE CASCADE
+            )"),
+            ("ExperimentRunImages", @"CREATE TABLE IF NOT EXISTS ""ExperimentRunImages"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_ExperimentRunImages"" PRIMARY KEY,
+                ""RunId"" TEXT NOT NULL,
+                ""FilePath"" TEXT NOT NULL DEFAULT '',
+                ""Seed"" INTEGER NOT NULL DEFAULT 0,
+                ""GenerationTimeSeconds"" REAL NOT NULL DEFAULT 0,
+                ""AxisValuesJson"" TEXT NOT NULL DEFAULT '{}',
+                ""GridX"" INTEGER NOT NULL DEFAULT 0,
+                ""GridY"" INTEGER NOT NULL DEFAULT 0,
+                ""IsWinner"" INTEGER NOT NULL DEFAULT 0,
+                ""ContentRating"" TEXT NOT NULL DEFAULT 'Unknown',
+                ""NsfwScore"" REAL NOT NULL DEFAULT 0,
+                CONSTRAINT ""FK_ExperimentRunImages_ExperimentRuns_RunId"" FOREIGN KEY (""RunId"") REFERENCES ""ExperimentRuns"" (""Id"") ON DELETE CASCADE
+            )"),
         };
 
         foreach (var (tableName, createSql) in repairs)
