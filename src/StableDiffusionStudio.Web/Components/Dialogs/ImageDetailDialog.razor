@@ -8,6 +8,7 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 @inject IGenerationService GenerationService
+@inject IModelCatalogService ModelCatalogService
 
 <MudDialog>
     <TitleContent>
@@ -22,19 +23,52 @@
         <MudImage Src="@GetImageUrl()" Style="max-width:100%;max-height:500px" Class="mb-3" />
         <MudSimpleTable Dense="true" Striped="true">
             <tbody>
-                <tr><td><strong>Seed</strong></td><td>@Image.Seed</td></tr>
-                <tr><td><strong>Size</strong></td><td>@Image.Width x @Image.Height</td></tr>
-                <tr><td><strong>Time</strong></td><td>@Image.GenerationTimeSeconds.ToString("F1")s</td></tr>
-                <tr><td><strong>Sampler</strong></td><td>@Job.Parameters.Sampler</td></tr>
-                <tr><td><strong>Scheduler</strong></td><td>@Job.Parameters.Scheduler</td></tr>
-                <tr><td><strong>Steps</strong></td><td>@Job.Parameters.Steps</td></tr>
-                <tr><td><strong>CFG</strong></td><td>@Job.Parameters.CfgScale</td></tr>
-                <tr><td><strong>CLIP Skip</strong></td><td>@Job.Parameters.ClipSkip</td></tr>
                 <tr><td><strong>Prompt</strong></td><td style="word-break:break-all">@Job.Parameters.PositivePrompt</td></tr>
                 @if (!string.IsNullOrWhiteSpace(Job.Parameters.NegativePrompt))
                 {
-                    <tr><td><strong>Negative</strong></td><td style="word-break:break-all">@Job.Parameters.NegativePrompt</td></tr>
+                    <tr><td><strong>Negative Prompt</strong></td><td style="word-break:break-all">@Job.Parameters.NegativePrompt</td></tr>
                 }
+                <tr><td><strong>Model</strong></td><td>@(_modelName ?? Job.Parameters.CheckpointModelId.ToString()[..8] + "...")</td></tr>
+                @if (_vaeName is not null)
+                {
+                    <tr><td><strong>VAE</strong></td><td>@_vaeName</td></tr>
+                }
+                @if (Job.Parameters.Loras.Count > 0)
+                {
+                    <tr><td><strong>LoRAs</strong></td><td>@string.Join(", ", _loraNames)</td></tr>
+                }
+                <tr><td><strong>Seed</strong></td><td>@Image.Seed</td></tr>
+                <tr><td><strong>Size</strong></td><td>@Image.Width x @Image.Height</td></tr>
+                <tr><td><strong>Sampler</strong></td><td>@Job.Parameters.Sampler</td></tr>
+                <tr><td><strong>Scheduler</strong></td><td>@Job.Parameters.Scheduler</td></tr>
+                <tr><td><strong>Steps</strong></td><td>@Job.Parameters.Steps</td></tr>
+                <tr><td><strong>CFG Scale</strong></td><td>@Job.Parameters.CfgScale</td></tr>
+                <tr><td><strong>CLIP Skip</strong></td><td>@Job.Parameters.ClipSkip</td></tr>
+                @if (Job.Parameters.Mode != StableDiffusionStudio.Domain.Enums.GenerationMode.TextToImage)
+                {
+                    <tr><td><strong>Mode</strong></td><td>@Job.Parameters.Mode</td></tr>
+                }
+                @if (Job.Parameters.DenoisingStrength < 1.0)
+                {
+                    <tr><td><strong>Denoising Strength</strong></td><td>@Job.Parameters.DenoisingStrength</td></tr>
+                }
+                @if (Job.Parameters.Eta > 0)
+                {
+                    <tr><td><strong>Eta</strong></td><td>@Job.Parameters.Eta</td></tr>
+                }
+                @if (Job.Parameters.BatchSize > 1)
+                {
+                    <tr><td><strong>Batch Size</strong></td><td>@Job.Parameters.BatchSize</td></tr>
+                }
+                @if (Job.Parameters.BatchCount > 1)
+                {
+                    <tr><td><strong>Batch Count</strong></td><td>@Job.Parameters.BatchCount</td></tr>
+                }
+                @if (Job.Parameters.HiresFixEnabled)
+                {
+                    <tr><td><strong>Hires Fix</strong></td><td>@(Job.Parameters.HiresUpscaleFactor.ToString("F2"))x upscale, @(Job.Parameters.HiresSteps > 0 ? Job.Parameters.HiresSteps : Job.Parameters.Steps) steps, @Job.Parameters.HiresDenoisingStrength denoising</td></tr>
+                }
+                <tr><td><strong>Generation Time</strong></td><td>@Image.GenerationTimeSeconds.ToString("F1")s</td></tr>
                 <tr>
                     <td><strong>Content Rating</strong></td>
                     <td>
@@ -97,10 +131,34 @@
     [Parameter] public required GenerationJobDto Job { get; set; }
 
     private bool _isFavorite;
+    private string? _modelName;
+    private string? _vaeName;
+    private List<string> _loraNames = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _isFavorite = Image.IsFavorite;
+
+        // Resolve model names from IDs
+        try
+        {
+            var checkpoint = await ModelCatalogService.GetByIdAsync(Job.Parameters.CheckpointModelId);
+            _modelName = checkpoint?.Title ?? (checkpoint is not null ? Path.GetFileNameWithoutExtension(checkpoint.FilePath) : null);
+
+            if (Job.Parameters.VaeModelId.HasValue)
+            {
+                var vae = await ModelCatalogService.GetByIdAsync(Job.Parameters.VaeModelId.Value);
+                _vaeName = vae?.Title ?? (vae is not null ? Path.GetFileNameWithoutExtension(vae.FilePath) : null);
+            }
+
+            foreach (var lora in Job.Parameters.Loras)
+            {
+                var loraModel = await ModelCatalogService.GetByIdAsync(lora.ModelId);
+                var name = loraModel?.Title ?? (loraModel is not null ? Path.GetFileNameWithoutExtension(loraModel.FilePath) : lora.ModelId.ToString()[..8]);
+                _loraNames.Add($"{name} ({lora.Weight:F2})");
+            }
+        }
+        catch { /* Non-critical — IDs will show as fallback */ }
     }
 
     private string GetImageUrl()

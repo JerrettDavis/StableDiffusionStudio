@@ -341,7 +341,19 @@ public class GenerationJobHandler : IJobHandler
                         parameters.Width,
                         parameters.Height,
                         modelName,
-                        parameters.ClipSkip);
+                        parameters.ClipSkip,
+                        scheduler: parameters.Scheduler.ToString(),
+                        denoisingStrength: parameters.DenoisingStrength,
+                        mode: parameters.Mode.ToString(),
+                        eta: parameters.Eta,
+                        batchSize: parameters.BatchSize,
+                        batchCount: parameters.BatchCount,
+                        hiresFixEnabled: parameters.HiresFixEnabled,
+                        hiresUpscaleFactor: parameters.HiresUpscaleFactor,
+                        hiresSteps: parameters.HiresSteps,
+                        hiresDenoisingStrength: parameters.HiresDenoisingStrength,
+                        vaeName: vaePath is not null ? Path.GetFileNameWithoutExtension(vaePath) : null,
+                        loraNames: loras.Select(l => Path.GetFileNameWithoutExtension(l.Path)).ToList());
 
                     if (classification.Rating != ContentRating.Unknown)
                         a1111Params += $", Content Rating: {classification.Rating} ({classification.NsfwScore:P0})";
