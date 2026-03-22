@@ -42,13 +42,16 @@ public class WorkflowSteps
     {
         await Page.GotoAsync($"{BaseUrl}/workflows");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Page.WaitForTimeoutAsync(2000);
+        await Page.WaitForTimeoutAsync(3000);
         var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
         await Expect(newBtn).ToBeVisibleAsync(new() { Timeout = 10_000 });
         await newBtn.ClickAsync();
         await Page.WaitForTimeoutAsync(1000);
         await FillDialogAndConfirm(name, "OK");
-        await Page.WaitForTimeoutAsync(2000);
+        // Wait for navigation to editor page
+        await Page.WaitForURLAsync($"**/workflows/**", new() { Timeout = 15_000 });
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Page.WaitForTimeoutAsync(3000);
     }
 
     private async Task FillDialogAndConfirm(string text, string buttonText)

@@ -61,8 +61,10 @@ else
                         </MudText>
                     </MudCardContent>
                     <MudCardActions>
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                                       Size="Size.Small" OnClick="@(() => DeleteWorkflow(workflow))" />
+                        <div @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           Size="Size.Small" OnClick="@(() => DeleteWorkflow(workflow))" />
+                        </div>
                     </MudCardActions>
                 </MudCard>
             </MudItem>
