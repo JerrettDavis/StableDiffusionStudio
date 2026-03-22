@@ -231,24 +231,12 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             {
                 await this.ScenarioStartAsync();
 #line 19
-    await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+    await testRunner.GivenAsync("I have created a workflow named \"E2E Test Workflow\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
 #line 20
-    await testRunner.WhenAsync("I navigate to the workflows page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
-#line hidden
-#line 21
-    await testRunner.AndAsync("I click the \"New Workflow\" button", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
-#line hidden
-#line 22
-    await testRunner.AndAsync("I enter \"E2E Test Workflow\" in the dialog input", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
-#line hidden
-#line 23
-    await testRunner.AndAsync("I click the \"OK\" button in the dialog", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
-#line hidden
-#line 24
     await testRunner.ThenAsync("I should be on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 25
+#line 21
     await testRunner.AndAsync("I should see \"E2E Test Workflow\" in the toolbar", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -266,7 +254,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Workflow editor has node palette", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 27
+#line 23
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -276,31 +264,31 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 28
+#line 24
     await testRunner.GivenAsync("I have created a workflow named \"Palette Test\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 29
+#line 25
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 30
+#line 26
     await testRunner.ThenAsync("I should see \"Node Palette\" in the sidebar", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 31
+#line 27
     await testRunner.AndAsync("I should see \"Generate\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 32
+#line 28
     await testRunner.AndAsync("I should see \"Img2Img\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 33
+#line 29
     await testRunner.AndAsync("I should see \"Output\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 34
+#line 30
     await testRunner.AndAsync("I should see \"Upscale\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 35
+#line 31
     await testRunner.AndAsync("I should see \"Conditional\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 36
+#line 32
     await testRunner.AndAsync("I should see \"Script\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -318,7 +306,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Add nodes to workflow canvas", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 38
+#line 34
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -328,22 +316,22 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 39
+#line 35
     await testRunner.GivenAsync("I have created a workflow named \"Canvas Test\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 40
+#line 36
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 41
+#line 37
     await testRunner.AndAsync("I click \"Generate\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 42
+#line 38
     await testRunner.ThenAsync("I should see the \"Generate\" node on the canvas", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 43
+#line 39
     await testRunner.WhenAsync("I click \"Output\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 44
+#line 40
     await testRunner.ThenAsync("I should see the \"Output\" node on the canvas", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
@@ -361,7 +349,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Select a node and see property panel", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 46
+#line 42
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -371,22 +359,22 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 47
+#line 43
     await testRunner.GivenAsync("I have created a workflow named \"Property Test\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 48
+#line 44
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 49
+#line 45
     await testRunner.AndAsync("I click \"Generate\" in the node palette", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 50
+#line 46
     await testRunner.AndAsync("I click the \"Generate\" node on the canvas", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 51
+#line 47
     await testRunner.ThenAsync("I should see the property panel", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 52
+#line 48
     await testRunner.AndAsync("I should see \"Generation Parameters\" in the property panel", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -404,7 +392,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Save workflow", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 54
+#line 50
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -414,16 +402,16 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 55
+#line 51
     await testRunner.GivenAsync("I have created a workflow named \"Save Test\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 56
+#line 52
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 57
+#line 53
     await testRunner.AndAsync("I click the \"Save\" button", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 58
+#line 54
     await testRunner.ThenAsync("I should see a success notification", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
@@ -441,7 +429,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Duplicate workflow", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 60
+#line 56
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -451,19 +439,19 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 61
+#line 57
     await testRunner.GivenAsync("I have created a workflow named \"Original Workflow\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 62
+#line 58
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 63
+#line 59
     await testRunner.AndAsync("I click the \"Duplicate\" button", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 64
+#line 60
     await testRunner.ThenAsync("I should be on a different workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 65
+#line 61
     await testRunner.AndAsync("I should see \"Original Workflow (copy)\" in the toolbar", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -481,7 +469,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Delete workflow from list", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 67
+#line 63
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -491,22 +479,22 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 68
+#line 64
     await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 69
+#line 65
     await testRunner.WhenAsync("I navigate to the workflows page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 70
+#line 66
     await testRunner.AndAsync("I create a workflow named \"Delete Me\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 71
+#line 67
     await testRunner.ThenAsync("I should see \"Delete Me\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 72
+#line 68
     await testRunner.WhenAsync("I delete the workflow \"Delete Me\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 73
+#line 69
     await testRunner.ThenAsync("I should not see \"Delete Me\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
@@ -524,7 +512,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Workflows page shows starter templates after first load", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 75
+#line 71
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -534,22 +522,22 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 76
+#line 72
     await testRunner.GivenAsync("I am on the home page", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 77
+#line 73
     await testRunner.WhenAsync("I navigate to the workflows page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 78
+#line 74
     await testRunner.AndAsync("I wait for templates to load", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 79
+#line 75
     await testRunner.ThenAsync("I should see \"Basic Generation\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 80
+#line 76
     await testRunner.AndAsync("I should see \"Generate + Upscale\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 81
+#line 77
     await testRunner.AndAsync("I should see \"Generate + Refine\" in the workflow list", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -567,7 +555,7 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Run History panel shows when no node is selected", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 83
+#line 79
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -577,16 +565,16 @@ namespace StableDiffusionStudio.E2E.Tests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 84
+#line 80
     await testRunner.GivenAsync("I have created a workflow named \"History Test\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 85
+#line 81
     await testRunner.WhenAsync("I am on the workflow editor page", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 86
+#line 82
     await testRunner.ThenAsync("I should see \"Run History\" in the sidebar", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 87
+#line 83
     await testRunner.AndAsync("I should see \"No runs yet\" in the sidebar", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }

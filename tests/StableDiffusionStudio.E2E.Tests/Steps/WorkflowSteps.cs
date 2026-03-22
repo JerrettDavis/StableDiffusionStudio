@@ -23,32 +23,13 @@ public class WorkflowSteps
         await Page.WaitForTimeoutAsync(1000);
     }
 
-    [When(@"I enter ""(.*)"" in the dialog input")]
-    public async Task WhenIEnterInTheDialogInput(string text)
-    {
-        var dialog = Page.Locator(".mud-dialog");
-        await Expect(dialog).ToBeVisibleAsync();
-        var input = dialog.Locator("input").First;
-        await input.FillAsync(text);
-    }
-
-    [When(@"I click the ""(.*)"" button in the dialog")]
-    public async Task WhenIClickTheButtonInTheDialog(string buttonText)
-    {
-        var dialog = Page.Locator(".mud-dialog");
-        var button = dialog.GetByRole(AriaRole.Button, new() { Name = buttonText });
-        await button.ClickAsync();
-        await Page.WaitForTimeoutAsync(1000);
-    }
-
     [When(@"I create a workflow named ""(.*)""")]
     public async Task WhenICreateAWorkflowNamed(string name)
     {
         var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
         await newBtn.ClickAsync();
         await Page.WaitForTimeoutAsync(500);
-        await WhenIEnterInTheDialogInput(name);
-        await WhenIClickTheButtonInTheDialog("OK");
+        await FillDialogAndConfirm(name, "OK");
         await Page.GotoAsync($"{BaseUrl}/workflows");
         await Page.WaitForTimeoutAsync(1000);
     }
@@ -61,8 +42,18 @@ public class WorkflowSteps
         var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
         await newBtn.ClickAsync();
         await Page.WaitForTimeoutAsync(500);
-        await WhenIEnterInTheDialogInput(name);
-        await WhenIClickTheButtonInTheDialog("OK");
+        await FillDialogAndConfirm(name, "OK");
+        await Page.WaitForTimeoutAsync(1000);
+    }
+
+    private async Task FillDialogAndConfirm(string text, string buttonText)
+    {
+        var dialog = Page.Locator(".mud-dialog");
+        await Expect(dialog).ToBeVisibleAsync();
+        var input = dialog.Locator("input").First;
+        await input.FillAsync(text);
+        var button = dialog.GetByRole(AriaRole.Button, new() { Name = buttonText });
+        await button.ClickAsync();
         await Page.WaitForTimeoutAsync(1000);
     }
 

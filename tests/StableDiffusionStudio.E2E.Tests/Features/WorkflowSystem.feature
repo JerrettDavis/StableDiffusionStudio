@@ -16,11 +16,7 @@ Feature: Workflow System
     And I should see a "Import" button
 
   Scenario: Create a new workflow
-    Given I am on the home page
-    When I navigate to the workflows page
-    And I click the "New Workflow" button
-    And I enter "E2E Test Workflow" in the dialog input
-    And I click the "OK" button in the dialog
+    Given I have created a workflow named "E2E Test Workflow"
     Then I should be on the workflow editor page
     And I should see "E2E Test Workflow" in the toolbar
 
