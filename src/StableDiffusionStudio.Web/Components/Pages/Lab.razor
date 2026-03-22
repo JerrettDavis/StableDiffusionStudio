@@ -169,7 +169,9 @@
                             Axis1Values="_axis1Values"
                             Axis2Values="@(string.IsNullOrEmpty(_axis2Parameter) ? null : _axis2Values)"
                             OnWinnerToggled="ToggleWinner"
-                            AppPaths="AppPaths" />
+                            AppPaths="AppPaths"
+                            GeneratingCellIndex="_generatingCellIndex"
+                            IsRunning="_isRunning" />
 
             <div class="d-flex gap-2 mt-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
@@ -255,6 +257,7 @@
     private Guid? _selectedRunId;
     private IReadOnlyList<ExperimentDto> _experiments = [];
     private bool _isRunning;
+    private int _generatingCellIndex = -1; // Index of the cell currently being generated (-1 = none)
 
     // SignalR
     private HubConnection? _hubConnection;
@@ -301,13 +304,21 @@
                 .WithAutomaticReconnect()
                 .Build();
 
-            _hubConnection.On<string, int, int>("ExperimentProgress",
-                (runId, completed, total) =>
+            _hubConnection.On<string, int, int, string, string>("ExperimentProgress",
+                (runId, completed, total, axisValuesJson, imageUrl) =>
                 {
                     if (_currentRun is not null && _currentRun.Id.ToString() == runId)
                     {
-                        _currentRun = _currentRun with { CompletedCount = completed };
-                        InvokeAsync(StateHasChanged);
+                        // Reload the full run (with images) so the grid populates
+                        InvokeAsync(async () =>
+                        {
+                            var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
+                            if (updated is not null)
+                                _currentRun = updated;
+                            // Set the next cell as "generating" for the preview indicator
+                            _generatingCellIndex = completed; // 0-based next cell to generate
+                            StateHasChanged();
+                        });
                     }
                 });
 
@@ -318,10 +329,9 @@
                     {
                         var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
                         if (updated is not null)
-                        {
                             _currentRun = updated;
-                        }
                         _isRunning = false;
+                        _generatingCellIndex = -1;
                         await InvokeAsync(() =>
                         {
                             Snackbar.Add("Experiment complete", Severity.Success);
@@ -564,6 +574,7 @@
             if (_currentExperimentId is null) return;
 
             _isRunning = true;
+            _generatingCellIndex = 0;
             StateHasChanged();
 
             _currentRun = await ExperimentService.StartRunAsync(
