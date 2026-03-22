@@ -18,6 +18,9 @@ public sealed record InferenceSettings
     // Performance
     public bool EnableMmap { get; init; } = false;
 
+    // Startup
+    public bool PreloadLastModel { get; init; } = false;
+
     public int EffectiveThreadCount => ThreadCount > 0 ? ThreadCount : Environment.ProcessorCount;
 
     public static InferenceSettings Default => new();

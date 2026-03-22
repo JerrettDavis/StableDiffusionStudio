@@ -79,6 +79,7 @@ builder.Services.AddSingleton<JobChannel>();
 builder.Services.AddScoped<ChannelJobQueue>();
 builder.Services.AddScoped<IJobQueue>(sp => sp.GetRequiredService<ChannelJobQueue>());
 builder.Services.AddHostedService<BackgroundJobProcessor>();
+builder.Services.AddHostedService<ModelPreloadService>();
 builder.Services.AddKeyedScoped<IJobHandler, ModelScanJobHandler>("model-scan");
 builder.Services.AddKeyedScoped<IJobHandler, ModelDownloadJobHandler>("model-download");
 
