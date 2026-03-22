@@ -23,15 +23,6 @@ public class WorkflowSteps
         await Page.WaitForTimeoutAsync(1000);
     }
 
-    [When(@"I click the ""(.*)"" button")]
-    public async Task WhenIClickTheButton(string buttonText)
-    {
-        var button = Page.GetByRole(AriaRole.Button, new() { Name = buttonText }).First;
-        await Expect(button).ToBeVisibleAsync();
-        await button.ClickAsync();
-        await Page.WaitForTimeoutAsync(500);
-    }
-
     [When(@"I enter ""(.*)"" in the dialog input")]
     public async Task WhenIEnterInTheDialogInput(string text)
     {
@@ -53,10 +44,11 @@ public class WorkflowSteps
     [When(@"I create a workflow named ""(.*)""")]
     public async Task WhenICreateAWorkflowNamed(string name)
     {
-        await WhenIClickTheButton("New Workflow");
+        var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
+        await newBtn.ClickAsync();
+        await Page.WaitForTimeoutAsync(500);
         await WhenIEnterInTheDialogInput(name);
         await WhenIClickTheButtonInTheDialog("OK");
-        // Navigate back to list
         await Page.GotoAsync($"{BaseUrl}/workflows");
         await Page.WaitForTimeoutAsync(1000);
     }
@@ -66,7 +58,9 @@ public class WorkflowSteps
     {
         await Page.GotoAsync($"{BaseUrl}/workflows");
         await Page.WaitForTimeoutAsync(1000);
-        await WhenIClickTheButton("New Workflow");
+        var newBtn = Page.GetByRole(AriaRole.Button, new() { Name = "New Workflow" }).First;
+        await newBtn.ClickAsync();
+        await Page.WaitForTimeoutAsync(500);
         await WhenIEnterInTheDialogInput(name);
         await WhenIClickTheButtonInTheDialog("OK");
         await Page.WaitForTimeoutAsync(1000);
@@ -193,13 +187,6 @@ public class WorkflowSteps
         await Expect(snackbar).ToBeVisibleAsync(new() { Timeout = 5000 });
     }
 
-    [Then(@"I should see an ""(.*)"" button")]
-    public async Task ThenIShouldSeeAnButton(string buttonText)
-    {
-        var element = Page.GetByText(buttonText).First;
-        await Expect(element).ToBeVisibleAsync();
-    }
-
     [Then(@"I should see ""(.*)"" in the workflow list")]
     public async Task ThenIShouldSeeInTheWorkflowList(string name)
     {
@@ -213,13 +200,6 @@ public class WorkflowSteps
         await Page.WaitForTimeoutAsync(500);
         var elements = await Page.GetByText(name).CountAsync();
         elements.Should().Be(0);
-    }
-
-    [Then(@"the page should not have any error messages")]
-    public async Task ThenThePageShouldNotHaveAnyErrorMessages()
-    {
-        var errorAlerts = await Page.Locator(".mud-alert-error, .blazor-error-boundary").CountAsync();
-        errorAlerts.Should().Be(0);
     }
 
     private static ILocatorAssertions Expect(ILocator locator) =>

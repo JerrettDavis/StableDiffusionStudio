@@ -13,7 +13,7 @@ Feature: Workflow System
     Given I am on the home page
     When I navigate to the workflows page
     Then I should see a "New Workflow" button
-    And I should see an "Import" button
+    And I should see a "Import" button
 
   Scenario: Create a new workflow
     Given I am on the home page
