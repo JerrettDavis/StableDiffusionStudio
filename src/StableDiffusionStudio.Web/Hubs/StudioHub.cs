@@ -9,4 +9,9 @@ public class StudioHub : Hub
     // GenerationPreview(string projectId, int step, int totalSteps, string previewBase64)
     // GenerationComplete(string projectId)
     // GenerationFailed(string projectId, string error)
+
+    // Experiment run events:
+    // ExperimentProgress(string runId, int completedIndex, int totalCount, string axisValuesJson, string imageUrl)
+    // ExperimentComplete(string runId)
+    // ExperimentFailed(string runId, string error)
 }
