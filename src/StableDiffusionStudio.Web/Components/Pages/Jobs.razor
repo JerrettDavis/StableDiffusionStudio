@@ -5,9 +5,11 @@
 @using StableDiffusionStudio.Web.Components.Dialogs
 @using Microsoft.AspNetCore.SignalR.Client
 @inject IJobQueue JobQueue
+@inject IGenerationService GenerationService
 @inject IDataManagementService DataManagement
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IAppPaths AppPaths
 @inject NavigationManager Nav
 @inject ILogger<Jobs> Logger
 @implements IAsyncDisposable
@@ -44,14 +46,33 @@ else
     <MudTable Items="GetFilteredJobs()" Dense="true" Hover="true" Striped="true"
               RowClass="cursor-pointer" OnRowClick="OnRowClick" T="JobRecordDto">
         <HeaderContent>
+            <MudTh Style="width:50px"></MudTh>
             <MudTh>Type</MudTh>
             <MudTh>Status</MudTh>
             <MudTh Style="width:200px">Progress</MudTh>
             <MudTh>Phase</MudTh>
             <MudTh>Started</MudTh>
             <MudTh>Duration</MudTh>
+            <MudTh Style="width:80px"></MudTh>
         </HeaderContent>
         <RowTemplate>
+            <MudTd>
+                @{
+                    var previewUrl = GetJobPreviewUrl(context);
+                }
+                @if (previewUrl is not null)
+                {
+                    <div style="width:40px;height:40px;border-radius:4px;overflow:hidden;background:var(--mud-palette-background-gray);">
+                        <img src="@previewUrl" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" loading="lazy" />
+                    </div>
+                }
+                else
+                {
+                    <div style="width:40px;height:40px;border-radius:4px;background:var(--mud-palette-background-gray);display:flex;align-items:center;justify-content:center;">
+                        <MudIcon Icon="@GetJobIcon(context.Type)" Size="Size.Small" Color="Color.Default" />
+                    </div>
+                }
+            </MudTd>
             <MudTd>
                 <MudText Typo="Typo.body2">@context.Type</MudText>
             </MudTd>
@@ -90,6 +111,16 @@ else
                     @FormatDuration(context.StartedAt, context.CompletedAt ?? (context.Status == JobStatus.Running ? DateTimeOffset.UtcNow : null))
                 </MudText>
             </MudTd>
+            <MudTd>
+                @if (context.Type == "generation" && context.Status == JobStatus.Completed)
+                {
+                    <div @onclick:stopPropagation="true">
+                        <MudIconButton Icon="@Icons.Material.Filled.Replay" Size="Size.Small"
+                                       Color="Color.Primary" Title="Reuse settings in Generate"
+                                       OnClick="() => ReuseGenerationSettings(context)" />
+                    </div>
+                }
+            </MudTd>
         </RowTemplate>
     </MudTable>
 }
@@ -100,6 +131,9 @@ else
     private int _allCount, _activeCount, _completedCount, _failedCount;
     private HubConnection? _hubConnection;
     private Timer? _refreshTimer;
+
+    // Cache of job ID → first image preview URL (loaded lazily)
+    private readonly Dictionary<Guid, string?> _previewCache = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -236,6 +270,101 @@ else
         var count = await DataManagement.DeleteFailedJobRecordsAsync();
         Snackbar.Add($"Cleared {count} failed job(s)", Severity.Info);
         await LoadJobs();
+    }
+
+    private string? GetJobPreviewUrl(JobRecordDto job)
+    {
+        if (job.Type != "generation" || job.Status != JobStatus.Completed)
+            return null;
+
+        if (_previewCache.TryGetValue(job.Id, out var cached))
+            return cached;
+
+        // Parse the generation job ID from the job data and look up the first image
+        try
+        {
+            if (string.IsNullOrEmpty(job.Data)) return null;
+            var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(job.Data);
+            if (data.TryGetProperty("GenerationJobId", out var jobIdProp))
+            {
+                var genJobId = jobIdProp.GetGuid();
+                // Fire-and-forget async load — will populate on next render
+                _ = LoadPreviewAsync(job.Id, genJobId);
+            }
+        }
+        catch { }
+
+        _previewCache[job.Id] = null; // Mark as loading
+        return null;
+    }
+
+    private async Task LoadPreviewAsync(Guid jobRecordId, Guid generationJobId)
+    {
+        try
+        {
+            var genJob = await GenerationService.GetJobAsync(generationJobId);
+            if (genJob?.Images.Count > 0)
+            {
+                var firstImage = genJob.Images[0];
+                var url = firstImage.FilePath.StartsWith(AppPaths.AssetsDirectory, StringComparison.OrdinalIgnoreCase)
+                    ? AppPaths.GetImageUrl(firstImage.FilePath)
+                    : $"/api/model-preview/{generationJobId}"; // fallback
+                _previewCache[jobRecordId] = url;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
+    }
+
+    private static string GetJobIcon(string type) => type switch
+    {
+        "generation" => Icons.Material.Filled.Image,
+        "experiment" => Icons.Material.Filled.Science,
+        "model-scan" => Icons.Material.Filled.Search,
+        "model-download" => Icons.Material.Filled.Download,
+        "workflow-run" => Icons.Material.Filled.AccountTree,
+        _ => Icons.Material.Filled.Work
+    };
+
+    private async Task ReuseGenerationSettings(JobRecordDto job)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(job.Data)) return;
+            var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(job.Data);
+            if (!data.TryGetProperty("GenerationJobId", out var jobIdProp)) return;
+
+            var genJobId = jobIdProp.GetGuid();
+            var genJob = await GenerationService.GetJobAsync(genJobId);
+            if (genJob is null) return;
+
+            // Navigate to generate page with the job's parameters encoded as query params
+            var p = genJob.Parameters;
+            var queryParams = new Dictionary<string, string?>
+            {
+                ["model"] = p.CheckpointModelId.ToString(),
+                ["prompt"] = p.PositivePrompt,
+                ["negative"] = p.NegativePrompt,
+                ["steps"] = p.Steps.ToString(),
+                ["cfg"] = p.CfgScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["width"] = p.Width.ToString(),
+                ["height"] = p.Height.ToString(),
+                ["seed"] = p.Seed.ToString(),
+                ["sampler"] = p.Sampler.ToString(),
+                ["clipSkip"] = p.ClipSkip.ToString(),
+                ["denoise"] = p.DenoisingStrength.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+
+            var qs = string.Join("&", queryParams
+                .Where(kv => kv.Value is not null)
+                .Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+
+            Nav.NavigateTo($"/generate?{qs}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load settings: {ex.Message}", Severity.Error);
+        }
     }
 
     public async ValueTask DisposeAsync()

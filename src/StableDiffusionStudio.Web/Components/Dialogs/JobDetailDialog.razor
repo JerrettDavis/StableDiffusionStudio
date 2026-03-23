@@ -139,6 +139,16 @@
         }
         <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="DeleteJob"
                    StartIcon="@Icons.Material.Filled.Delete">Delete</MudButton>
+        @if (Job.Type == "generation" && _generationJob is not null)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="StartNewSession"
+                       StartIcon="@Icons.Material.Filled.Replay">New Session with Settings</MudButton>
+            @if (_generationJob.Images.Count > 0)
+            {
+                <MudButton Color="Color.Secondary" Variant="Variant.Outlined" OnClick="SendToImg2Img"
+                           StartIcon="@Icons.Material.Filled.Transform">Send to img2img</MudButton>
+            }
+        }
         @if (Job.Type == "experiment" && _experimentId is not null)
         {
             <MudButton Color="Color.Info" Variant="Variant.Outlined" OnClick="OpenInLab"
@@ -155,6 +165,7 @@
 
     private IReadOnlyList<GeneratedImageDto>? _generationImages;
     private IReadOnlyList<ExperimentRunImageDto>? _experimentImages;
+    private GenerationJobDto? _generationJob;
     private Guid? _experimentId;
 
     protected override async Task OnInitializedAsync()
@@ -171,7 +182,10 @@
                     var genJobId = jobIdProp.GetGuid();
                     var genJob = await GenerationService.GetJobAsync(genJobId);
                     if (genJob is not null)
+                    {
+                        _generationJob = genJob;
                         _generationImages = genJob.Images;
+                    }
                 }
             }
             else if (Job.Type == "experiment")
@@ -262,6 +276,58 @@
             Snackbar.Add("Job deleted", Severity.Info);
             MudDialog.Close(DialogResult.Ok("refresh"));
         }
+    }
+
+    private void StartNewSession()
+    {
+        if (_generationJob is null) return;
+        var p = _generationJob.Parameters;
+        var queryParams = new Dictionary<string, string?>
+        {
+            ["model"] = p.CheckpointModelId.ToString(),
+            ["prompt"] = p.PositivePrompt,
+            ["negative"] = p.NegativePrompt,
+            ["steps"] = p.Steps.ToString(),
+            ["cfg"] = p.CfgScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["width"] = p.Width.ToString(),
+            ["height"] = p.Height.ToString(),
+            ["seed"] = p.Seed.ToString(),
+            ["sampler"] = p.Sampler.ToString(),
+            ["clipSkip"] = p.ClipSkip.ToString(),
+            ["denoise"] = p.DenoisingStrength.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        var qs = string.Join("&", queryParams
+            .Where(kv => kv.Value is not null)
+            .Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+        MudDialog.Close();
+        Nav.NavigateTo($"/generate?{qs}");
+    }
+
+    private void SendToImg2Img()
+    {
+        if (_generationJob is null || _generationJob.Images.Count == 0) return;
+        var p = _generationJob.Parameters;
+        var firstImage = _generationJob.Images[0];
+        var queryParams = new Dictionary<string, string?>
+        {
+            ["model"] = p.CheckpointModelId.ToString(),
+            ["prompt"] = p.PositivePrompt,
+            ["negative"] = p.NegativePrompt,
+            ["steps"] = p.Steps.ToString(),
+            ["cfg"] = p.CfgScale.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["width"] = p.Width.ToString(),
+            ["height"] = p.Height.ToString(),
+            ["seed"] = firstImage.Seed.ToString(),
+            ["sampler"] = p.Sampler.ToString(),
+            ["mode"] = "img2img",
+            ["denoise"] = "0.75",
+            ["initImage"] = firstImage.FilePath
+        };
+        var qs = string.Join("&", queryParams
+            .Where(kv => kv.Value is not null)
+            .Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}"));
+        MudDialog.Close();
+        Nav.NavigateTo($"/generate?{qs}");
     }
 
     private void Close() => MudDialog.Close();
