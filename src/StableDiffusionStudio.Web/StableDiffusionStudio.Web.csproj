@@ -23,6 +23,12 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
+  <!-- StableDiffusion.NET.Backend.Cpu ships multiple optimized linux variants with identical output names.
+       Keep publish moving in CI while backend selects the right variant at runtime. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="StableDiffusionStudio.E2E.Tests" />
   </ItemGroup>
