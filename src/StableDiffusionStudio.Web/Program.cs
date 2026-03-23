@@ -143,6 +143,7 @@ builder.Services.AddMcpServer(options =>
 {
     options.ServerInfo = new() { Name = "StableDiffusionStudio", Version = "1.0.0" };
 })
+    .WithHttpTransport()
     .WithTools<GenerationTools>()
     .WithTools<ModelTools>()
     .WithTools<WorkflowTools>()
