@@ -146,6 +146,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
         public int Page { get; set; }
         public bool HasMore { get; set; }
         public bool IsLoading { get; set; }
+        public string? NextCursor { get; set; }
     }
 
     private readonly Dictionary<string, SourceState> _sourceStates = new()
@@ -309,6 +310,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
     {
         var state = CurrentState;
         state.Page = 0;
+        state.NextCursor = null;
         state.IsLoading = true;
         StateHasChanged();
 
@@ -331,6 +333,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
                 .Select(m => ModelCardViewModel.FromRemote(m, _selectedSource))
                 .ToList();
             state.HasMore = result.HasMore;
+            state.NextCursor = result.NextCursor;
         }
         catch (Exception ex)
         {
@@ -359,7 +362,8 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
                 state.FamilyFilter,
                 Sort: state.SortOrder,
                 Page: state.Page,
-                BaseModel: state.BaseModel);
+                BaseModel: state.BaseModel,
+                Cursor: state.NextCursor);
             var result = await ModelCatalogService.SearchAsync(query);
 
             foreach (var m in result.Models)
@@ -368,6 +372,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
             state.Results.AddRange(
                 result.Models.Select(m => ModelCardViewModel.FromRemote(m, _selectedSource)));
             state.HasMore = result.HasMore;
+            state.NextCursor = result.NextCursor;
         }
         catch (Exception ex)
         {

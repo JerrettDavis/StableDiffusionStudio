@@ -101,14 +101,23 @@ public class CivitAIProvider : IModelProvider
     {
         try
         {
-            var page = query.Page + 1; // CivitAI uses 1-based pages
+            var hasSearchTerm = !string.IsNullOrWhiteSpace(query.SearchTerm);
             var sortParam = CivitSortMap.GetValueOrDefault(query.Sort, "Most Downloaded");
-            var url = $"{ApiBaseUrl}/models?sort={Uri.EscapeDataString(sortParam)}&limit={query.PageSize}&page={page}";
+            var url = $"{ApiBaseUrl}/models?sort={Uri.EscapeDataString(sortParam)}&limit={query.PageSize}";
 
-            // Only add query param if search term is non-empty — CivitAI returns
-            // popular models when query is omitted, but returns nothing for empty string
-            if (!string.IsNullOrWhiteSpace(query.SearchTerm))
-                url += $"&query={Uri.EscapeDataString(query.SearchTerm)}";
+            if (hasSearchTerm)
+            {
+                // CivitAI requires cursor-based pagination when using query search
+                url += $"&query={Uri.EscapeDataString(query.SearchTerm!)}";
+                if (!string.IsNullOrEmpty(query.Cursor))
+                    url += $"&cursor={Uri.EscapeDataString(query.Cursor)}";
+            }
+            else
+            {
+                // Page-based pagination for browsing (no search term)
+                var page = query.Page + 1;
+                url += $"&page={page}";
+            }
 
             if (query.Type.HasValue && CivitTypeMap.TryGetValue(query.Type.Value, out var civitType))
                 url += $"&types={civitType}";
@@ -162,15 +171,34 @@ public class CivitAIProvider : IModelProvider
                              metadata.TryGetProperty("totalItems", out var total)
                 ? total.GetInt32()
                 : results.Count;
-            var hasMore = metadata.ValueKind == JsonValueKind.Object &&
+
+            // Extract next cursor for cursor-based pagination (used with search queries)
+            string? nextCursor = null;
+            if (metadata.ValueKind == JsonValueKind.Object &&
+                metadata.TryGetProperty("nextCursor", out var nextCursorProp))
+            {
+                nextCursor = nextCursorProp.GetString();
+            }
+
+            // Determine hasMore: for cursor pagination, nextCursor existence means more pages.
+            // For page pagination, compare currentPage < totalPages.
+            bool hasMore;
+            if (hasSearchTerm)
+            {
+                hasMore = !string.IsNullOrEmpty(nextCursor);
+            }
+            else
+            {
+                hasMore = metadata.ValueKind == JsonValueKind.Object &&
                           metadata.TryGetProperty("currentPage", out var currentPage) &&
                           metadata.TryGetProperty("totalPages", out var totalPages) &&
                           currentPage.GetInt32() < totalPages.GetInt32();
+            }
 
-            _logger?.LogDebug("CivitAI search returned {Count} results, totalItems={Total}, hasMore={HasMore}",
-                results.Count, totalCount, hasMore);
+            _logger?.LogDebug("CivitAI search returned {Count} results, totalItems={Total}, hasMore={HasMore}, nextCursor={Cursor}",
+                results.Count, totalCount, hasMore, nextCursor);
 
-            return new SearchResult(results, totalCount, hasMore);
+            return new SearchResult(results, totalCount, hasMore, nextCursor);
         }
         catch (Exception ex)
         {

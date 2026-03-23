@@ -73,7 +73,8 @@ public class CivitAIProviderTests
         "metadata": {
             "totalItems": 100,
             "currentPage": 1,
-            "totalPages": 5
+            "totalPages": 5,
+            "nextCursor": "eyJpZCI6MTIzNDV9"
         }
     }
     """;
@@ -248,18 +249,37 @@ public class CivitAIProviderTests
     }
 
     [Fact]
-    public async Task SearchAsync_WithPagination_Uses1BasedPages()
+    public async Task SearchAsync_BrowseMode_Uses1BasedPages()
     {
         var emptyResponse = """{"items": [], "metadata": {"totalItems": 0, "currentPage": 2, "totalPages": 5}}""";
         var handler = new MockHttpMessageHandler()
             .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, emptyResponse);
 
         var provider = CreateProvider(handler);
-        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Page: 1); // 0-based page 1 -> API page 2
+        // No search term = browse mode = page-based pagination
+        var query = new ModelSearchQuery("civitai", Page: 1);
         await provider.SearchAsync(query);
 
         handler.SentRequests.Should().ContainSingle();
         handler.SentRequests[0].RequestUri!.ToString().Should().Contain("page=2");
+    }
+
+    [Fact]
+    public async Task SearchAsync_WithSearchTerm_UsesCursorPagination()
+    {
+        var response = """{"items": [], "metadata": {"totalItems": 10, "nextCursor": "abc123"}}""";
+        var handler = new MockHttpMessageHandler()
+            .WithResponse("civitai.com/api/v1/models", HttpStatusCode.OK, response);
+
+        var provider = CreateProvider(handler);
+        var query = new ModelSearchQuery("civitai", SearchTerm: "test", Cursor: "prevCursor");
+        await provider.SearchAsync(query);
+
+        handler.SentRequests.Should().ContainSingle();
+        var url = handler.SentRequests[0].RequestUri!.ToString();
+        url.Should().Contain("query=test");
+        url.Should().Contain("cursor=prevCursor");
+        url.Should().NotContain("page=");
     }
 
     [Fact]
