@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using StableDiffusionStudio.Application.DTOs;
 using StableDiffusionStudio.Application.Interfaces;
 using StableDiffusionStudio.Domain.Enums;
@@ -12,6 +13,7 @@ public class CivitAIProvider : IModelProvider
     private readonly HttpClient _httpClient;
     private readonly HttpDownloadClient _downloadClient;
     private readonly IProviderCredentialStore _credentialStore;
+    private readonly ILogger<CivitAIProvider>? _logger;
 
     private const string ApiBaseUrl = "https://civitai.com/api/v1";
 
@@ -73,11 +75,13 @@ public class CivitAIProvider : IModelProvider
     public CivitAIProvider(
         HttpClient httpClient,
         HttpDownloadClient downloadClient,
-        IProviderCredentialStore credentialStore)
+        IProviderCredentialStore credentialStore,
+        ILogger<CivitAIProvider>? logger = null)
     {
         _httpClient = httpClient;
         _downloadClient = downloadClient;
         _credentialStore = credentialStore;
+        _logger = logger;
     }
 
     public string ProviderId => "civitai";
@@ -97,14 +101,23 @@ public class CivitAIProvider : IModelProvider
     {
         try
         {
-            var page = query.Page + 1; // CivitAI uses 1-based pages
+            var hasSearchTerm = !string.IsNullOrWhiteSpace(query.SearchTerm);
             var sortParam = CivitSortMap.GetValueOrDefault(query.Sort, "Most Downloaded");
-            var url = $"{ApiBaseUrl}/models?sort={Uri.EscapeDataString(sortParam)}&limit={query.PageSize}&page={page}";
+            var url = $"{ApiBaseUrl}/models?sort={Uri.EscapeDataString(sortParam)}&limit={query.PageSize}";
 
-            // Only add query param if search term is non-empty — CivitAI returns
-            // popular models when query is omitted, but returns nothing for empty string
-            if (!string.IsNullOrWhiteSpace(query.SearchTerm))
-                url += $"&query={Uri.EscapeDataString(query.SearchTerm)}";
+            if (hasSearchTerm)
+            {
+                // CivitAI requires cursor-based pagination when using query search
+                url += $"&query={Uri.EscapeDataString(query.SearchTerm!)}";
+                if (!string.IsNullOrEmpty(query.Cursor))
+                    url += $"&cursor={Uri.EscapeDataString(query.Cursor)}";
+            }
+            else
+            {
+                // Page-based pagination for browsing (no search term)
+                var page = query.Page + 1;
+                url += $"&page={page}";
+            }
 
             if (query.Type.HasValue && CivitTypeMap.TryGetValue(query.Type.Value, out var civitType))
                 url += $"&types={civitType}";
@@ -126,8 +139,17 @@ public class CivitAIProvider : IModelProvider
             if (!string.IsNullOrEmpty(token))
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
+            _logger?.LogInformation("CivitAI request: GET {Url}", url);
+
             using var response = await _httpClient.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                _logger?.LogWarning("CivitAI API returned {StatusCode}: {Body}",
+                    response.StatusCode, errorBody.Length > 500 ? errorBody[..500] : errorBody);
+                return new SearchResult([], 0, false);
+            }
 
             var json = await response.Content.ReadAsStringAsync(ct);
             var doc = JsonSerializer.Deserialize<JsonElement>(json);
@@ -149,15 +171,38 @@ public class CivitAIProvider : IModelProvider
                              metadata.TryGetProperty("totalItems", out var total)
                 ? total.GetInt32()
                 : results.Count;
-            var hasMore = metadata.ValueKind == JsonValueKind.Object &&
+
+            // Extract next cursor for cursor-based pagination (used with search queries)
+            string? nextCursor = null;
+            if (metadata.ValueKind == JsonValueKind.Object &&
+                metadata.TryGetProperty("nextCursor", out var nextCursorProp))
+            {
+                nextCursor = nextCursorProp.GetString();
+            }
+
+            // Determine hasMore: for cursor pagination, nextCursor existence means more pages.
+            // For page pagination, compare currentPage < totalPages.
+            bool hasMore;
+            if (hasSearchTerm)
+            {
+                hasMore = !string.IsNullOrEmpty(nextCursor);
+            }
+            else
+            {
+                hasMore = metadata.ValueKind == JsonValueKind.Object &&
                           metadata.TryGetProperty("currentPage", out var currentPage) &&
                           metadata.TryGetProperty("totalPages", out var totalPages) &&
                           currentPage.GetInt32() < totalPages.GetInt32();
+            }
 
-            return new SearchResult(results, totalCount, hasMore);
+            _logger?.LogInformation("CivitAI response: {Count} items, totalItems={Total}, hasMore={HasMore}, cursor={Cursor}",
+                results.Count, totalCount, hasMore, nextCursor ?? "(none)");
+
+            return new SearchResult(results, totalCount, hasMore, nextCursor);
         }
-        catch (HttpRequestException)
+        catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "CivitAI search failed");
             return new SearchResult([], 0, false);
         }
     }

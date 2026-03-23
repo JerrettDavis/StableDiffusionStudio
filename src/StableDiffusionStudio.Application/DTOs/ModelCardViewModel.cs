@@ -11,9 +11,18 @@ public record ModelCardViewModel(
 {
     public static ModelCardViewModel FromLocal(ModelRecordDto dto, IAppPaths appPaths)
     {
-        var previewUrl = dto.PreviewImagePath is not null
-            ? appPaths.GetImageUrl(dto.PreviewImagePath)
-            : null;
+        // Use the model-preview API endpoint for preview images stored in model directories
+        // (outside the app's Assets directory). This handles arbitrary disk paths securely.
+        string? previewUrl = null;
+        if (dto.PreviewImagePath is not null)
+        {
+            var assetUrl = appPaths.GetImageUrl(dto.PreviewImagePath);
+            // If GetImageUrl returned a relative /assets/ URL, use it directly.
+            // Otherwise it returned the raw path — use the model-preview endpoint instead.
+            previewUrl = assetUrl.StartsWith("/assets/")
+                ? assetUrl
+                : $"/api/model-preview/{dto.Id}";
+        }
 
         return new ModelCardViewModel(
             Id: dto.Id.ToString(),

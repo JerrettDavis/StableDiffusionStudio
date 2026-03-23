@@ -58,10 +58,10 @@ public class AppPathsTests
     }
 
     [Fact]
-    public void GetImageUrl_WithExternalPath_ReturnsFilenameFallback()
+    public void GetImageUrl_WithExternalPath_ReturnsRawPath()
     {
         var result = _appPaths.GetImageUrl("/some/external/path/image.png");
-        result.Should().Be("/assets/image.png");
+        result.Should().Be("/some/external/path/image.png");
     }
 
     [Fact]
@@ -87,13 +87,15 @@ public class AppPathsTests
     }
 
     [Theory]
-    [InlineData("D:\\somewhere\\else\\photo.png", "/assets/photo.png")]
-    [InlineData("/tmp/somewhere/else/photo.png", "/assets/photo.png")]
-    [InlineData("photo.png", "/assets/photo.png")]
-    public void GetImageUrl_WithPathOutsideAssets_ReturnsFilenameOnly(string input, string expected)
+    [InlineData("D:\\somewhere\\else\\photo.png")]
+    [InlineData("/tmp/somewhere/else/photo.png")]
+    [InlineData("photo.png")]
+    public void GetImageUrl_WithPathOutsideAssets_ReturnsRawPath(string input)
     {
         var result = _appPaths.GetImageUrl(input);
-        result.Should().Be(expected);
+        // For paths outside Assets, GetImageUrl returns the raw path
+        // (callers use /api/model-preview/{id} endpoint for serving)
+        result.Should().Be(input);
     }
 
     [Fact]

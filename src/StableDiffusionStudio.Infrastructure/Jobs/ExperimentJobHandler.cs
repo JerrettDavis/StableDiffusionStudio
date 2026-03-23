@@ -211,8 +211,23 @@ public class ExperimentJobHandler : IJobHandler
                         InitImage: initImageBytes,
                         DenoisingStrength: p.DenoisingStrength);
 
-                    var noOpProgress = new DirectProgress<InferenceProgress>(_ => { });
-                    var result = await _inferenceBackend.GenerateAsync(request, noOpProgress, ct);
+                    var gridX = combo.GridX;
+                    var gridY = combo.GridY;
+                    var stepPreview = new DirectProgress<InferenceProgress>(p =>
+                    {
+                        if (p.PreviewImageBytes is not null)
+                        {
+                            try
+                            {
+                                _experimentNotifier.SendStepPreviewAsync(
+                                    runId, gridX, gridY,
+                                    $"Step {p.Step}/{p.TotalSteps}",
+                                    p.PreviewImageBytes).GetAwaiter().GetResult();
+                            }
+                            catch { /* Non-critical preview delivery */ }
+                        }
+                    });
+                    var result = await _inferenceBackend.GenerateAsync(request, stepPreview, ct);
 
                     sw.Stop();
 

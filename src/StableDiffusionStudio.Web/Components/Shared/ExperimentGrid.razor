@@ -173,8 +173,9 @@ else
                 @for (var col = 0; col < Axis1Values.Count; col++)
                 {
                     var cellIndex = row * Axis1Values.Count + col;
-                    var image = FindImage(col, row);
-                    @RenderImageCell(image, cellIndex)
+                    var gx = col; var gy = row;
+                    var image = FindImage(gx, gy);
+                    @RenderImageCell(image, cellIndex, gx, gy)
                 }
             }
         </div>
@@ -190,8 +191,9 @@ else
             }
             @for (var col = 0; col < Axis1Values.Count; col++)
             {
-                var image = FindImage(col, 0);
-                @RenderImageCell(image, col)
+                var gx = col;
+                var image = FindImage(gx, 0);
+                @RenderImageCell(image, gx, gx, 0)
             }
         </div>
     }
@@ -207,6 +209,10 @@ else
     [Parameter] public IAppPaths? AppPaths { get; set; }
     [Parameter] public int GeneratingCellIndex { get; set; } = -1;
     [Parameter] public bool IsRunning { get; set; }
+    [Parameter] public string? PreviewImageBase64 { get; set; }
+    [Parameter] public int PreviewGridX { get; set; } = -1;
+    [Parameter] public int PreviewGridY { get; set; } = -1;
+    [Parameter] public string? PreviewPhase { get; set; }
 
     private bool HasAxis2 => Axis2Values is not null && Axis2Values.Count > 0;
 
@@ -308,7 +314,7 @@ else
         catch { return ""; }
     }
 
-    private RenderFragment RenderImageCell(ExperimentRunImageDto? image, int cellIndex) => __builder =>
+    private RenderFragment RenderImageCell(ExperimentRunImageDto? image, int cellIndex, int gridX = 0, int gridY = 0) => __builder =>
     {
         if (image is not null)
         {
@@ -319,7 +325,19 @@ else
                 <img src="@imageUrl" alt="Grid @(image.GridX),@(image.GridY)" loading="lazy" />
             </div>
         }
-        else if (IsRunning && cellIndex == GeneratingCellIndex)
+        else if (IsRunning && PreviewImageBase64 is not null && PreviewGridX == gridX && PreviewGridY == gridY)
+        {
+            <div class="grid-cell grid-image generating" style="position:relative;">
+                <img src="data:image/png;base64,@PreviewImageBase64" alt="Preview" style="width:100%;height:100%;object-fit:cover;opacity:0.7;" />
+                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
+                    <div class="generating-indicator">
+                        <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+                        <MudText Typo="Typo.caption" Style="color:white;" Class="mt-1">@(PreviewPhase ?? "Generating...")</MudText>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (IsRunning && cellIndex == GeneratingCellIndex && PreviewImageBase64 is null)
         {
             <div class="grid-cell grid-image generating">
                 <div class="generating-indicator">

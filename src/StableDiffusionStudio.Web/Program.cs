@@ -16,6 +16,7 @@ using Microsoft.Extensions.FileProviders;
 using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
+using StableDiffusionStudio.Web.Mcp.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,6 +138,18 @@ builder.Services.AddScoped<IExperimentNotifier, SignalRExperimentNotifier>();
 builder.Services.AddScoped<IWorkflowNotifier, SignalRWorkflowNotifier>();
 builder.Services.AddScoped<IModelEnrichmentNotifier, SignalRModelEnrichmentNotifier>();
 
+// MCP Server — exposes SD Studio tools to AI agents via SSE
+builder.Services.AddMcpServer(options =>
+{
+    options.ServerInfo = new() { Name = "StableDiffusionStudio", Version = "1.0.0" };
+})
+    .WithHttpTransport()
+    .WithTools<GenerationTools>()
+    .WithTools<ModelTools>()
+    .WithTools<WorkflowTools>()
+    .WithTools<PresetTools>()
+    .WithTools<UtilityTools>();
+
 // Blazor
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -254,7 +267,29 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// Serve model preview images from arbitrary disk locations (model directories)
+app.MapGet("/api/model-preview/{modelId:guid}", async (Guid modelId,
+    StableDiffusionStudio.Application.Interfaces.IModelCatalogRepository repo) =>
+{
+    var model = await repo.GetByIdAsync(modelId);
+    if (model?.PreviewImagePath is null || !File.Exists(model.PreviewImagePath))
+        return Results.NotFound();
+
+    var ext = Path.GetExtension(model.PreviewImagePath).ToLowerInvariant();
+    var contentType = ext switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".webp" => "image/webp",
+        ".gif" => "image/gif",
+        _ => "image/jpeg"
+    };
+    return Results.File(model.PreviewImagePath, contentType);
+});
+
 app.MapHub<StudioHub>("/hubs/studio");
+app.MapMcp("/mcp");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

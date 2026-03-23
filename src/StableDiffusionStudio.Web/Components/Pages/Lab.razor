@@ -14,6 +14,7 @@
 @inject IDialogService DialogService
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject ILogger<Lab>? _logger
 @implements IAsyncDisposable
 
 <MudGrid>
@@ -171,7 +172,11 @@
                             OnWinnerToggled="ToggleWinner"
                             AppPaths="AppPaths"
                             GeneratingCellIndex="_generatingCellIndex"
-                            IsRunning="_isRunning" />
+                            IsRunning="_isRunning"
+                            PreviewImageBase64="@_previewImageBase64"
+                            PreviewGridX="_previewGridX"
+                            PreviewGridY="_previewGridY"
+                            PreviewPhase="@_previewPhase" />
 
             <div class="d-flex gap-2 mt-3">
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
@@ -259,6 +264,12 @@
     private bool _isRunning;
     private int _generatingCellIndex = -1; // Index of the cell currently being generated (-1 = none)
 
+    // Inference step preview state
+    private string? _previewImageBase64;
+    private int _previewGridX = -1;
+    private int _previewGridY = -1;
+    private string? _previewPhase;
+
     // SignalR
     private HubConnection? _hubConnection;
 
@@ -336,33 +347,62 @@
                 {
                     if (_currentRun is not null && _currentRun.Id.ToString() == runId)
                     {
-                        // Reload the full run (with images) so the grid populates
                         InvokeAsync(async () =>
                         {
-                            var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
-                            if (updated is not null)
-                                _currentRun = updated;
-                            // Set the next cell as "generating" for the preview indicator
-                            _generatingCellIndex = completed; // 0-based next cell to generate
+                            try
+                            {
+                                var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
+                                if (updated is not null)
+                                    _currentRun = updated;
+                                _generatingCellIndex = completed;
+                                StateHasChanged();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogDebug(ex, "Failed to update experiment progress");
+                            }
+                        });
+                    }
+                });
+
+            _hubConnection.On<string, int, int, string, byte[]?>("ExperimentStepPreview",
+                (runId, gridX, gridY, phase, previewBytes) =>
+                {
+                    if (_currentRun is not null && _currentRun.Id.ToString() == runId && previewBytes is not null)
+                    {
+                        InvokeAsync(() =>
+                        {
+                            _previewImageBase64 = Convert.ToBase64String(previewBytes);
+                            _previewGridX = gridX;
+                            _previewGridY = gridY;
+                            _previewPhase = phase;
                             StateHasChanged();
                         });
                     }
                 });
 
             _hubConnection.On<string>("ExperimentComplete",
-                async runId =>
+                runId =>
                 {
                     if (_currentRun is not null && _currentRun.Id.ToString() == runId)
                     {
-                        var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
-                        if (updated is not null)
-                            _currentRun = updated;
-                        _isRunning = false;
-                        _generatingCellIndex = -1;
-                        await InvokeAsync(() =>
+                        InvokeAsync(async () =>
                         {
-                            Snackbar.Add("Experiment complete", Severity.Success);
-                            StateHasChanged();
+                            try
+                            {
+                                var updated = await ExperimentService.GetRunAsync(_currentRun.Id);
+                                if (updated is not null)
+                                    _currentRun = updated;
+                                _isRunning = false;
+                                _generatingCellIndex = -1;
+                                _previewImageBase64 = null;
+                                Snackbar.Add("Experiment complete", Severity.Success);
+                                StateHasChanged();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogDebug(ex, "Failed to finalize experiment run");
+                            }
                         });
                     }
                 });
@@ -372,9 +412,10 @@
                 {
                     if (_currentRun is not null && _currentRun.Id.ToString() == runId)
                     {
-                        _isRunning = false;
                         InvokeAsync(() =>
                         {
+                            _isRunning = false;
+                            _previewImageBase64 = null;
                             Snackbar.Add($"Experiment failed: {error}", Severity.Error);
                             StateHasChanged();
                         });
