@@ -16,6 +16,7 @@ using Microsoft.Extensions.FileProviders;
 using StableDiffusionStudio.Domain.Enums;
 using StableDiffusionStudio.Web.Components;
 using StableDiffusionStudio.Web.Hubs;
+using StableDiffusionStudio.Web.Mcp.Tools;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -136,6 +137,17 @@ builder.Services.AddScoped<IGenerationNotifier, SignalRGenerationNotifier>();
 builder.Services.AddScoped<IExperimentNotifier, SignalRExperimentNotifier>();
 builder.Services.AddScoped<IWorkflowNotifier, SignalRWorkflowNotifier>();
 builder.Services.AddScoped<IModelEnrichmentNotifier, SignalRModelEnrichmentNotifier>();
+
+// MCP Server — exposes SD Studio tools to AI agents via SSE
+builder.Services.AddMcpServer(options =>
+{
+    options.ServerInfo = new() { Name = "StableDiffusionStudio", Version = "1.0.0" };
+})
+    .WithTools<GenerationTools>()
+    .WithTools<ModelTools>()
+    .WithTools<WorkflowTools>()
+    .WithTools<PresetTools>()
+    .WithTools<UtilityTools>();
 
 // Blazor
 builder.Services.AddRazorComponents()
@@ -276,6 +288,7 @@ app.MapGet("/api/model-preview/{modelId:guid}", async (Guid modelId,
 });
 
 app.MapHub<StudioHub>("/hubs/studio");
+app.MapMcp("/mcp");
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
