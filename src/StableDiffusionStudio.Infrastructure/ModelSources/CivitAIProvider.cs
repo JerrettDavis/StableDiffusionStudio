@@ -139,7 +139,7 @@ public class CivitAIProvider : IModelProvider
             if (!string.IsNullOrEmpty(token))
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            _logger?.LogDebug("CivitAI search URL: {Url}", url);
+            _logger?.LogInformation("CivitAI request: GET {Url}", url);
 
             using var response = await _httpClient.SendAsync(request, ct);
 
@@ -195,8 +195,8 @@ public class CivitAIProvider : IModelProvider
                           currentPage.GetInt32() < totalPages.GetInt32();
             }
 
-            _logger?.LogDebug("CivitAI search returned {Count} results, totalItems={Total}, hasMore={HasMore}, nextCursor={Cursor}",
-                results.Count, totalCount, hasMore, nextCursor);
+            _logger?.LogInformation("CivitAI response: {Count} items, totalItems={Total}, hasMore={HasMore}, cursor={Cursor}",
+                results.Count, totalCount, hasMore, nextCursor ?? "(none)");
 
             return new SearchResult(results, totalCount, hasMore, nextCursor);
         }
