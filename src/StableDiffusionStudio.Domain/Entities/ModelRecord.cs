@@ -25,6 +25,7 @@ public class ModelRecord
     public DateTimeOffset DetectedAt { get; private set; }
     public DateTimeOffset? LastVerifiedAt { get; private set; }
     public ModelStatus Status { get; private set; }
+    public bool IsNsfw { get; private set; }
 
     private ModelRecord() { } // EF Core
 
@@ -83,5 +84,10 @@ public class ModelRecord
         if (huggingFaceModelId is not null) HuggingFaceModelId = huggingFaceModelId;
         if (huggingFaceUrl is not null) HuggingFaceUrl = huggingFaceUrl;
         LastEnrichedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void SetNsfw(bool isNsfw)
+    {
+        IsNsfw = isNsfw;
     }
 }

@@ -33,6 +33,8 @@ public class ModelCatalogRepository : IModelCatalogRepository
             query = query.Where(m => m.Source == filter.Source);
         if (filter.Type.HasValue)
             query = query.Where(m => m.Type == filter.Type.Value);
+        if (filter.ExcludeNsfw == true)
+            query = query.Where(m => !m.IsNsfw);
 
         return await query.OrderBy(m => m.Title).Skip(filter.Skip).Take(filter.Take).ToListAsync(ct);
     }

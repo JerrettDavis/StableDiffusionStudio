@@ -11,4 +11,5 @@ public interface IModelCatalogService
     Task<SearchResult> SearchAsync(ModelSearchQuery query, CancellationToken ct = default);
     Task<Guid> RequestDownloadAsync(DownloadRequest request, CancellationToken ct = default);
     IReadOnlyList<ModelProviderInfo> GetProviders();
+    Task SetModelNsfwAsync(Guid modelId, bool isNsfw, CancellationToken ct = default);
 }

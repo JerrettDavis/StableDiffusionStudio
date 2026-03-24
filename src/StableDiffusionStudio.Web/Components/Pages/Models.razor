@@ -156,6 +156,8 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
         ["huggingface"] = new() { SortOrder = SortOrder.MostDownloaded }
     };
 
+    [CascadingParameter(Name = "NsfwShieldEnabled")] public bool NsfwShieldEnabled { get; set; }
+
     private string _selectedSource = "local";
     private string? _searchTerm;
     private bool _listView;
@@ -287,7 +289,8 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
             var filter = new ModelFilter(
                 SearchTerm: state.SearchTerm,
                 Family: state.FamilyFilter,
-                Type: state.TypeFilter);
+                Type: state.TypeFilter,
+                ExcludeNsfw: NsfwShieldEnabled ? true : null);
             var models = await ModelCatalogService.ListAsync(filter);
 
             _localModelCache.Clear();

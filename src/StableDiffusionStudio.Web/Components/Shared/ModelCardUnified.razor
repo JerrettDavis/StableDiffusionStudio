@@ -17,6 +17,13 @@
                 <MudIcon Icon="@GetFamilyIcon(Model.Family)" Size="Size.Large" Color="Color.Default" />
             </div>
         }
+        @if (Model.IsNsfw)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Error"
+                     Style="position: absolute; top: 8px; left: 8px; pointer-events: none;">
+                NSFW
+            </MudChip>
+        }
         @if (Model.IsLocal)
         {
             <MudIcon Icon="@(Model.IsAvailable ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"

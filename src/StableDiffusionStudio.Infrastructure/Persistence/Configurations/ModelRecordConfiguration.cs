@@ -41,11 +41,14 @@ public class ModelRecordConfiguration : IEntityTypeConfiguration<ModelRecord>
         builder.Property(m => m.LastVerifiedAt).HasConversion(dateTimeOffsetConverter);
         builder.Property(m => m.LastEnrichedAt).HasConversion(dateTimeOffsetConverter);
 
+        builder.Property(m => m.IsNsfw).HasDefaultValue(false);
+
         builder.HasIndex(m => m.Type);
         builder.HasIndex(m => m.FilePath).IsUnique();
         builder.HasIndex(m => m.ModelFamily);
         builder.HasIndex(m => m.Format);
         builder.HasIndex(m => m.Status);
         builder.HasIndex(m => m.Source);
+        builder.HasIndex(m => m.IsNsfw);
     }
 }

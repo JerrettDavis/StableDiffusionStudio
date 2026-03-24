@@ -105,6 +105,9 @@ builder.Services.AddHostedService<WorkflowTemplateSeeder>();
 
 // Content safety
 builder.Services.AddScoped<IContentSafetyService, NsfwSpyContentSafetyService>();
+builder.Services.AddSingleton<NsfwScanQueue>();
+builder.Services.AddSingleton<ImageBlurService>();
+builder.Services.AddHostedService<NsfwImageScannerService>();
 
 // Image interrogation (Ollama vision models)
 builder.Services.AddHttpClient<IImageInterrogator, OllamaImageInterrogator>();
@@ -272,23 +275,70 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 // Serve model preview images from arbitrary disk locations (model directories)
+// NSFW-aware: checks embedded metadata, returns blurred/placeholder if needed
 app.MapGet("/api/model-preview/{modelId:guid}", async (Guid modelId,
-    StableDiffusionStudio.Application.Interfaces.IModelCatalogRepository repo) =>
+    StableDiffusionStudio.Application.Interfaces.IModelCatalogRepository repo,
+    StableDiffusionStudio.Application.Interfaces.IContentSafetyService contentSafety,
+    StableDiffusionStudio.Infrastructure.Services.NsfwScanQueue scanQueue,
+    StableDiffusionStudio.Infrastructure.Services.ImageBlurService blurService) =>
 {
     var model = await repo.GetByIdAsync(modelId);
     if (model?.PreviewImagePath is null || !File.Exists(model.PreviewImagePath))
         return Results.NotFound();
 
-    var ext = Path.GetExtension(model.PreviewImagePath).ToLowerInvariant();
-    var contentType = ext switch
+    var filePath = model.PreviewImagePath;
+    var shieldEnabled = await contentSafety.GetNsfwShieldEnabledAsync();
+    var thresholds = await contentSafety.GetThresholdsAsync();
+
+    // Read NSFW classification from PNG metadata
+    var classification = PngMetadataService.ReadNsfwClassification(filePath);
+
+    // Determine content rating header
+    string ratingHeader;
+    bool shouldBlur;
+
+    if (classification is null)
     {
-        ".png" => "image/png",
-        ".jpg" or ".jpeg" => "image/jpeg",
-        ".webp" => "image/webp",
-        ".gif" => "image/gif",
-        _ => "image/jpeg"
-    };
-    return Results.File(model.PreviewImagePath, contentType);
+        // Unprocessed image — enqueue for scanning, serve placeholder
+        scanQueue.Enqueue(filePath);
+        ratingHeader = "Unprocessed";
+        shouldBlur = shieldEnabled; // When shield is on, blur unprocessed images too
+    }
+    else
+    {
+        ratingHeader = classification.Rating.ToString();
+        // Blur if shield is on AND score exceeds threshold
+        shouldBlur = shieldEnabled && classification.Score >= thresholds.NsfwThreshold;
+    }
+
+    // Also blur if model is manually flagged NSFW
+    if (shieldEnabled && model.IsNsfw)
+        shouldBlur = true;
+
+    string servePath;
+    string contentType;
+
+    if (shouldBlur)
+    {
+        servePath = blurService.GetOrCreateBlurred(filePath);
+        contentType = "image/png";
+    }
+    else
+    {
+        servePath = filePath;
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        contentType = ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "image/jpeg"
+        };
+    }
+
+    return Results.File(servePath, contentType, null, null,
+        entityTag: null, enableRangeProcessing: false);
 });
 
 app.MapHub<StudioHub>("/hubs/studio");

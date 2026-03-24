@@ -7,7 +7,7 @@ public record ModelCardViewModel(
     string Id, string Title, string? PreviewImageUrl,
     ModelType Type, ModelFamily Family, ModelFormat Format,
     long? FileSize, string Source, bool IsLocal, bool IsAvailable,
-    string? Description)
+    string? Description, bool IsNsfw)
 {
     public static ModelCardViewModel FromLocal(ModelRecordDto dto, IAppPaths appPaths)
     {
@@ -35,7 +35,8 @@ public record ModelCardViewModel(
             Source: "local",
             IsLocal: true,
             IsAvailable: dto.Status == ModelStatus.Available,
-            Description: dto.Description);
+            Description: dto.Description,
+            IsNsfw: dto.IsNsfw);
     }
 
     public static ModelCardViewModel FromRemote(RemoteModelInfo info, string providerId)
@@ -51,6 +52,7 @@ public record ModelCardViewModel(
             Source: providerId,
             IsLocal: false,
             IsAvailable: true,
-            Description: info.Description);
+            Description: info.Description,
+            IsNsfw: false);
     }
 }

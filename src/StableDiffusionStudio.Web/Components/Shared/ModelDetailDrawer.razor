@@ -47,6 +47,13 @@
                 </MudChip>
             </div>
 
+            @* NSFW flag *@
+            @if (Model.IsLocal && LocalModel is not null)
+            {
+                <MudSwitch T="bool" Label="NSFW Model" Color="Color.Error" Class="mb-3"
+                           Value="Model.IsNsfw" ValueChanged="ToggleNsfw" />
+            }
+
             @* Local actions *@
             @if (Model.IsLocal && LocalModel is not null)
             {
@@ -191,6 +198,22 @@
     {
         Open = false;
         await OpenChanged.InvokeAsync(false);
+    }
+
+    private async Task ToggleNsfw(bool isNsfw)
+    {
+        if (LocalModel is null) return;
+        try
+        {
+            await ModelCatalogService.SetModelNsfwAsync(LocalModel.Id, isNsfw);
+            // Update the local view model to reflect the change
+            Model = Model! with { IsNsfw = isNsfw };
+            Snackbar.Add(isNsfw ? "Model marked as NSFW" : "NSFW flag removed", MudBlazor.Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to update NSFW flag: {ex.Message}", MudBlazor.Severity.Error);
+        }
     }
 
     private void SelectForGeneration()

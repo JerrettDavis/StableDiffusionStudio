@@ -1,21 +1,33 @@
 using System.Text;
+using System.Text.Json;
+using StableDiffusionStudio.Domain.ValueObjects;
 
 namespace StableDiffusionStudio.Infrastructure.Services;
 
 public static class PngMetadataService
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+    };
+
     /// <summary>
     /// Embeds generation parameters as a PNG tEXt chunk (A1111-compatible format).
     /// </summary>
     public static byte[] EmbedMetadata(byte[] pngBytes, string parameters)
-    {
-        // PNG structure: signature (8 bytes) + chunks
-        // Insert a tEXt chunk with key "parameters" before IEND
-        var textChunk = CreateTextChunk("parameters", parameters);
+        => EmbedMetadata(pngBytes, "parameters", parameters);
 
-        // Find IEND chunk
+    /// <summary>
+    /// Embeds a tEXt chunk with the given keyword and text value into a PNG byte array.
+    /// The chunk is inserted immediately before the IEND chunk.
+    /// </summary>
+    public static byte[] EmbedMetadata(byte[] pngBytes, string keyword, string text)
+    {
+        var textChunk = CreateTextChunk(keyword, text);
+
         var iendPos = FindIendPosition(pngBytes);
-        if (iendPos < 0) return pngBytes; // Not a valid PNG, return as-is
+        if (iendPos < 0) return pngBytes;
 
         var result = new byte[pngBytes.Length + textChunk.Length];
         Array.Copy(pngBytes, 0, result, 0, iendPos);
@@ -23,6 +35,53 @@ public static class PngMetadataService
         Array.Copy(pngBytes, iendPos, result, iendPos + textChunk.Length, pngBytes.Length - iendPos);
 
         return result;
+    }
+
+    /// <summary>
+    /// Reads NsfwClassification metadata from a PNG file's tEXt chunk.
+    /// Returns null if not found or if the file is not a PNG.
+    /// </summary>
+    public static NsfwClassification? ReadNsfwClassification(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath)) return null;
+            var ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext is not ".png") return null;
+
+            var bytes = File.ReadAllBytes(filePath);
+            var json = ReadTextChunk(bytes, "NsfwClassification");
+            if (json is null) return null;
+
+            return JsonSerializer.Deserialize<NsfwClassification>(json, _jsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Writes NsfwClassification metadata into a PNG file's tEXt chunk.
+    /// If the file is not a PNG, it is skipped.
+    /// If an existing NsfwClassification chunk exists, it is replaced.
+    /// </summary>
+    public static void WriteNsfwClassification(string filePath, NsfwClassification classification)
+    {
+        if (!File.Exists(filePath)) return;
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        if (ext is not ".png") return;
+
+        var bytes = File.ReadAllBytes(filePath);
+
+        // Remove existing NsfwClassification chunk if present
+        bytes = RemoveTextChunk(bytes, "NsfwClassification");
+
+        // Embed new chunk
+        var json = JsonSerializer.Serialize(classification, _jsonOptions);
+        bytes = EmbedMetadata(bytes, "NsfwClassification", json);
+
+        File.WriteAllBytes(filePath, bytes);
     }
 
     public static string FormatA1111Parameters(
@@ -153,6 +212,42 @@ public static class PngMetadataService
                 return i;
         }
         return -1;
+    }
+
+    private static byte[] RemoveTextChunk(byte[] pngBytes, string keyword)
+    {
+        var keyBytes = Encoding.Latin1.GetBytes(keyword);
+        int pos = 8; // Skip PNG signature
+
+        while (pos + 8 <= pngBytes.Length)
+        {
+            int length = System.Net.IPAddress.NetworkToHostOrder(BitConverter.ToInt32(pngBytes, pos));
+            var type = Encoding.ASCII.GetString(pngBytes, pos + 4, 4);
+            int chunkTotalSize = 12 + length; // 4 (length) + 4 (type) + data + 4 (CRC)
+
+            if (type == "tEXt" && length > keyBytes.Length)
+            {
+                int dataStart = pos + 8;
+                bool match = true;
+                for (int i = 0; i < keyBytes.Length; i++)
+                {
+                    if (pngBytes[dataStart + i] != keyBytes[i]) { match = false; break; }
+                }
+                if (match && pngBytes[dataStart + keyBytes.Length] == 0)
+                {
+                    // Found it — remove this chunk
+                    var result = new byte[pngBytes.Length - chunkTotalSize];
+                    Array.Copy(pngBytes, 0, result, 0, pos);
+                    Array.Copy(pngBytes, pos + chunkTotalSize, result, pos, pngBytes.Length - pos - chunkTotalSize);
+                    return result;
+                }
+            }
+
+            if (type == "IEND") break;
+            pos += chunkTotalSize;
+        }
+
+        return pngBytes; // Not found, return unchanged
     }
 
     private static uint CalculateCrc32(byte[] data)

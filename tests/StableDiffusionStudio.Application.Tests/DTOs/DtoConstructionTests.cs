@@ -74,7 +74,8 @@ public class DtoConstructionTests
             Guid.NewGuid(), "Model X", ModelType.Checkpoint, ModelFamily.SDXL,
             ModelFormat.SafeTensors, "/models/x.safetensors", 4096000,
             "local", new[] { "sdxl" }, "A model", "/preview.png",
-            "Needs 12GB", ModelStatus.Available, DateTimeOffset.UtcNow);
+            "Needs 12GB", ModelStatus.Available, DateTimeOffset.UtcNow,
+            IsNsfw: false);
 
         dto.Title.Should().Be("Model X");
         dto.Type.Should().Be(ModelType.Checkpoint);

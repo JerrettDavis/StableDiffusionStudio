@@ -103,7 +103,16 @@ public class ModelCatalogService : IModelCatalogService
         return _providers.Select(p => new ModelProviderInfo(p.ProviderId, p.DisplayName, p.Capabilities)).ToList();
     }
 
+    public async Task SetModelNsfwAsync(Guid modelId, bool isNsfw, CancellationToken ct = default)
+    {
+        var model = await _repository.GetByIdAsync(modelId, ct)
+            ?? throw new KeyNotFoundException($"Model {modelId} not found.");
+        model.SetNsfw(isNsfw);
+        await _repository.UpsertAsync(model, ct);
+    }
+
     private static ModelRecordDto ToDto(ModelRecord r) =>
         new(r.Id, r.Title, r.Type, r.ModelFamily, r.Format, r.FilePath, r.FileSize,
-            r.Source, r.Tags, r.Description, r.PreviewImagePath, r.CompatibilityHints, r.Status, r.DetectedAt);
+            r.Source, r.Tags, r.Description, r.PreviewImagePath, r.CompatibilityHints, r.Status, r.DetectedAt,
+            r.IsNsfw);
 }
