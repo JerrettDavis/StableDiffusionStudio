@@ -167,13 +167,14 @@ else
             }
             @for (var row = 0; row < Axis2Values!.Count; row++)
             {
+                var r = row;
                 <div class="grid-cell grid-row-header">
-                    <MudText Typo="Typo.caption">@Axis2Values[row]</MudText>
+                    <MudText Typo="Typo.caption">@Axis2Values[r]</MudText>
                 </div>
                 @for (var col = 0; col < Axis1Values.Count; col++)
                 {
-                    var cellIndex = row * Axis1Values.Count + col;
-                    var gx = col; var gy = row;
+                    var cellIndex = r * Axis1Values.Count + col;
+                    var gx = col; var gy = r;
                     var image = FindImage(gx, gy);
                     @RenderImageCell(image, cellIndex, gx, gy)
                 }
