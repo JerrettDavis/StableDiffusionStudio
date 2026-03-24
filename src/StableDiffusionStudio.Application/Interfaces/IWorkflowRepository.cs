@@ -7,6 +7,7 @@ public interface IWorkflowRepository
     Task<Workflow?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<Workflow?> GetByIdWithRunsAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Workflow>> ListAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<Workflow>> ListWithChildrenAsync(CancellationToken ct = default);
     Task AddAsync(Workflow workflow, CancellationToken ct = default);
     Task UpdateAsync(Workflow workflow, CancellationToken ct = default);
     Task DeleteAsync(Guid id, CancellationToken ct = default);

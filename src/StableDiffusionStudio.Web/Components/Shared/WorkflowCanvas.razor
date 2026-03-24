@@ -90,10 +90,9 @@
         var allPlugins = Plugins.ToDictionary(p => p.PluginId);
         var rfNodes = Nodes.Select(n =>
         {
-            // We need actual port definitions — get from the DI-registered plugins
-            // For now, use standard ports based on plugin ID
-            var inputPorts = GetInputPorts(n.PluginId);
-            var outputPorts = GetOutputPorts(n.PluginId);
+            var inputPorts = GetInputPortsWithTypes(n.PluginId);
+            var outputPorts = GetOutputPortsWithTypes(n.PluginId);
+            var icon = _pluginMap.TryGetValue(n.PluginId, out var p) ? GetNodeEmoji(n.PluginId) : "";
 
             return new
             {
@@ -104,6 +103,7 @@
                 {
                     label = n.Label,
                     pluginId = n.PluginId,
+                    icon = icon,
                     inputPorts = inputPorts,
                     outputPorts = outputPorts,
                 }
@@ -126,23 +126,36 @@
         return JsonSerializer.Serialize(rfEdges);
     }
 
-    private static object[] GetInputPorts(string pluginId) => pluginId switch
+    private static object[] GetInputPortsWithTypes(string pluginId) => pluginId switch
     {
-        "core.generate" => [new { name = "image", required = false }],
-        "core.img2img" => [new { name = "image", required = true }],
-        "core.inpaint" => [new { name = "image", required = true }, new { name = "mask", required = true }],
-        "core.upscale" => [new { name = "image", required = true }],
-        "core.controlnet" => [new { name = "image", required = true }],
-        "core.conditional" => [new { name = "image", required = true }],
-        "core.output" => [new { name = "image", required = true }],
-        _ => [new { name = "image", required = false }],
+        "core.generate" => [new { name = "image", required = false, dataType = "image" }],
+        "core.img2img" => [new { name = "image", required = true, dataType = "image" }],
+        "core.inpaint" => [new { name = "image", required = true, dataType = "image" }, new { name = "mask", required = true, dataType = "mask" }],
+        "core.upscale" => [new { name = "image", required = true, dataType = "image" }],
+        "core.controlnet" => [new { name = "image", required = true, dataType = "image" }],
+        "core.conditional" => [new { name = "image", required = true, dataType = "image" }],
+        "core.output" => [new { name = "image", required = true, dataType = "image" }],
+        _ => [new { name = "image", required = false, dataType = "image" }],
     };
 
-    private static object[] GetOutputPorts(string pluginId) => pluginId switch
+    private static object[] GetOutputPortsWithTypes(string pluginId) => pluginId switch
     {
         "core.output" => [],
-        "core.conditional" => [new { name = "pass" }, new { name = "fail" }],
-        _ => [new { name = "image" }],
+        "core.conditional" => [new { name = "pass", dataType = "image" }, new { name = "fail", dataType = "image" }],
+        _ => [new { name = "image", dataType = "image" }],
+    };
+
+    private static string GetNodeEmoji(string pluginId) => pluginId switch
+    {
+        "core.generate" => "\u2728",
+        "core.img2img" => "\ud83d\uddbc\ufe0f",
+        "core.inpaint" => "\ud83c\udfa8",
+        "core.upscale" => "\ud83d\udd0d",
+        "core.controlnet" => "\ud83c\udfaf",
+        "core.conditional" => "\u2696\ufe0f",
+        "core.output" => "\ud83d\udce4",
+        "core.script" => "\ud83d\udcdc",
+        _ => "\u2699\ufe0f",
     };
 
     public async ValueTask DisposeAsync()

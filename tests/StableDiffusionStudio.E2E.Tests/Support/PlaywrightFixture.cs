@@ -22,7 +22,15 @@ public class PlaywrightFixture : IAsyncLifetime
 
     public async Task<IPage> NewPageAsync()
     {
-        var context = await Browser.NewContextAsync();
+        return await NewPageAsync(1920, 1080);
+    }
+
+    public async Task<IPage> NewPageAsync(int width, int height)
+    {
+        var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new() { Width = width, Height = height }
+        });
         return await context.NewPageAsync();
     }
 

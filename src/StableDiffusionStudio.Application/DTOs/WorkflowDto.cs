@@ -26,7 +26,9 @@ public record WorkflowRunStepDto(
     long DurationMs, DateTimeOffset? StartedAt, DateTimeOffset? CompletedAt);
 
 public record WorkflowListItemDto(Guid Id, string Name, string? Description, bool IsTemplate,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    int NodeCount, int EdgeCount,
+    Domain.Enums.WorkflowRunStatus? LastRunStatus, DateTimeOffset? LastRunAt);
 
 public record WorkflowNodePluginDto(string PluginId, string DisplayName, string Category,
     string Description, string Icon);

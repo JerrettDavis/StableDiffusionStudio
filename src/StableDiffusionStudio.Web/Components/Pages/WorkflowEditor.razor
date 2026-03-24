@@ -19,9 +19,21 @@
 else
 {
     @* Toolbar *@
-    <MudToolBar Dense="true" Class="mb-2">
+    <MudToolBar Dense="true" Class="mb-1">
         <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Navigation.NavigateTo("/workflows"))" />
-        <MudText Typo="Typo.h6" Class="mr-4">@_workflow.Name</MudText>
+        @if (_isEditingName)
+        {
+            <MudTextField @bind-Value="_editNameValue" Variant="Variant.Text" Margin="Margin.Dense"
+                          Class="workflow-name-edit mr-4" Style="font-size:1.25rem; font-weight:600; max-width:300px;"
+                          OnBlur="SaveWorkflowName" OnKeyDown="OnNameKeyDown"
+                          Immediate="true" AutoFocus="true" />
+        }
+        else
+        {
+            <MudText Typo="Typo.h6" Class="mr-4 cursor-pointer" @onclick="StartEditingName"
+                     Style="border-bottom: 1px dashed transparent;"
+                     title="Click to rename">@_workflow.Name</MudText>
+        }
         <MudSpacer />
         <MudButton Variant="Variant.Outlined" Size="Size.Small" Class="mr-2"
                    StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="DuplicateWorkflow">
@@ -42,6 +54,11 @@ else
         </MudButton>
     </MudToolBar>
 
+    @* Description field *@
+    <MudTextField @bind-Value="_editDescriptionValue" Variant="Variant.Text" Margin="Margin.Dense"
+                  Placeholder="Add a description..." Lines="1" Class="mb-1 mx-2"
+                  Style="font-size:0.85rem;" OnBlur="SaveWorkflowDescription" />
+
     @* Run status bar *@
     @if (_isRunning || _runStatus is not null)
     {
@@ -61,26 +78,35 @@ else
         </MudAlert>
     }
 
-    <MudGrid Spacing="0" Style="height: calc(100vh - 140px);">
+    <MudGrid Spacing="0" Style="height: calc(100vh - 160px);">
         @* Left: Node Palette *@
-        <MudItem xs="2" Style="height: 100%; overflow-y: auto; border-right: 1px solid var(--mud-palette-lines-default);">
+        <MudItem xs="12" sm="3" md="2" Style="height: 100%; overflow-y: auto; border-right: 1px solid var(--mud-palette-lines-default);"
+                 Class="d-none d-sm-block">
             <MudText Typo="Typo.subtitle2" Class="pa-3 pb-1">Node Palette</MudText>
-            @foreach (var group in _plugins.GroupBy(p => p.Category))
+            <MudTextField @bind-Value="_paletteSearch" Placeholder="Filter nodes..." Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Class="px-3 mb-2" Immediate="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" />
+            @foreach (var group in _filteredPlugins.GroupBy(p => p.Category))
             {
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-3 pt-2">@group.Key</MudText>
-                @foreach (var plugin in group)
-                {
-                    <MudButton Variant="Variant.Text" FullWidth="true" Size="Size.Small"
-                               Class="justify-start px-3"
-                               OnClick="() => AddNode(plugin)">
-                        <MudText Typo="Typo.body2">@plugin.DisplayName</MudText>
-                    </MudButton>
-                }
+                <MudExpansionPanel Text="@group.Key" IsInitiallyExpanded="true" Dense="true" Class="pa-0"
+                                   Style="box-shadow:none; background:transparent;">
+                    @foreach (var plugin in group)
+                    {
+                        <MudTooltip Text="@plugin.Description" Placement="Placement.Right" Arrow="true">
+                            <MudButton Variant="Variant.Text" FullWidth="true" Size="Size.Small"
+                                       Class="justify-start px-3 node-palette-item"
+                                       OnClick="() => AddNode(plugin)">
+                                <MudIcon Icon="@plugin.Icon" Size="Size.Small" Class="mr-2" />
+                                <MudText Typo="Typo.body2">@plugin.DisplayName</MudText>
+                            </MudButton>
+                        </MudTooltip>
+                    }
+                </MudExpansionPanel>
             }
         </MudItem>
 
         @* Center: Canvas *@
-        <MudItem xs="7" Style="height: 100%;">
+        <MudItem xs="12" sm="9" md="7" Style="height: 100%;">
             <WorkflowCanvas @ref="_canvas"
                            Nodes="_nodes" Edges="_edges" Plugins="_plugins"
                            OnNodeMoved="HandleNodeMoved"
@@ -91,7 +117,8 @@ else
         </MudItem>
 
         @* Right: Property Panel / Run History *@
-        <MudItem xs="3" Style="height: 100%; overflow-y: auto; border-left: 1px solid var(--mud-palette-lines-default);">
+        <MudItem xs="12" md="3" Style="height: 100%; overflow-y: auto; border-left: 1px solid var(--mud-palette-lines-default);"
+                 Class="d-none d-md-block">
             @if (_selectedNode is not null)
             {
                 <div class="pa-3">
@@ -100,33 +127,51 @@ else
                         <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                        OnClick="() => _selectedNode = null" />
                     </div>
-                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">@_selectedNode.PluginId</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">@_selectedNode.PluginId</MudText>
+
+                    @* Port info *@
+                    <div class="d-flex flex-wrap gap-1 mb-3">
+                        @foreach (var port in GetInputPortNames(_selectedNode.PluginId))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                @($"In: {port}")
+                            </MudChip>
+                        }
+                        @foreach (var port in GetOutputPortNames(_selectedNode.PluginId))
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined">
+                                @($"Out: {port}")
+                            </MudChip>
+                        }
+                    </div>
 
                     <MudTextField @bind-Value="_editLabel" Label="Label" Variant="Variant.Outlined"
                                   Margin="Margin.Dense" Class="mb-3" />
 
                     @if (IsGenerationNode(_selectedNode.PluginId))
                     {
-                        <MudText Typo="Typo.subtitle2" Class="mb-2">Generation Parameters</MudText>
-                        <MudTextField @bind-Value="_editPositivePrompt" Label="Positive Prompt"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Class="mb-2" />
-                        <MudTextField @bind-Value="_editNegativePrompt" Label="Negative Prompt"
-                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" Class="mb-2" />
-                        <MudNumericField T="int" @bind-Value="_editSteps" Label="Steps"
-                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="150" Class="mb-2" />
-                        <MudNumericField T="double" @bind-Value="_editCfgScale" Label="CFG Scale"
-                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="30" Step="0.5" Class="mb-2" />
-                        <div class="d-flex gap-2 mb-2">
-                            <MudNumericField T="int" @bind-Value="_editWidth" Label="Width"
-                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
-                            <MudNumericField T="int" @bind-Value="_editHeight" Label="Height"
-                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
-                        </div>
-                        @if (_selectedNode.PluginId is "core.img2img" or "core.inpaint")
-                        {
-                            <MudNumericField T="double" @bind-Value="_editDenoisingStrength" Label="Denoising Strength"
-                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="1" Step="0.05" Class="mb-2" />
-                        }
+                        <MudExpansionPanel Text="Generation Parameters" IsInitiallyExpanded="true" Dense="true"
+                                           Class="mb-2" Style="box-shadow:none;">
+                            <MudTextField @bind-Value="_editPositivePrompt" Label="Positive Prompt"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Class="mb-2" />
+                            <MudTextField @bind-Value="_editNegativePrompt" Label="Negative Prompt"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" Class="mb-2" />
+                            <MudNumericField T="int" @bind-Value="_editSteps" Label="Steps"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="150" Class="mb-2" />
+                            <MudNumericField T="double" @bind-Value="_editCfgScale" Label="CFG Scale"
+                                             Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="30" Step="0.5" Class="mb-2" />
+                            <div class="d-flex gap-2 mb-2">
+                                <MudNumericField T="int" @bind-Value="_editWidth" Label="Width"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
+                                <MudNumericField T="int" @bind-Value="_editHeight" Label="Height"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" Style="flex:1" />
+                            </div>
+                            @if (_selectedNode.PluginId is "core.img2img" or "core.inpaint")
+                            {
+                                <MudNumericField T="double" @bind-Value="_editDenoisingStrength" Label="Denoising Strength"
+                                                 Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="1" Step="0.05" Class="mb-2" />
+                            }
+                        </MudExpansionPanel>
                     }
 
                     @if (_selectedNode.MaxIterations.HasValue || _selectedNode.PluginId == "core.conditional")
@@ -139,6 +184,11 @@ else
                                OnClick="SaveNodeConfig" Class="mt-2">
                         Apply Changes
                     </MudButton>
+
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        <kbd>Del</kbd> Delete node &nbsp; <kbd>Ctrl+S</kbd> Save
+                    </MudText>
                 </div>
             }
             else
@@ -148,45 +198,57 @@ else
                     <MudText Typo="Typo.subtitle1" Class="mb-2">Run History</MudText>
                     @if (_lastRun is not null)
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
-                            Last run: @_lastRun.Status — @_lastRun.CreatedAt.ToString("MMM d, HH:mm")
-                        </MudText>
-                        @foreach (var step in _lastRun.Steps.OrderBy(s => s.StartedAt))
-                        {
-                            var nodeName = _nodes.FirstOrDefault(n => n.Id == step.NodeId)?.Label ?? "Unknown";
-                            <MudCard Elevation="0" Class="mb-2" Style="border: 1px solid var(--mud-palette-lines-default);">
-                                <MudCardContent Class="pa-2">
-                                    <div class="d-flex align-center justify-space-between">
+                        <div class="d-flex align-center justify-space-between mb-3">
+                            <MudChip T="string" Size="Size.Small" Color="@GetRunStatusColor(_lastRun.Status)">
+                                @_lastRun.Status
+                            </MudChip>
+                            <MudText Typo="Typo.caption" Class="run-duration">
+                                @FormatTotalDuration(_lastRun)
+                            </MudText>
+                        </div>
+
+                        <MudTimeline TimelinePosition="TimelinePosition.Start" Dense="true">
+                            @foreach (var step in _lastRun.Steps.OrderBy(s => s.StartedAt))
+                            {
+                                var nodeName = _nodes.FirstOrDefault(n => n.Id == step.NodeId)?.Label ?? "Unknown";
+                                <MudTimelineItem Color="@GetStepTimelineColor(step.Status)" Size="Size.Small"
+                                                 Variant="Variant.Filled">
+                                    <div>
                                         <MudText Typo="Typo.body2">@nodeName</MudText>
-                                        <MudChip T="string" Size="Size.Small"
-                                                 Color="@GetStepStatusColor(step.Status)">
-                                            @step.Status
-                                        </MudChip>
+                                        <div class="d-flex align-center gap-2">
+                                            @if (step.DurationMs > 0)
+                                            {
+                                                <MudText Typo="Typo.caption" Class="run-duration">
+                                                    @($"{step.DurationMs / 1000.0:F1}s")
+                                                </MudText>
+                                            }
+                                            <MudChip T="string" Size="Size.Small" Color="@GetStepStatusColor(step.Status)"
+                                                     Variant="Variant.Text" Style="font-size:0.65rem;">
+                                                @step.Status
+                                            </MudChip>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(step.OutputImagePath))
+                                        {
+                                            <img src="@GetImageUrl(step.OutputImagePath)" alt=""
+                                                 style="max-width:100%; border-radius:4px; margin-top:4px;" loading="lazy" />
+                                        }
+                                        @if (!string.IsNullOrEmpty(step.Error))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">@step.Error</MudText>
+                                        }
                                     </div>
-                                    @if (step.DurationMs > 0)
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            @($"{step.DurationMs / 1000.0:F1}")s
-                                        </MudText>
-                                    }
-                                    @if (!string.IsNullOrEmpty(step.OutputImagePath))
-                                    {
-                                        <img src="@GetImageUrl(step.OutputImagePath)" alt=""
-                                             style="max-width:100%; border-radius:4px; margin-top:4px;" loading="lazy" />
-                                    }
-                                    @if (!string.IsNullOrEmpty(step.Error))
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Error">@step.Error</MudText>
-                                    }
-                                </MudCardContent>
-                            </MudCard>
-                        }
+                                </MudTimelineItem>
+                            }
+                        </MudTimeline>
                     }
                     else
                     {
-                        <MudText Typo="Typo.body2" Color="Color.Secondary">
-                            No runs yet. Click a node to configure it, then click Run.
-                        </MudText>
+                        <div class="d-flex flex-column align-center pa-4" style="opacity: 0.6;">
+                            <MudIcon Icon="@Icons.Material.Filled.PlayCircleOutline" Size="Size.Large" Class="mb-2" />
+                            <MudText Typo="Typo.body2" Align="Align.Center">
+                                No runs yet. Add nodes, connect them, then click Run.
+                            </MudText>
+                        </div>
                     }
 
                     @* Entry point info *@
@@ -224,6 +286,19 @@ else
     private HubConnection? _hubConnection;
     private Guid? _activeRunId;
 
+    // Inline name editing state
+    private bool _isEditingName;
+    private string _editNameValue = "";
+    private string _editDescriptionValue = "";
+
+    // Node palette search
+    private string _paletteSearch = "";
+    private IEnumerable<WorkflowNodePluginDto> _filteredPlugins =>
+        string.IsNullOrWhiteSpace(_paletteSearch)
+            ? _plugins
+            : _plugins.Where(p => p.DisplayName.Contains(_paletteSearch, StringComparison.OrdinalIgnoreCase)
+                                || p.Category.Contains(_paletteSearch, StringComparison.OrdinalIgnoreCase));
+
     // Property panel state
     private WorkflowNodeDto? _selectedNode;
     private string _editLabel = "";
@@ -257,6 +332,7 @@ else
         _workflow = workflow;
         _nodes = workflow.Nodes.ToList();
         _edges = workflow.Edges.ToList();
+        _editDescriptionValue = workflow.Description ?? "";
 
         ComputeEntryPoints();
 
@@ -352,6 +428,37 @@ else
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to connect SignalR for workflow progress");
+        }
+    }
+
+    // Inline name editing
+    private void StartEditingName()
+    {
+        _editNameValue = _workflow!.Name;
+        _isEditingName = true;
+    }
+
+    private async Task SaveWorkflowName()
+    {
+        if (_workflow is null || string.IsNullOrWhiteSpace(_editNameValue)) { _isEditingName = false; return; }
+        _workflow = _workflow with { Name = _editNameValue };
+        await WorkflowService.UpdateAsync(WorkflowId, _editNameValue, _workflow.Description, null);
+        _isEditingName = false;
+    }
+
+    private async Task OnNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveWorkflowName();
+        if (e.Key == "Escape") _isEditingName = false;
+    }
+
+    private async Task SaveWorkflowDescription()
+    {
+        if (_workflow is null) return;
+        if (_editDescriptionValue != _workflow.Description)
+        {
+            _workflow = _workflow with { Description = _editDescriptionValue };
+            await WorkflowService.UpdateAsync(WorkflowId, _workflow.Name, _editDescriptionValue, null);
         }
     }
 
@@ -559,6 +666,44 @@ else
             .ToList();
     }
 
+    // Port info helpers (mirrors WorkflowCanvas logic)
+    private static string[] GetInputPortNames(string pluginId) => pluginId switch
+    {
+        "core.generate" => ["image"],
+        "core.img2img" => ["image"],
+        "core.inpaint" => ["image", "mask"],
+        "core.upscale" => ["image"],
+        "core.controlnet" => ["image"],
+        "core.conditional" => ["image"],
+        "core.output" => ["image"],
+        _ => ["image"],
+    };
+
+    private static string[] GetOutputPortNames(string pluginId) => pluginId switch
+    {
+        "core.output" => [],
+        "core.conditional" => ["pass", "fail"],
+        _ => ["image"],
+    };
+
+    // Run status color helpers
+    private static MudBlazor.Color GetRunStatusColor(Domain.Enums.WorkflowRunStatus status) => status switch
+    {
+        Domain.Enums.WorkflowRunStatus.Completed => MudBlazor.Color.Success,
+        Domain.Enums.WorkflowRunStatus.Failed => MudBlazor.Color.Error,
+        Domain.Enums.WorkflowRunStatus.Running => MudBlazor.Color.Warning,
+        Domain.Enums.WorkflowRunStatus.Cancelled => MudBlazor.Color.Default,
+        _ => MudBlazor.Color.Info,
+    };
+
+    private static MudBlazor.Color GetStepTimelineColor(Domain.Enums.WorkflowStepStatus status) => status switch
+    {
+        Domain.Enums.WorkflowStepStatus.Completed => MudBlazor.Color.Success,
+        Domain.Enums.WorkflowStepStatus.Failed => MudBlazor.Color.Error,
+        Domain.Enums.WorkflowStepStatus.Running => MudBlazor.Color.Warning,
+        _ => MudBlazor.Color.Default,
+    };
+
     private static MudBlazor.Color GetStepStatusColor(Domain.Enums.WorkflowStepStatus status) => status switch
     {
         Domain.Enums.WorkflowStepStatus.Completed => MudBlazor.Color.Success,
@@ -567,6 +712,12 @@ else
         Domain.Enums.WorkflowStepStatus.Skipped => MudBlazor.Color.Default,
         _ => MudBlazor.Color.Default,
     };
+
+    private static string FormatTotalDuration(WorkflowRunDto run)
+    {
+        var totalMs = run.Steps.Sum(s => s.DurationMs);
+        return totalMs >= 60000 ? $"{totalMs / 60000.0:F1}m" : $"{totalMs / 1000.0:F1}s total";
+    }
 
     private string GetImageUrl(string path)
     {

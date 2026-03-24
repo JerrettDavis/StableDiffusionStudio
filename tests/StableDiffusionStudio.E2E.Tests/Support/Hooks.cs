@@ -29,7 +29,9 @@ public class Hooks
     [BeforeScenario]
     public async Task BeforeScenario(ScenarioContext context)
     {
-        var page = await _playwright!.NewPageAsync();
+        var page = context.ScenarioInfo.Tags.Contains("viewport-4k")
+            ? await _playwright!.NewPageAsync(3840, 2160)
+            : await _playwright!.NewPageAsync();
         context.Set(page);
         context.Set(_webApp!.BaseUrl, "BaseUrl");
     }

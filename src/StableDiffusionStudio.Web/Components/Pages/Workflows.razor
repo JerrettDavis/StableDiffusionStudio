@@ -1,17 +1,19 @@
 @page "/workflows"
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
+@using StableDiffusionStudio.Domain.Enums
 @using Microsoft.AspNetCore.Components.Forms
 @using System.Text.Json
-@using StableDiffusionStudio.Application.DTOs
 @inject IWorkflowService WorkflowService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudText Typo="Typo.h4" Class="mb-4">Workflows</MudText>
 
-<div class="d-flex gap-2 mb-4">
+@* Toolbar: actions + search + filters *@
+<div class="d-flex flex-wrap align-center gap-2 mb-4">
     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                StartIcon="@Icons.Material.Filled.Add" OnClick="CreateWorkflow">
         New Workflow
@@ -22,33 +24,98 @@
     </MudButton>
     <InputFile id="@_importInputId" OnChange="OnImportFileSelected" accept=".json"
                style="display:none" />
+
+    <MudSpacer />
+
+    <MudTextField T="string" @bind-Value="_searchTerm" Placeholder="Search workflows..."
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true"
+                  DebounceInterval="300" Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Style="max-width: 280px;" Class="mr-2" />
+
+    <MudChipSet T="string" @bind-SelectedValue="_filterType" Mandatory="true"
+                SelectionMode="SelectionMode.SingleSelection">
+        <MudChip T="string" Value="@("all")" Variant="Variant.Text" Size="Size.Small">All</MudChip>
+        <MudChip T="string" Value="@("templates")" Variant="Variant.Text" Size="Size.Small">Templates</MudChip>
+        <MudChip T="string" Value="@("custom")" Variant="Variant.Text" Size="Size.Small">My Workflows</MudChip>
+    </MudChipSet>
+
+    <MudSelect T="string" @bind-Value="_sortBy" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Dense="true" Style="max-width: 160px;" Label="Sort by">
+        <MudSelectItem Value="@("updated")">Last Updated</MudSelectItem>
+        <MudSelectItem Value="@("name")">Name</MudSelectItem>
+        <MudSelectItem Value="@("nodes")">Node Count</MudSelectItem>
+        <MudSelectItem Value="@("lastrun")">Last Run</MudSelectItem>
+    </MudSelect>
 </div>
 
 @if (_workflows is null)
 {
     <MudProgressLinear Indeterminate="true" />
 }
-else if (_workflows.Count == 0)
+else if (_workflows.Count == 0 && string.IsNullOrWhiteSpace(_searchTerm) && _filterType == "all")
 {
     <EmptyState Title="No workflows yet"
                 Subtitle="Create a workflow to chain multiple generation steps together"
-                Icon="@Icons.Material.Filled.AccountTree" />
+                Icon="@Icons.Material.Filled.AccountTree"
+                ActionText="Create your first workflow"
+                OnAction="CreateWorkflow" />
+}
+else if (FilteredWorkflows.Count == 0)
+{
+    <EmptyState Title="No matching workflows"
+                Subtitle="Try adjusting your search or filters"
+                Icon="@Icons.Material.Filled.SearchOff" />
 }
 else
 {
     <MudGrid>
-        @foreach (var workflow in _workflows)
+        @foreach (var workflow in FilteredWorkflows)
         {
             <MudItem xs="12" sm="6" md="4" lg="3">
-                <MudCard Elevation="1" Class="cursor-pointer" @onclick="() => OpenWorkflow(workflow.Id)">
-                    <MudCardContent>
+                <MudCard Elevation="1" Class="workflow-card cursor-pointer d-flex flex-column"
+                         Style="height: 100%;" @onclick="() => OpenWorkflow(workflow.Id)">
+                    <MudCardContent Class="flex-grow-1">
+                        @* Header: name + badge + context menu *@
                         <div class="d-flex align-center justify-space-between mb-2">
-                            <MudText Typo="Typo.subtitle1">@workflow.Name</MudText>
-                            @if (workflow.IsTemplate)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Info">Template</MudChip>
-                            }
+                            <MudText Typo="Typo.subtitle1" Style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                @workflow.Name
+                            </MudText>
+                            <div class="d-flex align-center gap-1">
+                                @if (workflow.IsTemplate)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                        Template
+                                    </MudChip>
+                                }
+                                <div @onclick:stopPropagation="true">
+                                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small"
+                                             Dense="true" AnchorOrigin="Origin.BottomRight"
+                                             TransformOrigin="Origin.TopRight">
+                                        <MudMenuItem OnClick="() => OpenWorkflow(workflow.Id)"
+                                                     Icon="@Icons.Material.Filled.OpenInNew">
+                                            Open
+                                        </MudMenuItem>
+                                        <MudMenuItem OnClick="() => DuplicateWorkflow(workflow)"
+                                                     Icon="@Icons.Material.Filled.ContentCopy">
+                                            Duplicate
+                                        </MudMenuItem>
+                                        <MudMenuItem OnClick="() => ExportWorkflow(workflow)"
+                                                     Icon="@Icons.Material.Filled.FileDownload">
+                                            Export
+                                        </MudMenuItem>
+                                        <MudDivider />
+                                        <MudMenuItem OnClick="() => DeleteWorkflow(workflow)"
+                                                     Icon="@Icons.Material.Filled.Delete"
+                                                     IconColor="Color.Error">
+                                            Delete
+                                        </MudMenuItem>
+                                    </MudMenu>
+                                </div>
+                            </div>
                         </div>
+
+                        @* Description *@
                         @if (!string.IsNullOrWhiteSpace(workflow.Description))
                         {
                             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2"
@@ -56,16 +123,50 @@ else
                                 @workflow.Description
                             </MudText>
                         }
+
+                        @* Stats row: node count + edge count *@
+                        <div class="d-flex align-center gap-2 mb-2 workflow-stats">
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text"
+                                     Icon="@Icons.Material.Filled.AccountTree">
+                                @workflow.NodeCount nodes
+                            </MudChip>
+                            @if (workflow.EdgeCount > 0)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @workflow.EdgeCount connections
+                                </MudText>
+                            }
+                        </div>
+
+                        @* Last run status *@
+                        @if (workflow.LastRunStatus.HasValue)
+                        {
+                            <div class="d-flex align-center gap-2">
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@GetRunStatusColor(workflow.LastRunStatus.Value)"
+                                         Variant="Variant.Filled"
+                                         Style="font-size: 0.7rem;">
+                                    @workflow.LastRunStatus.Value
+                                </MudChip>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="workflow-stats">
+                                    @FormatTimeAgo(workflow.LastRunAt!.Value)
+                                </MudText>
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="opacity: 0.5;">
+                                Never run
+                            </MudText>
+                        }
+                    </MudCardContent>
+
+                    @* Footer *@
+                    <MudCardContent Class="pa-3 pt-0">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">
-                            Updated @workflow.UpdatedAt.ToString("MMM d, yyyy")
+                            Updated @FormatTimeAgo(workflow.UpdatedAt)
                         </MudText>
                     </MudCardContent>
-                    <MudCardActions>
-                        <div @onclick:stopPropagation="true">
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
-                                           Size="Size.Small" OnClick="@(() => DeleteWorkflow(workflow))" />
-                        </div>
-                    </MudCardActions>
                 </MudCard>
             </MudItem>
         }
@@ -75,6 +176,49 @@ else
 @code {
     private IReadOnlyList<WorkflowListItemDto>? _workflows;
     private readonly string _importInputId = $"import-{Guid.NewGuid():N}";
+
+    // Search / filter / sort state
+    private string _searchTerm = "";
+    private string _filterType = "all";
+    private string _sortBy = "updated";
+
+    private IReadOnlyList<WorkflowListItemDto> FilteredWorkflows
+    {
+        get
+        {
+            if (_workflows is null) return [];
+
+            IEnumerable<WorkflowListItemDto> result = _workflows;
+
+            // Search
+            if (!string.IsNullOrWhiteSpace(_searchTerm))
+            {
+                var term = _searchTerm.Trim();
+                result = result.Where(w =>
+                    w.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    (w.Description?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            // Filter
+            result = _filterType switch
+            {
+                "templates" => result.Where(w => w.IsTemplate),
+                "custom" => result.Where(w => !w.IsTemplate),
+                _ => result,
+            };
+
+            // Sort
+            result = _sortBy switch
+            {
+                "name" => result.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase),
+                "nodes" => result.OrderByDescending(w => w.NodeCount),
+                "lastrun" => result.OrderByDescending(w => w.LastRunAt ?? DateTimeOffset.MinValue),
+                _ => result.OrderByDescending(w => w.UpdatedAt),
+            };
+
+            return result.ToList();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -98,6 +242,38 @@ else
     private void OpenWorkflow(Guid id)
     {
         Navigation.NavigateTo($"/workflows/{id}");
+    }
+
+    private async Task DuplicateWorkflow(WorkflowListItemDto workflow)
+    {
+        try
+        {
+            var duplicate = await WorkflowService.DuplicateAsync(workflow.Id);
+            await LoadWorkflows();
+            Snackbar.Add($"Duplicated as '{duplicate.Name}'.", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Duplicate failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
+    }
+
+    private async Task ExportWorkflow(WorkflowListItemDto workflow)
+    {
+        try
+        {
+            var exportData = await WorkflowService.ExportAsync(workflow.Id);
+            var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("fileDownload.download",
+                $"{workflow.Name}.json", "application/json", base64);
+            Snackbar.Add("Workflow exported.", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", MudBlazor.Severity.Error);
+        }
     }
 
     private async Task DeleteWorkflow(WorkflowListItemDto workflow)
@@ -148,5 +324,24 @@ else
         var result = await dialog.Result;
         if (result is null || result.Canceled) return null;
         return result.Data as string;
+    }
+
+    private static MudBlazor.Color GetRunStatusColor(WorkflowRunStatus status) => status switch
+    {
+        WorkflowRunStatus.Completed => MudBlazor.Color.Success,
+        WorkflowRunStatus.Failed => MudBlazor.Color.Error,
+        WorkflowRunStatus.Running => MudBlazor.Color.Warning,
+        WorkflowRunStatus.Cancelled => MudBlazor.Color.Default,
+        _ => MudBlazor.Color.Info,
+    };
+
+    private static string FormatTimeAgo(DateTimeOffset timestamp)
+    {
+        var diff = DateTimeOffset.UtcNow - timestamp;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 30) return $"{(int)diff.TotalDays}d ago";
+        return timestamp.ToString("MMM d, yyyy");
     }
 }

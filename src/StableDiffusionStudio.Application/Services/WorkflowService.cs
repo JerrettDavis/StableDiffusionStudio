@@ -37,9 +37,15 @@ public class WorkflowService : IWorkflowService
 
     public async Task<IReadOnlyList<WorkflowListItemDto>> ListAsync(CancellationToken ct = default)
     {
-        var workflows = await _repository.ListAsync(ct);
-        return workflows.Select(w => new WorkflowListItemDto(
-            w.Id, w.Name, w.Description, w.IsTemplate, w.CreatedAt, w.UpdatedAt)).ToList();
+        var workflows = await _repository.ListWithChildrenAsync(ct);
+        return workflows.Select(w =>
+        {
+            var lastRun = w.Runs.OrderByDescending(r => r.CreatedAt).FirstOrDefault();
+            return new WorkflowListItemDto(
+                w.Id, w.Name, w.Description, w.IsTemplate, w.CreatedAt, w.UpdatedAt,
+                w.Nodes.Count, w.Edges.Count,
+                lastRun?.Status, lastRun?.CreatedAt);
+        }).ToList();
     }
 
     public async Task UpdateAsync(Guid id, string name, string? description, string? canvasStateJson,

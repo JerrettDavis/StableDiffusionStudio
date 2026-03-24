@@ -66,6 +66,14 @@ window.workflowCanvas = {
             'core.script': '#795548',
         };
 
+        const portTypeColors = {
+            'image': '#2196F3',
+            'mask': '#9C27B0',
+            'text': '#4CAF50',
+            'number': '#FF9800',
+            'metadata': '#607D8B',
+        };
+
         // Custom node component
         function WorkflowNode({ data, id }) {
             const color = categoryColors[data.pluginId] || '#666';
@@ -78,7 +86,7 @@ window.workflowCanvas = {
                     border: `2px solid ${color}`,
                     borderRadius: '8px',
                     padding: '0',
-                    minWidth: '180px',
+                    minWidth: '200px',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                     fontSize: '13px',
                 }
@@ -96,7 +104,10 @@ window.workflowCanvas = {
                         alignItems: 'center',
                         gap: '6px',
                     }
-                }, data.label || data.pluginId),
+                },
+                    data.icon ? h('span', { style: { marginRight: '4px' } }, data.icon) : null,
+                    data.label || data.pluginId
+                ),
                 // Body with ports
                 h('div', { style: { padding: '8px 0' } },
                     // Input handles
@@ -108,7 +119,7 @@ window.workflowCanvas = {
                             id: port.name,
                             style: {
                                 top: `${30 + i * 24}px`,
-                                background: port.required ? color : '#999',
+                                background: portTypeColors[port.dataType] || (port.required ? color : '#999'),
                                 width: '10px',
                                 height: '10px',
                             }
@@ -118,14 +129,32 @@ window.workflowCanvas = {
                     ...inputPorts.map((port, i) =>
                         h('div', {
                             key: `inlabel-${port.name}`,
-                            style: { paddingLeft: '16px', fontSize: '11px', color: 'var(--mud-palette-text-secondary)', lineHeight: '24px' }
-                        }, `${port.required ? '' : '(opt) '}${port.name}`)
+                            style: { paddingLeft: '16px', fontSize: '11px', color: 'var(--mud-palette-text-secondary)', lineHeight: '24px', display: 'flex', alignItems: 'center', gap: '4px' }
+                        },
+                            h('span', {
+                                style: {
+                                    width: '6px', height: '6px', borderRadius: '50%',
+                                    background: portTypeColors[port.dataType] || '#999',
+                                    display: 'inline-block',
+                                }
+                            }),
+                            `${port.required ? '' : '(opt) '}${port.name}`
+                        )
                     ),
                     ...outputPorts.map((port, i) =>
                         h('div', {
                             key: `outlabel-${port.name}`,
-                            style: { paddingRight: '16px', textAlign: 'right', fontSize: '11px', color: 'var(--mud-palette-text-secondary)', lineHeight: '24px' }
-                        }, port.name)
+                            style: { paddingRight: '16px', textAlign: 'right', fontSize: '11px', color: 'var(--mud-palette-text-secondary)', lineHeight: '24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }
+                        },
+                            port.name,
+                            h('span', {
+                                style: {
+                                    width: '6px', height: '6px', borderRadius: '50%',
+                                    background: portTypeColors[port.dataType] || color,
+                                    display: 'inline-block',
+                                }
+                            })
+                        )
                     ),
                     // Output handles
                     ...outputPorts.map((port, i) =>
@@ -136,7 +165,7 @@ window.workflowCanvas = {
                             id: port.name,
                             style: {
                                 top: `${30 + i * 24}px`,
-                                background: color,
+                                background: portTypeColors[port.dataType] || color,
                                 width: '10px',
                                 height: '10px',
                             }
@@ -233,10 +262,33 @@ window.workflowCanvas = {
 
     highlightNode: function (nodeId, color) {
         if (this._setNodes) {
+            // Inject pulse animation CSS if not already present
+            if (!document.getElementById('workflow-pulse-style')) {
+                const style = document.createElement('style');
+                style.id = 'workflow-pulse-style';
+                style.textContent = '@keyframes wf-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }';
+                document.head.appendChild(style);
+            }
+
+            const isRunning = color === '#FFC107';
             this._setNodes(nds => nds.map(n =>
                 n.id === nodeId
-                    ? { ...n, style: { ...n.style, boxShadow: `0 0 12px ${color}` } }
-                    : { ...n, style: { ...n.style, boxShadow: undefined } }
+                    ? {
+                        ...n,
+                        style: {
+                            ...n.style,
+                            boxShadow: `0 0 16px ${color}, 0 0 4px ${color}`,
+                            animation: isRunning ? 'wf-pulse 1.5s ease-in-out infinite' : 'none',
+                        }
+                    }
+                    : {
+                        ...n,
+                        style: {
+                            ...n.style,
+                            boxShadow: undefined,
+                            animation: undefined,
+                        }
+                    }
             ));
         }
     },

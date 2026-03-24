@@ -168,6 +168,77 @@ body {
     transition: opacity 150ms ease;
 }
 
+/* ===== Workflow Page Styles ===== */
+
+/* --- Workflow card enrichments --- */
+.workflow-card {
+  position: relative;
+}
+.workflow-card .workflow-stats {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+
+/* --- Workflow editor: inline editable name --- */
+.workflow-name-edit .mud-input-root {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.workflow-name-edit .mud-input-underline::before {
+  border: none !important;
+}
+.workflow-name-edit:hover .mud-input-underline::before,
+.workflow-name-edit:focus-within .mud-input-underline::before {
+  border-bottom: 1px dashed var(--mud-palette-lines-default) !important;
+}
+
+/* --- Node palette item hover --- */
+.node-palette-item {
+  border-radius: var(--studio-radius) !important;
+  transition: background var(--studio-transition) !important;
+}
+.node-palette-item:hover {
+  background: rgba(255,255,255,0.05) !important;
+}
+
+/* --- Run timeline duration values --- */
+.run-duration {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--mud-palette-text-secondary);
+}
+
+/* --- Workflow node pulse animation (canvas) --- */
+@keyframes wf-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* --- Workflow card: prevent hover lift on context menu --- */
+.workflow-card .mud-menu {
+  z-index: 10;
+}
+
+/* --- Workflow editor: description field subtle styling --- */
+.workflow-description .mud-input-underline::before {
+  border: none !important;
+}
+.workflow-description:hover .mud-input-underline::before,
+.workflow-description:focus-within .mud-input-underline::before {
+  border-bottom: 1px dashed var(--mud-palette-lines-default) !important;
+}
+
+/* --- Workflow editor: expansion panel cleanup --- */
+.workflow-editor .mud-expansion-panel {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.workflow-editor .mud-expansion-panel::before {
+  display: none;
+}
+
 /* --- Blazor defaults --- */
 h1:focus {
   outline: none;

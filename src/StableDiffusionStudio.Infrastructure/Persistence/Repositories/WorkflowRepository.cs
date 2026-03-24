@@ -41,6 +41,18 @@ public class WorkflowRepository : IWorkflowRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<Workflow>> ListWithChildrenAsync(CancellationToken ct = default)
+    {
+        return await _context.Workflows
+            .Include(w => w.Nodes)
+            .Include(w => w.Edges)
+            .Include(w => w.Runs)
+            .AsNoTracking()
+            .AsSplitQuery()
+            .OrderByDescending(w => w.UpdatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task AddAsync(Workflow workflow, CancellationToken ct = default)
     {
         _context.Workflows.Add(workflow);
