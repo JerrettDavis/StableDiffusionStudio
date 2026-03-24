@@ -20,7 +20,9 @@
         </div>
     </TitleContent>
     <DialogContent>
-        <MudImage Src="@GetImageUrl()" Style="max-width:100%;max-height:500px" Class="mb-3" />
+        <a href="@GetImageUrl()" target="_blank" title="Open full size in new tab" style="cursor: zoom-in;">
+            <MudImage Src="@GetImageUrl()" Style="max-width:100%;max-height:500px" Class="mb-3" />
+        </a>
         <MudSimpleTable Dense="true" Striped="true">
             <tbody>
                 <tr><td><strong>Prompt</strong></td><td style="word-break:break-all">@Job.Parameters.PositivePrompt</td></tr>
@@ -86,13 +88,37 @@
             </tbody>
         </MudSimpleTable>
 
-        <div class="d-flex gap-2 mt-3">
+        <div class="d-flex gap-2 mt-3 flex-wrap">
             <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy"
                        OnClick="CopySeed">Copy Seed</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy"
                        OnClick="CopyPrompt">Copy Prompt</MudButton>
             <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen"
                        OnClick="CopyFilePath">Copy File Path</MudButton>
+            <MudMenu Label="Set As Preview" StartIcon="@Icons.Material.Filled.Image"
+                     Variant="Variant.Outlined" Size="Size.Small" Dense="true"
+                     AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <MudMenuItem OnClick="() => SetAsPreview(Job.Parameters.CheckpointModelId, _modelName)"
+                             Icon="@Icons.Material.Filled.ViewInAr">
+                    Checkpoint: @(_modelName ?? "Unknown")
+                </MudMenuItem>
+                @if (Job.Parameters.VaeModelId.HasValue)
+                {
+                    <MudMenuItem OnClick="() => SetAsPreview(Job.Parameters.VaeModelId.Value, _vaeName)"
+                                 Icon="@Icons.Material.Filled.Tune">
+                        VAE: @(_vaeName ?? "Unknown")
+                    </MudMenuItem>
+                }
+                @for (var i = 0; i < Job.Parameters.Loras.Count; i++)
+                {
+                    var lora = Job.Parameters.Loras[i];
+                    var loraName = i < _loraNames.Count ? _loraNames[i] : lora.ModelId.ToString()[..8];
+                    <MudMenuItem OnClick="() => SetAsPreview(lora.ModelId, loraName)"
+                                 Icon="@Icons.Material.Filled.Layers">
+                        LoRA: @loraName
+                    </MudMenuItem>
+                }
+            </MudMenu>
         </div>
     </DialogContent>
     <DialogActions>
@@ -210,6 +236,19 @@
         await GenerationService.ConcealImageAsync(Image.Id);
         Image = Image with { IsRevealed = false };
         StateHasChanged();
+    }
+
+    private async Task SetAsPreview(Guid modelId, string? modelName)
+    {
+        try
+        {
+            await ModelCatalogService.SetPreviewImageAsync(modelId, Image.FilePath);
+            Snackbar.Add($"Preview set for {modelName ?? "model"}", MudBlazor.Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to set preview: {ex.Message}", MudBlazor.Severity.Error);
+        }
     }
 
     private async Task DeleteImage()

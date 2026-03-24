@@ -111,6 +111,29 @@ public class ModelCatalogService : IModelCatalogService
         await _repository.UpsertAsync(model, ct);
     }
 
+    public async Task SetPreviewImageAsync(Guid modelId, string sourceImagePath, CancellationToken ct = default)
+    {
+        if (!File.Exists(sourceImagePath))
+            throw new FileNotFoundException("Source image not found.", sourceImagePath);
+
+        var model = await _repository.GetByIdAsync(modelId, ct)
+            ?? throw new KeyNotFoundException($"Model {modelId} not found.");
+
+        // Copy the image next to the model file as {modelFileName}.preview.png
+        var modelDir = Path.GetDirectoryName(model.FilePath)!;
+        var modelName = Path.GetFileNameWithoutExtension(model.FilePath);
+        var ext = Path.GetExtension(sourceImagePath).ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext)) ext = ".png";
+        var previewPath = Path.Combine(modelDir, $"{modelName}.preview{ext}");
+
+        File.Copy(sourceImagePath, previewPath, overwrite: true);
+
+        model.UpdateMetadata(previewImagePath: previewPath);
+        await _repository.UpsertAsync(model, ct);
+
+        _logger?.LogInformation("Set preview image for model {ModelId} from {Source}", modelId, sourceImagePath);
+    }
+
     private static ModelRecordDto ToDto(ModelRecord r) =>
         new(r.Id, r.Title, r.Type, r.ModelFamily, r.Format, r.FilePath, r.FileSize,
             r.Source, r.Tags, r.Description, r.PreviewImagePath, r.CompatibilityHints, r.Status, r.DetectedAt,
