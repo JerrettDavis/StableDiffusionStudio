@@ -112,6 +112,9 @@ builder.Services.AddHostedService<NsfwImageScannerService>();
 // Image interrogation (Ollama vision models)
 builder.Services.AddHttpClient<IImageInterrogator, OllamaImageInterrogator>();
 
+// Prompt assistant (Ollama text models)
+builder.Services.AddHttpClient<IPromptAssistantService, OllamaPromptAssistantService>();
+
 // Generation services
 builder.Services.AddScoped<IGenerationService, GenerationService>();
 builder.Services.AddScoped<IGenerationJobRepository, GenerationJobRepository>();

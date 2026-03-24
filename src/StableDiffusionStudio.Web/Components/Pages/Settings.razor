@@ -14,6 +14,7 @@
 @inject IContentSafetyService ContentSafety
 @inject IOutputSettingsProvider OutputSettingsProvider
 @inject IImageInterrogator ImageInterrogator
+@inject IPromptAssistantService PromptAssistant
 @inject ISettingsProvider SettingsProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -501,6 +502,62 @@
         </div>
     </MudTabPanel>
 
+    <MudTabPanel Text="Prompt Assistant" Icon="@Icons.Material.Filled.AutoFixHigh">
+        <MudText Typo="Typo.h6" Class="mb-4">AI Prompt Assistant</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Use a local Ollama model to generate and refine prompts. Configure the instance,
+            model, and system prompts below. Use template variables to give context about the current generation setup.
+        </MudText>
+
+        <MudTextField T="string" @bind-Value="_promptAssistantUrl" Label="Ollama URL"
+                      Placeholder="http://localhost:11434" Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="The address where Ollama is running. Can be the same instance as the interrogation model." />
+
+        <MudTextField T="string" @bind-Value="_promptAssistantModel" Label="Text Model"
+                      Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="A text-only model (e.g., llama3.2, mistral, gemma2). Does not need vision capabilities." />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Prompt Templates</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-3">
+            Available variables: <code>{{model}}</code> <code>{{family}}</code> <code>{{vae}}</code>
+            <code>{{loras}}</code> <code>{{width}}</code> <code>{{height}}</code>
+            <code>{{steps}}</code> <code>{{cfg}}</code> <code>{{sampler}}</code>
+            <code>{{scheduler}}</code> <code>{{prompt}}</code> <code>{{negative}}</code>
+        </MudText>
+
+        <MudTextField T="string" @bind-Value="_promptAssistantGenerate" Label="Generate Positive Prompt"
+                      Lines="3" Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="Template used when generating a random prompt from scratch." />
+
+        <MudTextField T="string" @bind-Value="_promptAssistantRefine" Label="Refine Positive Prompt"
+                      Lines="3" Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="Template used when improving an existing prompt. Use {{prompt}} for the current text." />
+
+        <MudTextField T="string" @bind-Value="_promptAssistantGenerateNeg" Label="Generate Negative Prompt"
+                      Lines="3" Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="Template used when generating a negative prompt from scratch." />
+
+        <MudTextField T="string" @bind-Value="_promptAssistantRefineNeg" Label="Refine Negative Prompt"
+                      Lines="3" Variant="Variant.Outlined" Class="mb-3"
+                      HelperText="Template used when improving an existing negative prompt. Use {{negative}} for the current text." />
+
+        <div class="d-flex gap-2 mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePromptAssistantSettings">
+                Save Prompt Assistant Settings
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="TestPromptAssistantConnection">
+                Test Connection
+            </MudButton>
+        </div>
+
+        <MudDivider Class="my-4" />
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Prompt generation uses a text-only Ollama model (no vision needed). The model receives the template
+            with variables substituted for your current generation setup, so it can tailor prompts to your specific
+            checkpoint, LoRAs, and resolution.
+        </MudText>
+    </MudTabPanel>
+
     <MudTabPanel Text="Appearance" Icon="@Icons.Material.Filled.Palette">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-3">
             Appearance settings will be available in a future update.
@@ -770,6 +827,14 @@
     private string _interrogateModel = "llava";
     private string _interrogateSystemPrompt = StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings.Default.SystemPrompt;
 
+    // Prompt assistant settings fields
+    private string _promptAssistantUrl = "http://localhost:11434";
+    private string _promptAssistantModel = "llama3.2";
+    private string _promptAssistantGenerate = "";
+    private string _promptAssistantRefine = "";
+    private string _promptAssistantGenerateNeg = "";
+    private string _promptAssistantRefineNeg = "";
+
     // Model rules fields
     private IReadOnlyDictionary<string, ModelRuleSet>? _familyRules;
     private string? _ruleEditFamily;
@@ -834,6 +899,7 @@
             await LoadInferenceSettings();
             await LoadOutputSettings();
             await LoadInterrogationSettings();
+            await LoadPromptAssistantSettings();
             await LoadDataManagement();
             await LoadPlugins();
         }
@@ -1185,6 +1251,45 @@
             Snackbar.Add($"Connected to Ollama at {_interrogateUrl}", MudBlazor.Severity.Success);
         else
             Snackbar.Add($"Could not connect to Ollama at {_interrogateUrl}. Is it running?", MudBlazor.Severity.Error);
+    }
+
+    // Prompt assistant settings methods
+
+    private async Task LoadPromptAssistantSettings()
+    {
+        var settings = await SettingsProvider.GetAsync<StableDiffusionStudio.Domain.ValueObjects.PromptAssistantSettings>("PromptAssistantSettings");
+        settings ??= StableDiffusionStudio.Domain.ValueObjects.PromptAssistantSettings.Default;
+        _promptAssistantUrl = settings.OllamaUrl;
+        _promptAssistantModel = settings.Model;
+        _promptAssistantGenerate = settings.GeneratePrompt;
+        _promptAssistantRefine = settings.RefinePrompt;
+        _promptAssistantGenerateNeg = settings.GenerateNegativePrompt;
+        _promptAssistantRefineNeg = settings.RefineNegativePrompt;
+    }
+
+    private async Task SavePromptAssistantSettings()
+    {
+        var settings = new StableDiffusionStudio.Domain.ValueObjects.PromptAssistantSettings
+        {
+            OllamaUrl = _promptAssistantUrl.TrimEnd('/'),
+            Model = _promptAssistantModel.Trim(),
+            GeneratePrompt = _promptAssistantGenerate,
+            RefinePrompt = _promptAssistantRefine,
+            GenerateNegativePrompt = _promptAssistantGenerateNeg,
+            RefineNegativePrompt = _promptAssistantRefineNeg,
+        };
+        await SettingsProvider.SetAsync("PromptAssistantSettings", settings);
+        Snackbar.Add("Prompt assistant settings saved", MudBlazor.Severity.Success);
+    }
+
+    private async Task TestPromptAssistantConnection()
+    {
+        await SavePromptAssistantSettings();
+        var available = await PromptAssistant.IsAvailableAsync();
+        if (available)
+            Snackbar.Add($"Connected to Ollama at {_promptAssistantUrl}", MudBlazor.Severity.Success);
+        else
+            Snackbar.Add($"Could not connect to Ollama at {_promptAssistantUrl}. Is it running?", MudBlazor.Severity.Error);
     }
 
     // Data management methods

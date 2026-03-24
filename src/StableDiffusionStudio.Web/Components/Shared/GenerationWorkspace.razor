@@ -17,6 +17,7 @@
 @inject IDialogService DialogService
 @inject IPromptHistoryService PromptHistoryService
 @inject IImageInterrogator ImageInterrogator
+@inject IPromptAssistantService PromptAssistant
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -174,10 +175,28 @@
                 }
             </div>
 
-            <MudTextField T="string" Label="Prompt" Lines="4" Value="_positivePrompt"
-                          ValueChanged="OnPositivePromptChanged"
-                          Variant="Variant.Outlined" Class="mt-3"
-                          Placeholder="Describe what you want to generate..." />
+            <div class="d-flex align-end gap-1 mt-3">
+                <MudTextField T="string" Label="Prompt" Lines="4"
+                              Value="_positivePrompt"
+                              ValueChanged="OnPositivePromptChanged"
+                              Variant="Variant.Outlined"
+                              Placeholder="Describe what you want to generate..."
+                              Style="flex: 1;" />
+                <div class="d-flex flex-column gap-1 mb-1">
+                    <MudTooltip Text="Generate random prompt (AI)" Placement="Placement.Left">
+                        <MudIconButton Icon="@Icons.Material.Filled.Casino" Size="Size.Small"
+                                       Color="Color.Primary" Variant="Variant.Outlined"
+                                       OnClick="GeneratePositivePrompt"
+                                       Disabled="_isGeneratingPrompt" />
+                    </MudTooltip>
+                    <MudTooltip Text="Refine current prompt (AI)" Placement="Placement.Left">
+                        <MudIconButton Icon="@Icons.Material.Filled.AutoFixHigh" Size="Size.Small"
+                                       Color="Color.Secondary" Variant="Variant.Outlined"
+                                       OnClick="RefinePositivePrompt"
+                                       Disabled="@(_isRefiningPrompt || string.IsNullOrWhiteSpace(_positivePrompt))" />
+                    </MudTooltip>
+                </div>
+            </div>
             <MudText Typo="Typo.caption" Class="mt-1"
                      Color="@(_positiveTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
                 <span class="param-value">@_positiveTokenCount</span>/@_tokenLimit tokens
@@ -189,10 +208,28 @@
                 </MudText>
             }
 
-            <MudTextField T="string" Label="Negative Prompt" Lines="2" Value="_negativePrompt"
-                          ValueChanged="OnNegativePromptChanged"
-                          Variant="Variant.Outlined" Class="mt-3"
-                          Placeholder="What to avoid..." />
+            <div class="d-flex align-end gap-1 mt-3">
+                <MudTextField T="string" Label="Negative Prompt" Lines="2"
+                              Value="_negativePrompt"
+                              ValueChanged="OnNegativePromptChanged"
+                              Variant="Variant.Outlined"
+                              Placeholder="What to avoid..."
+                              Style="flex: 1;" />
+                <div class="d-flex flex-column gap-1 mb-1">
+                    <MudTooltip Text="Generate negative prompt (AI)" Placement="Placement.Left">
+                        <MudIconButton Icon="@Icons.Material.Filled.Casino" Size="Size.Small"
+                                       Color="Color.Primary" Variant="Variant.Outlined"
+                                       OnClick="GenerateNegativePrompt"
+                                       Disabled="_isGeneratingNegative" />
+                    </MudTooltip>
+                    <MudTooltip Text="Refine negative prompt (AI)" Placement="Placement.Left">
+                        <MudIconButton Icon="@Icons.Material.Filled.AutoFixHigh" Size="Size.Small"
+                                       Color="Color.Secondary" Variant="Variant.Outlined"
+                                       OnClick="RefineNegativePrompt"
+                                       Disabled="@(_isRefiningNegative || string.IsNullOrWhiteSpace(_negativePrompt))" />
+                    </MudTooltip>
+                </div>
+            </div>
             <MudText Typo="Typo.caption" Class="mt-1"
                      Color="@(_negativeTokenCount > _tokenLimit ? Color.Error : Color.Secondary)">
                 <span class="param-value">@_negativeTokenCount</span>/@_tokenLimit tokens
@@ -356,6 +393,10 @@
     private HubConnection? _hubConnection;
     private Timer? _progressTimer;
     private bool _isInterrogating;
+    private bool _isGeneratingPrompt;
+    private bool _isRefiningPrompt;
+    private bool _isGeneratingNegative;
+    private bool _isRefiningNegative;
     private int _initImageWidth;
     private int _initImageHeight;
     private (int W, int H)? _suggestedResolution;
@@ -961,6 +1002,152 @@
         RecalculateTokenCounts();
         Snackbar.Add("Prompt generated from image", Severity.Success);
         StateHasChanged();
+    }
+
+    private async Task<PromptAssistantContext> BuildPromptContextAsync()
+    {
+        // Resolve checkpoint display name
+        string? modelName = null;
+        string? vaeName = null;
+        List<string> loraNames = [];
+
+        if (_checkpointId.HasValue)
+        {
+            var model = await ModelCatalogService.GetByIdAsync(_checkpointId.Value);
+            modelName = model?.Title;
+        }
+
+        if (_vaeId.HasValue)
+        {
+            var vae = await ModelCatalogService.GetByIdAsync(_vaeId.Value);
+            vaeName = vae?.Title;
+        }
+
+        foreach (var lora in _loras)
+        {
+            var loraModel = await ModelCatalogService.GetByIdAsync(lora.ModelId);
+            loraNames.Add(loraModel?.Title ?? lora.ModelId.ToString());
+        }
+
+        return new PromptAssistantContext(
+            ModelName: modelName,
+            ModelFamily: _currentModelFamily?.ToString(),
+            VaeName: vaeName,
+            LoraNames: loraNames,
+            Width: _width,
+            Height: _height,
+            Steps: _steps,
+            CfgScale: _cfgScale,
+            Sampler: _sampler.ToString(),
+            Scheduler: _scheduler.ToString(),
+            CurrentPositivePrompt: _positivePrompt,
+            CurrentNegativePrompt: _negativePrompt);
+    }
+
+    private async Task GeneratePositivePrompt()
+    {
+        _isGeneratingPrompt = true;
+        StateHasChanged();
+        try
+        {
+            var context = await BuildPromptContextAsync();
+            var result = await PromptAssistant.GeneratePromptAsync(context);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                _positivePrompt = result;
+                RecalculateTokenCounts();
+                Snackbar.Add("Prompt generated", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Prompt generation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGeneratingPrompt = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefinePositivePrompt()
+    {
+        if (string.IsNullOrWhiteSpace(_positivePrompt)) return;
+        _isRefiningPrompt = true;
+        StateHasChanged();
+        try
+        {
+            var context = await BuildPromptContextAsync();
+            var result = await PromptAssistant.RefinePromptAsync(_positivePrompt, context);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                _positivePrompt = result;
+                RecalculateTokenCounts();
+                Snackbar.Add("Prompt refined", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Prompt refinement failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isRefiningPrompt = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateNegativePrompt()
+    {
+        _isGeneratingNegative = true;
+        StateHasChanged();
+        try
+        {
+            var context = await BuildPromptContextAsync();
+            var result = await PromptAssistant.GenerateNegativePromptAsync(context);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                _negativePrompt = result;
+                RecalculateTokenCounts();
+                Snackbar.Add("Negative prompt generated", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Negative prompt generation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isGeneratingNegative = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefineNegativePrompt()
+    {
+        if (string.IsNullOrWhiteSpace(_negativePrompt)) return;
+        _isRefiningNegative = true;
+        StateHasChanged();
+        try
+        {
+            var context = await BuildPromptContextAsync();
+            var result = await PromptAssistant.RefineNegativePromptAsync(_negativePrompt, context);
+            if (!string.IsNullOrWhiteSpace(result))
+            {
+                _negativePrompt = result;
+                RecalculateTokenCounts();
+                Snackbar.Add("Negative prompt refined", Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Negative prompt refinement failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isRefiningNegative = false;
+            StateHasChanged();
+        }
     }
 
     private static string FormatElapsed(double totalSeconds)
