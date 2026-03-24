@@ -23,9 +23,10 @@
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
   </PropertyGroup>
 
-  <!-- StableDiffusion.NET.Backend.Cpu ships multiple optimized linux variants with identical output names.
-       Keep publish moving in CI while backend selects the right variant at runtime. -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+  <!-- StableDiffusion.NET.Backend.Cpu ships multiple AVX-optimized native binaries with identical
+       filenames under different subdirectories (avx/, avx2/, avx512/). This causes NETSDK1152 on
+       self-contained publish for all platforms. The backend selects the right variant at runtime. -->
+  <PropertyGroup>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
 
