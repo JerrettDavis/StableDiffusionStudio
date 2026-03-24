@@ -11,6 +11,7 @@
 @inject NavigationManager Nav
 @inject IGenerationService GenerationService
 @inject IModelCatalogService ModelCatalogService
+@inject IModelRuleService ModelRuleService
 @inject IInferenceBackend InferenceBackend
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -244,6 +245,22 @@
                 }
             </MudButton>
             <MudText Typo="Typo.caption" Align="Align.Center" Color="Color.Secondary" Class="mt-1">Ctrl+Enter</MudText>
+
+            @if (_checkpointId is not null)
+            {
+                <div class="d-flex gap-1 mt-2">
+                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Save"
+                               OnClick="SaveAsModelDefault">
+                        Save as Model Default
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.SaveAs"
+                               OnClick="SaveAsFamilyDefault">
+                        Save as Family Default
+                    </MudButton>
+                </div>
+            }
 
             @if (_isGenerating)
             {
@@ -481,9 +498,11 @@
             {
                 _currentModelFamily = model.ModelFamily;
                 _tokenLimit = PromptTokenEstimator.GetTokenLimit(model.ModelFamily.ToString());
-                var preset = ModelFamilyPresets.GetPreset(model.ModelFamily);
-                ApplyPreset(preset);
-                Snackbar.Add($"Applied {preset.Name} preset", Severity.Info);
+
+                // Apply model rules (cascade: app defaults → family → checkpoint)
+                var resolvedRules = await ModelRuleService.ResolveAsync(modelId.Value, model.ModelFamily.ToString());
+                ApplyModelRules(resolvedRules);
+                Snackbar.Add($"Applied rules for {model.ModelFamily}", Severity.Info);
             }
         }
         else
@@ -815,6 +834,58 @@
         _positiveTokenCount = PromptTokenEstimator.EstimateTokens(_positivePrompt);
         _negativeTokenCount = PromptTokenEstimator.EstimateTokens(_negativePrompt);
         _tokenLimit = PromptTokenEstimator.GetTokenLimit(_currentModelFamily?.ToString());
+    }
+
+    private void ApplyModelRules(ModelRuleSet rules)
+    {
+        if (rules.Steps.HasValue) _steps = rules.Steps.Value;
+        if (rules.CfgScale.HasValue) _cfgScale = rules.CfgScale.Value;
+        if (rules.Sampler.HasValue) _sampler = rules.Sampler.Value;
+        if (rules.Scheduler.HasValue) _scheduler = rules.Scheduler.Value;
+        if (rules.ClipSkip.HasValue) _clipSkip = rules.ClipSkip.Value;
+        if (rules.Eta.HasValue) _eta = rules.Eta.Value;
+        if (rules.Width.HasValue) _width = rules.Width.Value;
+        if (rules.Height.HasValue) _height = rules.Height.Value;
+        if (rules.DenoisingStrength.HasValue) _denoisingStrength = rules.DenoisingStrength.Value;
+        if (rules.HiresFixEnabled.HasValue) _hiresFixEnabled = rules.HiresFixEnabled.Value;
+        if (rules.HiresUpscaleFactor.HasValue) _hiresUpscaleFactor = rules.HiresUpscaleFactor.Value;
+        if (rules.HiresSteps.HasValue) _hiresSteps = rules.HiresSteps.Value;
+        if (rules.HiresDenoisingStrength.HasValue) _hiresDenoisingStrength = rules.HiresDenoisingStrength.Value;
+        if (!string.IsNullOrEmpty(rules.DefaultNegativePrompt) && string.IsNullOrEmpty(_negativePrompt))
+            _negativePrompt = rules.DefaultNegativePrompt;
+    }
+
+    private ModelRuleSet BuildCurrentRuleSet() => new()
+    {
+        Steps = _steps,
+        CfgScale = _cfgScale,
+        Sampler = _sampler,
+        Scheduler = _scheduler,
+        ClipSkip = _clipSkip,
+        Eta = _eta,
+        Width = _width,
+        Height = _height,
+        DenoisingStrength = _denoisingStrength,
+        HiresFixEnabled = _hiresFixEnabled,
+        HiresUpscaleFactor = _hiresUpscaleFactor,
+        HiresSteps = _hiresSteps,
+        HiresDenoisingStrength = _hiresDenoisingStrength,
+        DefaultNegativePrompt = _negativePrompt,
+    };
+
+    private async Task SaveAsModelDefault()
+    {
+        if (_checkpointId is null) return;
+        await ModelRuleService.SetCheckpointRuleAsync(_checkpointId.Value, BuildCurrentRuleSet());
+        Snackbar.Add("Saved as default for this checkpoint.", Severity.Success);
+    }
+
+    private async Task SaveAsFamilyDefault()
+    {
+        if (_currentModelFamily is null) return;
+        var family = _currentModelFamily.Value.ToString();
+        await ModelRuleService.SetFamilyRuleAsync(family, BuildCurrentRuleSet());
+        Snackbar.Add($"Saved as default for {family} family.", Severity.Success);
     }
 
     private void OnInitImageDimensions((int Width, int Height) dims)

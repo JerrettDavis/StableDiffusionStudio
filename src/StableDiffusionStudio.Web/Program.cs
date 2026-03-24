@@ -65,6 +65,8 @@ builder.Services.AddScoped<IModelCatalogRepository, ModelCatalogRepository>();
 builder.Services.AddScoped<IModelCatalogService, ModelCatalogService>();
 builder.Services.AddScoped<IFluxComponentResolver, FluxComponentResolver>();
 
+builder.Services.AddScoped<IModelRuleService, ModelRuleService>();
+
 // Model providers
 builder.Services.AddScoped<IModelProvider, LocalFolderProvider>();
 builder.Services.AddScoped<IModelProvider, HuggingFaceProvider>();
@@ -148,7 +150,8 @@ builder.Services.AddMcpServer(options =>
     .WithTools<ModelTools>()
     .WithTools<WorkflowTools>()
     .WithTools<PresetTools>()
-    .WithTools<UtilityTools>();
+    .WithTools<UtilityTools>()
+    .WithTools<ModelRuleTools>();
 
 // Blazor
 builder.Services.AddRazorComponents()

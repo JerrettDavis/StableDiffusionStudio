@@ -9,6 +9,7 @@
 @inject IProjectService ProjectService
 @inject IProviderCredentialStore CredentialStore
 @inject IInferenceSettingsProvider InferenceSettingsProvider
+@inject IModelRuleService ModelRuleService
 @inject IModelCatalogService CatalogService
 @inject IContentSafetyService ContentSafety
 @inject IOutputSettingsProvider OutputSettingsProvider
@@ -150,6 +151,133 @@
                     </MudCardContent>
                 </MudCard>
             }
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Model Rules" Icon="@Icons.Material.Filled.Tune">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Define default generation settings per model family or individual checkpoint.
+            Rules cascade: App Defaults → Family Rule → Checkpoint Rule.
+            Only set values you want to override — leave others blank to inherit.
+        </MudText>
+
+        @* Family Rules *@
+        <MudText Typo="Typo.h6" Class="mb-2">Family Rules</MudText>
+        <div class="d-flex gap-2 mb-3">
+            <MudAutocomplete T="string" Label="Add/Edit Family Rule" @bind-Value="_ruleEditFamily"
+                             SearchFunc="SearchFamilies" Variant="Variant.Outlined" Margin="Margin.Dense"
+                             Style="max-width:300px;" CoerceText="false" CoerceValue="false" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                       OnClick="EditFamilyRule" Disabled="string.IsNullOrWhiteSpace(_ruleEditFamily)">
+                Edit
+            </MudButton>
+        </div>
+
+        @if (_familyRules is not null && _familyRules.Count > 0)
+        {
+            <MudSimpleTable Dense="true" Striped="true" Class="mb-4">
+                <thead>
+                    <tr>
+                        <th>Family</th>
+                        <th>Steps</th>
+                        <th>CFG</th>
+                        <th>Size</th>
+                        <th>Sampler</th>
+                        <th>Clip Skip</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (family, rule) in _familyRules)
+                    {
+                        <tr>
+                            <td><strong>@family</strong></td>
+                            <td>@(rule.Steps?.ToString() ?? "-")</td>
+                            <td>@(rule.CfgScale?.ToString("F1") ?? "-")</td>
+                            <td>@(rule.Width.HasValue ? $"{rule.Width}x{rule.Height}" : "-")</td>
+                            <td>@(rule.Sampler?.ToString() ?? "-")</td>
+                            <td>@(rule.ClipSkip?.ToString() ?? "-")</td>
+                            <td>
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                               OnClick="() => EditFamilyRuleByName(family)" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                               OnClick="() => DeleteFamilyRule(family)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+
+        @* Rule Editor Dialog (inline) *@
+        @if (_editingRule is not null)
+        {
+            <MudPaper Class="pa-4 mb-4" Elevation="2" Style="border:2px solid var(--mud-palette-primary);">
+                <MudText Typo="Typo.subtitle1" Class="mb-3">
+                    Editing: @(_editingRuleTarget ?? "New Rule")
+                    @if (_editingRuleIsCheckpoint) { <MudChip T="string" Size="Size.Small" Color="Color.Info">Checkpoint</MudChip> }
+                    else { <MudChip T="string" Size="Size.Small" Color="Color.Primary">Family</MudChip> }
+                </MudText>
+                <MudGrid>
+                    <MudItem xs="3">
+                        <MudNumericField T="int?" @bind-Value="_editingRule.Steps" Label="Steps"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="150" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="double?" @bind-Value="_editingRule.CfgScale" Label="CFG Scale"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="30" Step="0.5" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudSelect T="Domain.Enums.Sampler?" @bind-Value="_editingRule.Sampler" Label="Sampler"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                            @foreach (var s in Enum.GetValues<Domain.Enums.Sampler>())
+                            {
+                                <MudSelectItem T="Domain.Enums.Sampler?" Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudSelect T="Domain.Enums.Scheduler?" @bind-Value="_editingRule.Scheduler" Label="Scheduler"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                            @foreach (var s in Enum.GetValues<Domain.Enums.Scheduler>())
+                            {
+                                <MudSelectItem T="Domain.Enums.Scheduler?" Value="@s">@s</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="int?" @bind-Value="_editingRule.Width" Label="Width"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="int?" @bind-Value="_editingRule.Height" Label="Height"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="64" Step="64" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="int?" @bind-Value="_editingRule.ClipSkip" Label="Clip Skip"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="12" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="double?" @bind-Value="_editingRule.Eta" Label="Eta"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="1" Step="0.1" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudTextField T="string" @bind-Value="_editingRule.DefaultNegativePrompt" Label="Default Negative Prompt"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudNumericField T="double?" @bind-Value="_editingRule.DenoisingStrength" Label="Denoising"
+                                         Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" Max="1" Step="0.05" />
+                    </MudItem>
+                    <MudItem xs="3">
+                        <MudSwitch T="bool?" @bind-Value="_editingRule.HiresFixEnabled" Label="Hires Fix" Color="Color.Primary" />
+                    </MudItem>
+                </MudGrid>
+                <div class="d-flex gap-2 mt-3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveEditingRule">Save</MudButton>
+                    <MudButton Variant="Variant.Outlined" OnClick="CancelEditingRule">Cancel</MudButton>
+                </div>
+            </MudPaper>
         }
     </MudTabPanel>
 
@@ -642,6 +770,45 @@
     private string _interrogateModel = "llava";
     private string _interrogateSystemPrompt = StableDiffusionStudio.Domain.ValueObjects.InterrogationSettings.Default.SystemPrompt;
 
+    // Model rules fields
+    private IReadOnlyDictionary<string, ModelRuleSet>? _familyRules;
+    private string? _ruleEditFamily;
+    private MutableRuleSet? _editingRule;
+    private string? _editingRuleTarget;
+    private bool _editingRuleIsCheckpoint;
+
+    // Mutable wrapper for editing (records are immutable)
+    private class MutableRuleSet
+    {
+        public int? Steps { get; set; }
+        public double? CfgScale { get; set; }
+        public Domain.Enums.Sampler? Sampler { get; set; }
+        public Domain.Enums.Scheduler? Scheduler { get; set; }
+        public int? ClipSkip { get; set; }
+        public double? Eta { get; set; }
+        public int? Width { get; set; }
+        public int? Height { get; set; }
+        public double? DenoisingStrength { get; set; }
+        public bool? HiresFixEnabled { get; set; }
+        public string? DefaultNegativePrompt { get; set; }
+
+        public static MutableRuleSet From(ModelRuleSet r) => new()
+        {
+            Steps = r.Steps, CfgScale = r.CfgScale, Sampler = r.Sampler, Scheduler = r.Scheduler,
+            ClipSkip = r.ClipSkip, Eta = r.Eta, Width = r.Width, Height = r.Height,
+            DenoisingStrength = r.DenoisingStrength, HiresFixEnabled = r.HiresFixEnabled,
+            DefaultNegativePrompt = r.DefaultNegativePrompt
+        };
+
+        public ModelRuleSet ToRuleSet() => new()
+        {
+            Steps = Steps, CfgScale = CfgScale, Sampler = Sampler, Scheduler = Scheduler,
+            ClipSkip = ClipSkip, Eta = Eta, Width = Width, Height = Height,
+            DenoisingStrength = DenoisingStrength, HiresFixEnabled = HiresFixEnabled,
+            DefaultNegativePrompt = DefaultNegativePrompt
+        };
+    }
+
     // Inference settings fields
     private int _inferenceSettings_ThreadCount;
     private bool _inferenceSettings_FlashAttention;
@@ -661,6 +828,7 @@
         {
             await LoadRoots();
             await LoadDownloadLocations();
+            await LoadModelRules();
             await LoadProviders();
             await LoadContentSafety();
             await LoadInferenceSettings();
@@ -704,6 +872,62 @@
         _downloadLocationSettings = new DownloadLocationSettings { ProviderRoots = roots };
         await SettingsProvider.SetAsync("DownloadLocations", _downloadLocationSettings);
         Snackbar.Add("Download locations saved.", MudBlazor.Severity.Success);
+    }
+
+    private async Task LoadModelRules()
+    {
+        _familyRules = await ModelRuleService.ListFamilyRulesAsync();
+    }
+
+    private async Task<IEnumerable<string>> SearchFamilies(string? value, CancellationToken ct)
+    {
+        var families = await ModelRuleService.GetKnownFamiliesAsync(ct);
+        if (string.IsNullOrWhiteSpace(value)) return families;
+        return families.Where(f => f.Contains(value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task EditFamilyRule()
+    {
+        if (string.IsNullOrWhiteSpace(_ruleEditFamily)) return;
+        await EditFamilyRuleByName(_ruleEditFamily);
+    }
+
+    private async Task EditFamilyRuleByName(string family)
+    {
+        var existing = await ModelRuleService.GetFamilyRuleAsync(family);
+        _editingRule = existing is not null ? MutableRuleSet.From(existing) : new MutableRuleSet();
+        _editingRuleTarget = family;
+        _editingRuleIsCheckpoint = false;
+        _ruleEditFamily = family;
+    }
+
+    private async Task SaveEditingRule()
+    {
+        if (_editingRule is null || _editingRuleTarget is null) return;
+        var ruleSet = _editingRule.ToRuleSet();
+
+        if (_editingRuleIsCheckpoint && Guid.TryParse(_editingRuleTarget, out var cpId))
+            await ModelRuleService.SetCheckpointRuleAsync(cpId, ruleSet);
+        else
+            await ModelRuleService.SetFamilyRuleAsync(_editingRuleTarget, ruleSet);
+
+        _editingRule = null;
+        _editingRuleTarget = null;
+        await LoadModelRules();
+        Snackbar.Add("Model rule saved.", MudBlazor.Severity.Success);
+    }
+
+    private void CancelEditingRule()
+    {
+        _editingRule = null;
+        _editingRuleTarget = null;
+    }
+
+    private async Task DeleteFamilyRule(string family)
+    {
+        await ModelRuleService.DeleteFamilyRuleAsync(family);
+        await LoadModelRules();
+        Snackbar.Add($"Rule for '{family}' deleted.", MudBlazor.Severity.Info);
     }
 
     private async Task LoadProviders()
