@@ -131,7 +131,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
 @* Detail drawer *@
 <ModelDetailDrawer Open="@_drawerOpen" OpenChanged="v => _drawerOpen = v"
                   Model="@_selectedModel" LocalModel="@_selectedLocalModel" RemoteModel="@_selectedRemoteModel"
-                  OnDeleted="OnModelDeleted" />
+                  OnDeleted="OnModelDeleted" OnNsfwChanged="OnModelNsfwChanged" />
 
 @code {
     // Per-source state
@@ -289,8 +289,7 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
             var filter = new ModelFilter(
                 SearchTerm: state.SearchTerm,
                 Family: state.FamilyFilter,
-                Type: state.TypeFilter,
-                ExcludeNsfw: NsfwShieldEnabled ? true : null);
+                Type: state.TypeFilter);
             var models = await ModelCatalogService.ListAsync(filter);
 
             _localModelCache.Clear();
@@ -411,6 +410,20 @@ else if (_selectedSource != "local" && !CurrentState.HasMore && CurrentState.Res
         _drawerOpen = false;
         await LoadLocalModels();
         Snackbar.Add("Model removed from catalog.", MudBlazor.Severity.Info);
+    }
+
+    private void OnModelNsfwChanged(bool isNsfw)
+    {
+        // Update the card in the local results list so it reflects immediately
+        if (_selectedModel is not null)
+        {
+            _selectedModel = _selectedModel with { IsNsfw = isNsfw };
+            var state = _sourceStates["local"];
+            var idx = state.Results.FindIndex(r => r.Id == _selectedModel.Id);
+            if (idx >= 0)
+                state.Results[idx] = _selectedModel;
+            StateHasChanged();
+        }
     }
 
     private async Task AddDirectory()

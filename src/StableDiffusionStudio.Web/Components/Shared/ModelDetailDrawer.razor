@@ -177,6 +177,7 @@
     [Parameter] public ModelRecordDto? LocalModel { get; set; }
     [Parameter] public RemoteModelInfo? RemoteModel { get; set; }
     [Parameter] public EventCallback OnDeleted { get; set; }
+    [Parameter] public EventCallback<bool> OnNsfwChanged { get; set; }
 
     private string? _selectedVariant;
     private bool _downloading;
@@ -206,8 +207,8 @@
         try
         {
             await ModelCatalogService.SetModelNsfwAsync(LocalModel.Id, isNsfw);
-            // Update the local view model to reflect the change
             Model = Model! with { IsNsfw = isNsfw };
+            await OnNsfwChanged.InvokeAsync(isNsfw);
             Snackbar.Add(isNsfw ? "Model marked as NSFW" : "NSFW flag removed", MudBlazor.Severity.Info);
         }
         catch (Exception ex)
