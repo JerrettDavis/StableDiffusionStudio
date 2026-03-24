@@ -530,6 +530,7 @@ public partial class Program
             ("ModelRecords", "HuggingFaceModelId", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""HuggingFaceModelId"" TEXT"),
             ("ModelRecords", "HuggingFaceUrl", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""HuggingFaceUrl"" TEXT"),
             ("ModelRecords", "LastEnrichedAt", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""LastEnrichedAt"" INTEGER"),
+            ("ModelRecords", "IsNsfw", @"ALTER TABLE ""ModelRecords"" ADD COLUMN ""IsNsfw"" INTEGER NOT NULL DEFAULT 0"),
         };
 
         foreach (var (table, column, alterSql) in columns)
