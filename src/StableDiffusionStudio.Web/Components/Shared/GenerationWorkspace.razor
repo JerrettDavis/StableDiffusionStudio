@@ -308,6 +308,7 @@
 @code {
     [Parameter, EditorRequired] public Guid ProjectId { get; set; }
     [Parameter] public string? ProjectName { get; set; }
+    [Parameter] public Guid? InitialCheckpointId { get; set; }
 
     // Generation workspace state
     private Guid? _checkpointId;
@@ -452,6 +453,13 @@
             _isGenerating = true;
             _generationStatus = "Generation in progress...";
             StartProgressTimer();
+        }
+
+        // Apply initial checkpoint from query parameter (e.g. from "Select for Generation" in model drawer)
+        if (InitialCheckpointId.HasValue)
+        {
+            _checkpointId = InitialCheckpointId.Value;
+            await OnCheckpointChanged(InitialCheckpointId);
         }
     }
 

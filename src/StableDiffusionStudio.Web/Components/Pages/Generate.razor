@@ -3,6 +3,7 @@
 @using StableDiffusionStudio.Application.DTOs
 @using StableDiffusionStudio.Application.Interfaces
 @inject IProjectService ProjectService
+@inject NavigationManager Navigation
 
 <MudText Typo="Typo.h4" Class="mb-4">Quick Generate</MudText>
 
@@ -12,16 +13,25 @@
 }
 else
 {
-    <GenerationWorkspace ProjectId="_projectId.Value" ProjectName="Quick Generate" />
+    <GenerationWorkspace ProjectId="_projectId.Value" ProjectName="Quick Generate"
+                         InitialCheckpointId="_initialModelId" />
 }
 
 @code {
     private Guid? _projectId;
+    private Guid? _initialModelId;
 
     private const string QuickGenerateProjectName = "Quick Generate";
 
     protected override async Task OnInitializedAsync()
     {
+        // Parse ?model= query parameter
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var modelParam = query["model"];
+        if (Guid.TryParse(modelParam, out var modelId))
+            _initialModelId = modelId;
+
         await EnsureQuickGenerateProject();
     }
 
