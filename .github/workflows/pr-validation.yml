@@ -107,7 +107,7 @@ jobs:
           docfx build docs/docfx.json
 
       - name: Create PR comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         if: always()
         with:
           script: |
