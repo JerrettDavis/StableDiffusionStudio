@@ -58,11 +58,11 @@ public class BackgroundJobProcessor : BackgroundService
             return;
         }
 
-        job.Start();
-        await context.SaveChangesAsync(ct);
-
         try
         {
+            job.Start();
+            await context.SaveChangesAsync(ct);
+
             await handler.HandleAsync(job, ct);
 
             if (job.Status == JobStatus.Running)
