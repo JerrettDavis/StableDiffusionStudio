@@ -98,13 +98,13 @@ public class BackgroundJobProcessorTests : IDisposable
         using var cts = new CancellationTokenSource();
         await processor.StartAsync(cts.Token);
         await channel.Writer.WriteAsync(job.Id);
-
-        var failed = await WaitForJobAsync(job.Id, j => j.Status == JobStatus.Failed, timeoutMs: 5000);
-
+        await Task.Delay(500);
         cts.Cancel();
         try { await processor.StopAsync(CancellationToken.None); } catch (OperationCanceledException) { }
 
-        failed.Status.Should().Be(JobStatus.Failed);
+        await using var verifyCtx = new AppDbContext(_dbOptions);
+        var failed = await verifyCtx.JobRecords.FindAsync(job.Id);
+        failed!.Status.Should().Be(JobStatus.Failed);
         failed.ErrorMessage.Should().Contain("Something broke");
     }
 
@@ -277,25 +277,6 @@ public class BackgroundJobProcessorTests : IDisposable
             var completed = await verifyCtx.JobRecords.FindAsync(job.Id);
             completed!.Status.Should().Be(JobStatus.Completed);
         }
-    }
-
-    private async Task<JobRecord> WaitForJobAsync(Guid jobId, Func<JobRecord, bool> predicate, int timeoutMs = 3000)
-    {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (sw.ElapsedMilliseconds < timeoutMs)
-        {
-            await using var verifyCtx = new AppDbContext(_dbOptions);
-            var job = await verifyCtx.JobRecords.FindAsync(jobId);
-            if (job is not null && predicate(job))
-                return job;
-
-            await Task.Delay(100);
-        }
-
-        await using var finalCtx = new AppDbContext(_dbOptions);
-        var final = await finalCtx.JobRecords.FindAsync(jobId)
-            ?? throw new InvalidOperationException($"Job {jobId} not found while waiting for state transition.");
-        return final;
     }
 
     private class TestJobHandler : IJobHandler
