@@ -15,7 +15,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
     <PackageReference Include="NsfwSpy" Version="3.5.0" />
-    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.12.0" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.0" />
     <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cpu" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Vulkan" Version="6.0.0" />
