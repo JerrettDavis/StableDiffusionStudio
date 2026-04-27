@@ -12,7 +12,6 @@ updates:
       - "jerrettdavis"
     labels:
       - "dependencies"
-      - "nuget"
     commit-message:
       prefix: "deps"
       include: "scope"
