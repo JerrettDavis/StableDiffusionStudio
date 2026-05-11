@@ -18,7 +18,7 @@
     <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="14.13.0" />
     <PackageReference Include="StableDiffusion.NET" Version="6.0.0" />
     <PackageReference Include="StableDiffusion.NET.Backend.Cpu" Version="6.0.0" />
-    <PackageReference Include="StableDiffusion.NET.Backend.Vulkan" Version="6.0.0" />
+    <PackageReference Include="StableDiffusion.NET.Backend.Vulkan" Version="7.0.0" />
   </ItemGroup>
 
   <!-- CUDA 12 backends — Windows only (CPU and Vulkan provide cross-platform fallbacks) -->
