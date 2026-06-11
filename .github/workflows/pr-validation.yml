@@ -90,7 +90,7 @@ jobs:
           check_name: Test Results
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: always()
         with:
           files: ./TestResults/**/coverage.opencover.xml
