@@ -1,0 +1,84 @@
+Discovering projects...
+Analyzing project(s)...
+Analyzing dependencies...
+» StableDiffusionStudio.Application
+  [net10.0]
+  Microsoft.Extensions.Logging.Abstractions  10.0.8 -> 10.0.9
+
+» StableDiffusionStudio.Application.Tests
+  [net10.0]
+  Microsoft.Data.Sqlite                 10.0.8 -> 10.0.9
+  Microsoft.EntityFrameworkCore.Sqlite  10.0.8 -> 10.0.9
+
+» StableDiffusionStudio.E2E.Tests
+  [net10.0]
+  Microsoft.AspNetCore.Mvc.Testing  10.0.8 -> 10.0.9
+
+» StableDiffusionStudio.Infrastructure
+  [net10.0]
+  Microsoft.EntityFrameworkCore.Design                        10.0.8 -> 10.0.9
+  Microsoft.EntityFrameworkCore.Sqlite                        10.0.8 -> 10.0.9
+  Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions  10.0.8 -> 10.0.9
+  Microsoft.Extensions.Hosting.Abstractions                   10.0.8 -> 10.0.9
+
+» StableDiffusionStudio.Infrastructure.Tests
+  [net10.0]
+  Microsoft.EntityFrameworkCore.Sqlite  10.0.8 -> 10.0.9
+
+» StableDiffusionStudio.ServiceDefaults
+  [net10.0]
+  Microsoft.Extensions.Http.Resilience          10.6.0 -> 10.7.0
+  Microsoft.Extensions.ServiceDiscovery         10.6.0 -> 10.7.0
+  OpenTelemetry.Exporter.OpenTelemetryProtocol  1.15.3 -> 1.16.0
+  OpenTelemetry.Extensions.Hosting              1.15.3 -> 1.16.0
+
+» StableDiffusionStudio.Web
+  [net10.0]
+  Microsoft.AspNetCore.SignalR.Client   10.0.8 -> 10.0.9
+  Microsoft.EntityFrameworkCore.Design  10.0.8 -> 10.0.9
+
+Version color legend:
+<red>   : Major version update or pre-release version. Possible breaking changes.
+<yellow>: Minor version update. Backwards-compatible features added.
+<green> : Patch version update. Backwards-compatible bug fixes.
+
+Upgrading package Microsoft.Extensions.Logging.Abstractions...
+Project StableDiffusionStudio.Application [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Data.Sqlite...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.EntityFrameworkCore.Sqlite...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.AspNetCore.Mvc.Testing...
+Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.EntityFrameworkCore.Design...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Hosting.Abstractions...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Http.Resilience...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.ServiceDiscovery...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Exporter.OpenTelemetryProtocol...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Extensions.Hosting...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package Microsoft.AspNetCore.SignalR.Client...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+
+Elapsed: 00:01:08.4577265
