@@ -1,5 +1,60 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
-No outdated dependencies were detected
-Elapsed: 00:00:37.6435691
+» StableDiffusionStudio.Application.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.6.0 -> 18.7.0
+
+» StableDiffusionStudio.Domain.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.6.0 -> 18.7.0
+
+» StableDiffusionStudio.E2E.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.6.0 -> 18.7.0
+  Microsoft.Playwright    1.60.0 -> 1.61.0
+
+» StableDiffusionStudio.Infrastructure.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.6.0 -> 18.7.0
+
+» StableDiffusionStudio.ServiceDefaults
+  [net10.0]
+  OpenTelemetry.Instrumentation.AspNetCore  1.15.2 -> 1.16.0
+  OpenTelemetry.Instrumentation.Http        1.15.1 -> 1.16.0
+
+» StableDiffusionStudio.Web
+  [net10.0]
+  MudBlazor  9.5.0 -> 9.6.0
+
+» StableDiffusionStudio.Web.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.6.0 -> 18.7.0
+  MudBlazor               9.5.0  -> 9.6.0 
+
+Version color legend:
+<red>   : Major version update or pre-release version. Possible breaking changes.
+<yellow>: Minor version update. Backwards-compatible features added.
+<green> : Patch version update. Backwards-compatible bug fixes.
+
+Upgrading package Microsoft.NET.Test.Sdk...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Domain.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Playwright...
+Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.AspNetCore...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.Http...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package MudBlazor...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
+
+Elapsed: 00:01:02.9503096
