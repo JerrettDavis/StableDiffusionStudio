@@ -40,7 +40,7 @@ jobs:
         run: dotnet workload install aspire
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4.36.2
+        uses: github/codeql-action/init@v4.36.3
         with:
           languages: csharp
 
@@ -51,4 +51,4 @@ jobs:
         run: dotnet build StableDiffusionStudio.slnx --configuration Release --no-restore
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4.36.2
+        uses: github/codeql-action/analyze@v4.36.3
