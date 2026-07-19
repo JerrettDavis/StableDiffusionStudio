@@ -1,32 +1,118 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
+» StableDiffusionStudio.Application
+  [net10.0]
+  Microsoft.Extensions.Logging.Abstractions  10.0.9 -> 10.0.10
+
+» StableDiffusionStudio.Application.Tests
+  [net10.0]
+  Microsoft.Data.Sqlite                 10.0.9 -> 10.0.10
+  Microsoft.EntityFrameworkCore.Sqlite  10.0.9 -> 10.0.10
+  Microsoft.NET.Test.Sdk                18.7.0 -> 18.8.1 
+
+» StableDiffusionStudio.Domain.Tests
+  [net10.0]
+  Microsoft.NET.Test.Sdk  18.7.0 -> 18.8.1
+
+» StableDiffusionStudio.E2E.Tests
+  [net10.0]
+  Microsoft.AspNetCore.Mvc.Testing  10.0.9 -> 10.0.10
+  Microsoft.NET.Test.Sdk            18.7.0 -> 18.8.1 
+
+» StableDiffusionStudio.Infrastructure
+  [net10.0]
+  Magick.NET-Q16-AnyCPU                                       14.14.0 -> 14.15.0
+  Microsoft.EntityFrameworkCore.Design                        10.0.9  -> 10.0.10
+  Microsoft.EntityFrameworkCore.Sqlite                        10.0.9  -> 10.0.10
+  Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions  10.0.9  -> 10.0.10
+  Microsoft.Extensions.Hosting.Abstractions                   10.0.9  -> 10.0.10
+
+» StableDiffusionStudio.Infrastructure.Tests
+  [net10.0]
+  Microsoft.EntityFrameworkCore.Sqlite  10.0.9 -> 10.0.10
+  Microsoft.NET.Test.Sdk                18.7.0 -> 18.8.1 
+
 » StableDiffusionStudio.ServiceDefaults
   [net10.0]
-  OpenTelemetry.Instrumentation.Runtime  1.15.1 -> 1.16.0
+  Microsoft.Extensions.Http.Resilience          10.7.0 -> 10.8.0
+  Microsoft.Extensions.ServiceDiscovery         10.7.0 -> 10.8.0
+  OpenTelemetry.Exporter.OpenTelemetryProtocol  1.16.0 -> 1.17.0
+  OpenTelemetry.Extensions.Hosting              1.16.0 -> 1.17.0
+  OpenTelemetry.Instrumentation.AspNetCore      1.16.0 -> 1.17.0
+  OpenTelemetry.Instrumentation.Http            1.16.0 -> 1.17.0
+  OpenTelemetry.Instrumentation.Runtime         1.16.0 -> 1.17.0
 
 » StableDiffusionStudio.Web
   [net10.0]
-  ModelContextProtocol.AspNetCore  1.4.0 -> 1.4.1
-  MudBlazor                        9.6.0 -> 9.7.0
+  Microsoft.AspNetCore.SignalR.Client   10.0.9 -> 10.0.10
+  Microsoft.EntityFrameworkCore.Design  10.0.9 -> 10.0.10
 
 » StableDiffusionStudio.Web.Tests
   [net10.0]
-  MudBlazor  9.6.0 -> 9.7.0
+  Microsoft.NET.Test.Sdk  18.7.0 -> 18.8.1
 
 Version color legend:
 <red>   : Major version update or pre-release version. Possible breaking changes.
 <yellow>: Minor version update. Backwards-compatible features added.
 <green> : Patch version update. Backwards-compatible bug fixes.
 
+Upgrading package Microsoft.Extensions.Logging.Abstractions...
+Project StableDiffusionStudio.Application [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Data.Sqlite...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.EntityFrameworkCore.Sqlite...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.NET.Test.Sdk...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Domain.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
+
+Upgrading package Microsoft.AspNetCore.Mvc.Testing...
+Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+
+Upgrading package Magick.NET-Q16-AnyCPU...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package Microsoft.EntityFrameworkCore.Design...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Hosting.Abstractions...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.Http.Resilience...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package Microsoft.Extensions.ServiceDiscovery...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Exporter.OpenTelemetryProtocol...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Extensions.Hosting...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.AspNetCore...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.Http...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
 Upgrading package OpenTelemetry.Instrumentation.Runtime...
 Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
 
-Upgrading package ModelContextProtocol.AspNetCore...
+Upgrading package Microsoft.AspNetCore.SignalR.Client...
 Project StableDiffusionStudio.Web [net10.0] upgraded successfully
 
-Upgrading package MudBlazor...
-Project StableDiffusionStudio.Web [net10.0] upgraded successfully
-Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
-
-Elapsed: 00:00:56.6444352
+Elapsed: 00:01:33.8218562
