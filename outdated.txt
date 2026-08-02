@@ -1,5 +1,23 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
-No outdated dependencies were detected
-Elapsed: 00:00:54.7427171
+» StableDiffusionStudio.Infrastructure
+  [net10.0]
+  Magick.NET-Q16-AnyCPU  14.15.0 -> 14.16.0
+
+» StableDiffusionStudio.Web.Tests
+  [net10.0]
+  bunit  2.7.2 -> 2.8.6
+
+Version color legend:
+<red>   : Major version update or pre-release version. Possible breaking changes.
+<yellow>: Minor version update. Backwards-compatible features added.
+<green> : Patch version update. Backwards-compatible bug fixes.
+
+Upgrading package Magick.NET-Q16-AnyCPU...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+
+Upgrading package bunit...
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
+
+Elapsed: 00:00:46.4244957
