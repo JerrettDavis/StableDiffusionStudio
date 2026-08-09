@@ -1,23 +1,48 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
-» StableDiffusionStudio.Infrastructure
+» StableDiffusionStudio.Application.Tests
   [net10.0]
-  Magick.NET-Q16-AnyCPU  14.15.0 -> 14.16.0
+  NSubstitute  6.0.0 -> 6.1.0
+
+» StableDiffusionStudio.Domain.Tests
+  [net10.0]
+  NSubstitute  6.0.0 -> 6.1.0
+
+» StableDiffusionStudio.Infrastructure.Tests
+  [net10.0]
+  NSubstitute  6.0.0 -> 6.1.0
+
+» StableDiffusionStudio.Web
+  [net10.0]
+  ModelContextProtocol.AspNetCore  2.0.0 -> 2.1.0
+  MudBlazor                        9.7.0 -> 9.8.0
 
 » StableDiffusionStudio.Web.Tests
   [net10.0]
-  bunit  2.7.2 -> 2.8.6
+  bunit        2.8.6 -> 2.9.0
+  MudBlazor    9.7.0 -> 9.8.0
+  NSubstitute  6.0.0 -> 6.1.0
 
 Version color legend:
 <red>   : Major version update or pre-release version. Possible breaking changes.
 <yellow>: Minor version update. Backwards-compatible features added.
 <green> : Patch version update. Backwards-compatible bug fixes.
 
-Upgrading package Magick.NET-Q16-AnyCPU...
-Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
+Upgrading package NSubstitute...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Domain.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
+
+Upgrading package ModelContextProtocol.AspNetCore...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+
+Upgrading package MudBlazor...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
 
 Upgrading package bunit...
 Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
 
-Elapsed: 00:00:46.4244957
+Elapsed: 00:01:00.9273450
