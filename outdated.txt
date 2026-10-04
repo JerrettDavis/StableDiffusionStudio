@@ -1,27 +1,52 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
+» StableDiffusionStudio.Application.Tests
+  [net10.0]
+  coverlet.collector  10.0.1 -> 10.1.0
+
+» StableDiffusionStudio.Domain.Tests
+  [net10.0]
+  coverlet.collector  10.0.1 -> 10.1.0
+
 » StableDiffusionStudio.E2E.Tests
   [net10.0]
-  Microsoft.Playwright  1.62.0 -> 1.63.0
+  coverlet.collector  10.0.1 -> 10.1.0
 
-» StableDiffusionStudio.ServiceDefaults
+» StableDiffusionStudio.Infrastructure
   [net10.0]
-  OpenTelemetry.Exporter.OpenTelemetryProtocol  1.19.0 -> 1.19.1
-  OpenTelemetry.Extensions.Hosting              1.19.0 -> 1.19.1
+  Magick.NET-Q16-AnyCPU  14.17.1 -> 14.17.2
+
+» StableDiffusionStudio.Infrastructure.Tests
+  [net10.0]
+  coverlet.collector  10.0.1 -> 10.1.0
+
+» StableDiffusionStudio.Web
+  [net10.0]
+  MudBlazor  9.10.0 -> 9.11.0
+
+» StableDiffusionStudio.Web.Tests
+  [net10.0]
+  coverlet.collector  10.0.1 -> 10.1.0
+  MudBlazor           9.10.0 -> 9.11.0
 
 Version color legend:
 <red>   : Major version update or pre-release version. Possible breaking changes.
 <yellow>: Minor version update. Backwards-compatible features added.
 <green> : Patch version update. Backwards-compatible bug fixes.
 
-Upgrading package Microsoft.Playwright...
+Upgrading package coverlet.collector...
+Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Domain.Tests [net10.0] upgraded successfully
 Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
 
-Upgrading package OpenTelemetry.Exporter.OpenTelemetryProtocol...
-Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+Upgrading package Magick.NET-Q16-AnyCPU...
+Project StableDiffusionStudio.Infrastructure [net10.0] upgraded successfully
 
-Upgrading package OpenTelemetry.Extensions.Hosting...
-Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+Upgrading package MudBlazor...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
 
-Elapsed: 00:00:50.5655086
+Elapsed: 00:01:09.4072734
