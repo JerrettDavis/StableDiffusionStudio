@@ -1,43 +1,53 @@
 Discovering projects...
 Analyzing project(s)...
 Analyzing dependencies...
-» StableDiffusionStudio.Application
-  [net10.0]
-  FluentValidation  12.1.1 -> 12.2.0
-
-» StableDiffusionStudio.Application.Tests
-  [net10.0]
-  xunit.runner.visualstudio  4.0.0 -> 4.0.1
-
-» StableDiffusionStudio.Domain.Tests
-  [net10.0]
-  xunit.runner.visualstudio  4.0.0 -> 4.0.1
-
 » StableDiffusionStudio.E2E.Tests
   [net10.0]
-  xunit.runner.visualstudio  4.0.0 -> 4.0.1
+  Microsoft.Playwright  1.63.0 -> 1.64.1
 
-» StableDiffusionStudio.Infrastructure.Tests
+» StableDiffusionStudio.ServiceDefaults
   [net10.0]
-  xunit.runner.visualstudio  4.0.0 -> 4.0.1
+  OpenTelemetry.Exporter.OpenTelemetryProtocol  1.20.0 -> 1.20.1
+  OpenTelemetry.Extensions.Hosting              1.20.0 -> 1.20.1
+  OpenTelemetry.Instrumentation.AspNetCore      1.20.0 -> 1.20.1
+  OpenTelemetry.Instrumentation.Http            1.20.0 -> 1.20.1
+  OpenTelemetry.Instrumentation.Runtime         1.20.0 -> 1.20.1
+
+» StableDiffusionStudio.Web
+  [net10.0]
+  ModelContextProtocol.AspNetCore  2.2.0 -> 2.3.0
 
 » StableDiffusionStudio.Web.Tests
   [net10.0]
-  xunit.runner.visualstudio  4.0.0 -> 4.0.1
+  bunit  2.11.3 -> 2.12.5
 
 Version color legend:
 <red>   : Major version update or pre-release version. Possible breaking changes.
 <yellow>: Minor version update. Backwards-compatible features added.
 <green> : Patch version update. Backwards-compatible bug fixes.
 
-Upgrading package FluentValidation...
-Project StableDiffusionStudio.Application [net10.0] upgraded successfully
-
-Upgrading package xunit.runner.visualstudio...
-Project StableDiffusionStudio.Application.Tests [net10.0] upgraded successfully
-Project StableDiffusionStudio.Domain.Tests [net10.0] upgraded successfully
+Upgrading package Microsoft.Playwright...
 Project StableDiffusionStudio.E2E.Tests [net10.0] upgraded successfully
-Project StableDiffusionStudio.Infrastructure.Tests [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Exporter.OpenTelemetryProtocol...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Extensions.Hosting...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.AspNetCore...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.Http...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package OpenTelemetry.Instrumentation.Runtime...
+Project StableDiffusionStudio.ServiceDefaults [net10.0] upgraded successfully
+
+Upgrading package ModelContextProtocol.AspNetCore...
+Project StableDiffusionStudio.Web [net10.0] upgraded successfully
+
+Upgrading package bunit...
 Project StableDiffusionStudio.Web.Tests [net10.0] upgraded successfully
 
-Elapsed: 00:01:11.3081545
+Elapsed: 00:01:30.0919202
