@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@v6.1.0
         with:
           dotnet-version: 10.0.x
 
@@ -82,7 +82,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Exclude="[*Tests]*,[StableDiffusionStudio.Web]*,[StableDiffusionStudio.AppHost]*,[StableDiffusionStudio.ServiceDefaults]*"
 
       - name: Publish test results
-        uses: EnricoMi/publish-unit-test-result-action@v2.25.0
+        uses: EnricoMi/publish-unit-test-result-action@v2.26.0
         if: always()
         with:
           files: |
