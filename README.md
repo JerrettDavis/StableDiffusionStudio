@@ -79,7 +79,7 @@ dotnet run --project src/StableDiffusionStudio.AppHost
 dotnet test --filter "FullyQualifiedName!~E2E"
 
 # E2E BDD tests (Playwright + Reqnroll)
-pwsh tests/StableDiffusionStudio.E2E.Tests/bin/Debug/net10.0/playwright.ps1 install chromium
+pwsh tests/StableDiffusionStudio.E2E.Tests/bin/Debug/net11.0/playwright.ps1 install chromium
 dotnet test tests/StableDiffusionStudio.E2E.Tests
 ```
 
