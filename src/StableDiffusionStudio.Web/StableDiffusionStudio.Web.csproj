@@ -13,7 +13,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
-    <PackageReference Include="MudBlazor" Version="9.13.0" />
+    <PackageReference Include="MudBlazor" Version="9.14.0" />
   </ItemGroup>
 
   <PropertyGroup>
